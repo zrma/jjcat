@@ -59,6 +59,7 @@ function App() {
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const refreshingRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -124,12 +125,13 @@ function App() {
   const refreshRepository = useCallback(
     async (repositoryId: string) => {
       if (!registry) return;
-      const activeRequest = refreshing[repositoryId];
+      const activeRequest = refreshingRef.current[repositoryId];
       if (activeRequest) {
         await bridge.cancelRefresh(activeRequest);
         return;
       }
       const requestId = crypto.randomUUID();
+      refreshingRef.current[repositoryId] = requestId;
       setRefreshing((current) => ({ ...current, [repositoryId]: requestId }));
       setErrors((current) => {
         const next = { ...current };
@@ -151,6 +153,9 @@ function App() {
         const appError = error as AppError;
         setErrors((current) => ({ ...current, [repositoryId]: appError.message }));
       } finally {
+        if (refreshingRef.current[repositoryId] === requestId) {
+          delete refreshingRef.current[repositoryId];
+        }
         setRefreshing((current) => {
           const next = { ...current };
           delete next[repositoryId];
@@ -158,8 +163,20 @@ function App() {
         });
       }
     },
-    [refreshing, registry],
+    [registry],
   );
+
+  useEffect(() => {
+    if (
+      !selectedRepository ||
+      selectedCache ||
+      errors[selectedRepository.id] ||
+      refreshingRef.current[selectedRepository.id]
+    ) {
+      return;
+    }
+    void refreshRepository(selectedRepository.id);
+  }, [errors, refreshRepository, selectedCache, selectedRepository]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
