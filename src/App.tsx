@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowUp,
+  Cable,
   CircleX,
   Database,
-  FolderSearch,
+  Folder,
+  FolderOpen,
   FolderGit2,
   GitBranch,
   History,
@@ -12,6 +15,7 @@ import {
   RefreshCw,
   Search,
   Server,
+  Trash2,
   X,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -37,6 +41,7 @@ type RepositoryState =
   | "disconnected-cached"
   | "empty";
 type HistoryView = "all" | "working-copy";
+type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
 
 function App() {
   const [registry, setRegistry] = useState<Registry | null>(null);
@@ -49,7 +54,8 @@ function App() {
   const [historyView, setHistoryView] = useState<HistoryView>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [browsing, setBrowsing] = useState(false);
+  const [contextMenu, setContextMenu] = useState<RepositoryContextMenu | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<RepositoryRecord | null>(null);
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +89,7 @@ function App() {
         change.author,
         change.changeId,
         change.commitId,
-        ...change.bookmarks,
+        ...change.bookmarks.flatMap((bookmark) => [bookmark.name, bookmark.remote ?? ""]),
       ].some((value) => value.toLocaleLowerCase().includes(query));
     });
   }, [historyView, searchQuery, selectedProjection]);
@@ -178,6 +184,22 @@ function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openIds, refreshRepository, selectRepository, selectedRepository]);
 
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
+
   async function registerRepository(draft: RepositoryDraft) {
     try {
       const snapshot = await bridge.registerRepository(draft);
@@ -192,29 +214,31 @@ function App() {
     }
   }
 
-  async function browseForLocalRepository() {
-    if (!isTauriRuntime) {
-      setShowAdd(true);
-      return;
-    }
-
-    setBrowsing(true);
-    setRepositoryActionError(null);
+  async function removeRepository(repository: RepositoryRecord) {
     try {
-      const selectedPath = await open({
-        directory: true,
-        multiple: false,
-        title: "Open local repository",
+      const snapshot = await bridge.removeRepository(repository.id);
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setOpenIds((current) => {
+        const next = current.filter((id) => id !== repository.id);
+        const fallback = snapshot.registry.selectedRepository;
+        return fallback && !next.includes(fallback) ? [...next, fallback] : next;
       });
-      if (!selectedPath || Array.isArray(selectedPath)) return;
-      await registerRepository({
-        displayName: repositoryNameFromPath(selectedPath),
-        location: { kind: "local", path: selectedPath },
+      setFreshIds((current) => {
+        const next = new Set(current);
+        next.delete(repository.id);
+        return next;
       });
+      setErrors((current) => {
+        const next = { ...current };
+        delete next[repository.id];
+        return next;
+      });
+      setRemoveTarget(null);
+      setRepositoryActionError(null);
     } catch (error) {
-      setRepositoryActionError((error as AppError).message ?? "The repository could not be opened.");
-    } finally {
-      setBrowsing(false);
+      setRepositoryActionError((error as AppError).message);
+      setRemoveTarget(null);
     }
   }
 
@@ -291,16 +315,7 @@ function App() {
 
       <aside className="repository-rail">
         <div className="rail-heading">
-          <button
-            type="button"
-            className="browse-repositories"
-            onClick={() => void browseForLocalRepository()}
-            disabled={browsing}
-            aria-label="Browse for a local repository"
-          >
-            <FolderSearch aria-hidden="true" />
-            <span>{browsing ? "Opening…" : "Repositories"}</span>
-          </button>
+          <h2>Repositories</h2>
           <button type="button" aria-label="Add repository" onClick={() => setShowAdd(true)}>
             <Plus aria-hidden="true" />
           </button>
@@ -343,6 +358,14 @@ function App() {
                     type="button"
                     className={`repository-row ${repository.id === selectedRepository?.id ? "selected" : ""}`}
                     onClick={() => void selectRepository(repository.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setContextMenu({
+                        repositoryId: repository.id,
+                        x: Math.min(event.clientX, window.innerWidth - 190),
+                        y: Math.min(event.clientY, window.innerHeight - 118),
+                      });
+                    }}
                     key={repository.id}
                   >
                     {kind === "local" ? <Database aria-hidden="true" /> : <Server aria-hidden="true" />}
@@ -470,6 +493,33 @@ function App() {
       {showAdd && (
         <AddRepositoryDialog onClose={() => setShowAdd(false)} onSubmit={registerRepository} />
       )}
+      {contextMenu && (
+        <RepositoryMenu
+          menu={contextMenu}
+          repository={registry.repositories.find(
+            (repository) => repository.id === contextMenu.repositoryId,
+          )}
+          refreshing={Boolean(refreshing[contextMenu.repositoryId])}
+          onRefresh={() => {
+            setContextMenu(null);
+            void refreshRepository(contextMenu.repositoryId);
+          }}
+          onRemove={() => {
+            const repository = registry.repositories.find(
+              (candidate) => candidate.id === contextMenu.repositoryId,
+            );
+            setContextMenu(null);
+            if (repository) setRemoveTarget(repository);
+          }}
+        />
+      )}
+      {removeTarget && (
+        <RemoveRepositoryDialog
+          repository={removeTarget}
+          onClose={() => setRemoveTarget(null)}
+          onConfirm={() => void removeRepository(removeTarget)}
+        />
+      )}
     </main>
   );
 }
@@ -538,16 +588,71 @@ function AddRepositoryDialog({
 }) {
   const [kind, setKind] = useState<"local" | "ssh">("local");
   const [displayName, setDisplayName] = useState("");
-  const [path, setPath] = useState("");
+  const [localPath, setLocalPath] = useState("");
+  const [remotePath, setRemotePath] = useState("");
   const [host, setHost] = useState("");
+  const [hosts, setHosts] = useState<string[]>([]);
+  const [hostsLoading, setHostsLoading] = useState(true);
+  const [hostsError, setHostsError] = useState<string | null>(null);
+  const [nameEdited, setNameEdited] = useState(false);
+  const [browsingLocal, setBrowsingLocal] = useState(false);
+  const [browsingRemote, setBrowsingRemote] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    bridge
+      .listSshHosts()
+      .then((aliases) => {
+        if (!current) return;
+        setHosts(aliases);
+        setHost((selected) => selected || aliases[0] || "");
+      })
+      .catch((hostError: AppError) => {
+        if (current) setHostsError(hostError.message);
+      })
+      .finally(() => {
+        if (current) setHostsLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, []);
+
+  function suggestName(selectedPath: string) {
+    if (!nameEdited) setDisplayName(repositoryNameFromPath(selectedPath));
+  }
+
+  async function browseLocal() {
+    setBrowsingLocal(true);
+    setError(null);
+    try {
+      const selectedPath = isTauriRuntime
+        ? await open({
+            directory: true,
+            multiple: false,
+            title: "Choose a local Jujutsu repository",
+          })
+        : "/fixtures/example-repository";
+      if (!selectedPath || Array.isArray(selectedPath)) return;
+      setLocalPath(selectedPath);
+      suggestName(selectedPath);
+    } catch (browseError) {
+      setError((browseError as AppError).message ?? "The local folder could not be opened.");
+    } finally {
+      setBrowsingLocal(false);
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
     setError(null);
-    const location = kind === "local" ? { kind, path } : { kind, host, path };
+    const location =
+      kind === "local"
+        ? { kind, path: localPath }
+        : { kind, host, path: remotePath };
     try {
       await onSubmit({ displayName, location });
     } catch (submitError) {
@@ -575,22 +680,67 @@ function AddRepositoryDialog({
         </div>
         <label>
           Display name
-          <input autoFocus value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="my-repository" required maxLength={80} />
+          <input
+            autoFocus
+            value={displayName}
+            onChange={(event) => {
+              setDisplayName(event.target.value);
+              setNameEdited(true);
+            }}
+            placeholder="my-repository"
+            required
+            maxLength={80}
+          />
         </label>
         {kind === "ssh" && (
           <label>
             OpenSSH host alias
-            <input value={host} onChange={(event) => setHost(event.target.value)} placeholder="dev-box" required />
+            <select
+              value={host}
+              onChange={(event) => setHost(event.target.value)}
+              required
+              disabled={hostsLoading || hosts.length === 0}
+            >
+              {hostsLoading && <option value="">Reading OpenSSH config…</option>}
+              {!hostsLoading && hosts.length === 0 && (
+                <option value="">No explicit host aliases found</option>
+              )}
+              {hosts.map((alias) => (
+                <option value={alias} key={alias}>
+                  {alias}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">
+              {hostsError ?? "Aliases come from your machine-local OpenSSH config."}
+            </span>
           </label>
         )}
         <label>
           Repository path
-          <input
-            value={path}
-            onChange={(event) => setPath(event.target.value)}
-            placeholder="~/projects/repository"
-            required
-          />
+          <span className="path-input">
+            <input
+              value={kind === "local" ? localPath : remotePath}
+              onChange={(event) =>
+                kind === "local"
+                  ? setLocalPath(event.target.value)
+                  : setRemotePath(event.target.value)
+              }
+              placeholder="~/projects/repository"
+              required
+            />
+            <button
+              type="button"
+              aria-label={kind === "local" ? "Browse local folders" : "Browse folders over SSH"}
+              title={kind === "local" ? "Browse local folders" : "Browse folders over SSH"}
+              onClick={() =>
+                kind === "local" ? void browseLocal() : setBrowsingRemote(true)
+              }
+              disabled={kind === "local" ? browsingLocal : !host}
+            >
+              {kind === "local" ? <FolderOpen aria-hidden="true" /> : <Cable aria-hidden="true" />}
+            </button>
+          </span>
           <span className="field-hint">
             {kind === "local"
               ? "Use an absolute path or a path starting with ~/"
@@ -603,6 +753,207 @@ function AddRepositoryDialog({
           <button type="submit" disabled={saving}>{saving ? "Adding…" : "Add repository"}</button>
         </footer>
       </form>
+      {browsingRemote && (
+        <RemoteFolderDialog
+          host={host}
+          initialPath={remotePath || "~/"}
+          onClose={() => setBrowsingRemote(false)}
+          onChoose={(selectedPath) => {
+            setRemotePath(selectedPath);
+            suggestName(selectedPath);
+            setBrowsingRemote(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function RemoteFolderDialog({
+  host,
+  initialPath,
+  onClose,
+  onChoose,
+}: {
+  host: string;
+  initialPath: string;
+  onClose: () => void;
+  onChoose: (path: string) => void;
+}) {
+  const [pathInput, setPathInput] = useState(initialPath);
+  const [listing, setListing] = useState<Awaited<
+    ReturnType<typeof bridge.listRemoteDirectories>
+  > | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const navigate = useCallback(
+    async (path: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const next = await bridge.listRemoteDirectories(host, path);
+        setListing(next);
+        setPathInput(next.path);
+      } catch (navigationError) {
+        setError((navigationError as AppError).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [host],
+  );
+
+  useEffect(() => {
+    void navigate(initialPath);
+  }, [initialPath, navigate]);
+
+  return (
+    <div
+      className="dialog-backdrop remote-browser-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        onClose();
+      }}
+    >
+      <section
+        className="remote-folder-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="remote-folder-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <h2 id="remote-folder-title">Open remote folder</h2>
+            <span><Server aria-hidden="true" /> {host}</span>
+          </div>
+          <button type="button" aria-label="Close remote folder browser" onClick={onClose}>
+            <X aria-hidden="true" />
+          </button>
+        </header>
+        <form
+          className="remote-path-bar"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void navigate(pathInput);
+          }}
+        >
+          <input
+            aria-label="Remote path"
+            value={pathInput}
+            onChange={(event) => setPathInput(event.target.value)}
+          />
+          <button type="submit" disabled={loading}>Go</button>
+        </form>
+        <div className="remote-folder-list" aria-busy={loading}>
+          {listing?.parent && (
+            <button
+              type="button"
+              onClick={() => listing.parent && void navigate(listing.parent)}
+            >
+              <ArrowUp aria-hidden="true" />
+              <span>..</span>
+            </button>
+          )}
+          {listing?.directories.map((directory) => (
+            <button type="button" onClick={() => void navigate(directory)} key={directory}>
+              <Folder aria-hidden="true" />
+              <span>{repositoryNameFromPath(directory)}</span>
+            </button>
+          ))}
+          {loading && <p>Connecting and reading folders…</p>}
+          {!loading && listing && listing.directories.length === 0 && <p>No child folders.</p>}
+          {error && <p className="dialog-error">{error}</p>}
+        </div>
+        <footer>
+          <span className="remote-current-path" title={listing?.path ?? pathInput}>
+            {listing?.path ?? pathInput}
+          </span>
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => listing && onChoose(listing.path)}
+            disabled={!listing || loading}
+          >
+            Use this folder
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function RepositoryMenu({
+  menu,
+  repository,
+  refreshing,
+  onRefresh,
+  onRemove,
+}: {
+  menu: RepositoryContextMenu;
+  repository: RepositoryRecord | undefined;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onRemove: () => void;
+}) {
+  if (!repository) return null;
+  return (
+    <div
+      className="repository-context-menu"
+      role="menu"
+      aria-label={`${repository.displayName} actions`}
+      style={{ left: menu.x, top: menu.y }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <button type="button" role="menuitem" onClick={onRefresh} disabled={refreshing}>
+        <RefreshCw aria-hidden="true" />
+        {refreshing ? "Refreshing…" : "Refresh repository"}
+      </button>
+      <span className="menu-separator" />
+      <button type="button" role="menuitem" className="danger" onClick={onRemove} disabled={refreshing}>
+        <Trash2 aria-hidden="true" />
+        Remove from jjcat…
+      </button>
+    </div>
+  );
+}
+
+function RemoveRepositoryDialog({
+  repository,
+  onClose,
+  onConfirm,
+}: {
+  repository: RepositoryRecord;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="dialog-backdrop confirm-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="remove-repository-title"
+        aria-describedby="remove-repository-description"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <Trash2 aria-hidden="true" />
+          <h2 id="remove-repository-title">Remove {repository.displayName}?</h2>
+        </header>
+        <p id="remove-repository-description">
+          This removes the repository from jjcat’s list and cached view. Files on disk and the
+          remote repository remain untouched.
+        </p>
+        <footer>
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="danger" onClick={onConfirm}>Remove from jjcat</button>
+        </footer>
+      </section>
     </div>
   );
 }

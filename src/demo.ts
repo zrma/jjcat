@@ -1,5 +1,6 @@
 import type {
   AppError,
+  BookmarkRef,
   CachedProjection,
   RegistrySnapshot,
   RepositoryDraft,
@@ -16,7 +17,7 @@ function change(
   ageMinutes: number,
   options: Partial<{
     parents: string[];
-    bookmarks: string[];
+    bookmarks: BookmarkRef[];
     workingCopy: boolean;
     empty: boolean;
     files: { status: string; path: string }[];
@@ -41,7 +42,11 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
   const rows = [
     change("7f3a2b1c9d8e", "8b1c2d3e4f5a", "feat: add repository identity", 0, {
       parents: ["6a7b8c9d0e1f"],
-      bookmarks: ["main", "release-candidate", "review-ready"],
+      bookmarks: [
+        { name: "main", remote: null },
+        { name: "main", remote: "origin" },
+        { name: "review-ready", remote: null },
+      ],
       workingCopy: true,
       files: [
         { status: "A", path: "src-tauri/src/domain.rs" },
@@ -131,6 +136,48 @@ export class DemoBridge {
     this.snapshot.registry.repositories.push(repository);
     this.snapshot.registry.selectedRepository = repository.id;
     return this.loadRegistry();
+  }
+
+  async removeRepository(repositoryId: string) {
+    const index = this.snapshot.registry.repositories.findIndex(
+      (repository) => repository.id === repositoryId,
+    );
+    if (index < 0) {
+      throw { kind: "notFound", message: "Repository is not registered." } satisfies AppError;
+    }
+    this.snapshot.registry.repositories.splice(index, 1);
+    delete this.snapshot.registry.cachedProjections[repositoryId];
+    if (this.snapshot.registry.selectedRepository === repositoryId) {
+      this.snapshot.registry.selectedRepository =
+        this.snapshot.registry.repositories[index]?.id ??
+        this.snapshot.registry.repositories[index - 1]?.id ??
+        null;
+    }
+    return this.loadRegistry();
+  }
+
+  async listSshHosts() {
+    return ["fixture-host", "staging-fixture"];
+  }
+
+  async listRemoteDirectories(_host: string, path: string) {
+    const normalized = path === "~/" ? "/fixtures/remote" : path.replace(/\/$/, "") || "/";
+    const fixtures: Record<string, string[]> = {
+      "/fixtures/remote": ["/fixtures/remote/projects", "/fixtures/remote/sandboxes"],
+      "/fixtures/remote/projects": [
+        "/fixtures/remote/projects/infra-lab",
+        "/fixtures/remote/projects/product-app",
+      ],
+    };
+    const parent =
+      normalized === "/"
+        ? null
+        : normalized.slice(0, normalized.lastIndexOf("/")) || "/";
+    return {
+      path: normalized,
+      parent,
+      directories: fixtures[normalized] ?? [],
+    };
   }
 
   async selectRepository(repositoryId: string) {

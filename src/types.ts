@@ -16,13 +16,18 @@ export interface ChangedFile {
   path: string;
 }
 
+export interface BookmarkRef {
+  name: string;
+  remote: string | null;
+}
+
 export interface ChangeRow {
   changeId: string;
   commitId: string;
   summary: string;
   author: string;
   updatedAt: string;
-  bookmarks: string[];
+  bookmarks: BookmarkRef[];
   parents: string[];
   files: ChangedFile[];
   conflict: boolean;
@@ -63,6 +68,12 @@ export interface RegistrySnapshot {
 export interface RepositoryDraft {
   displayName: string;
   location: RepositoryLocation;
+}
+
+export interface RemoteDirectoryListing {
+  path: string;
+  parent: string | null;
+  directories: string[];
 }
 
 export interface AppError {

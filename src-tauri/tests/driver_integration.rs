@@ -77,8 +77,17 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         },
     )
     .unwrap();
-    let remote_projection = JjDriver::with_programs("jj".into(), fake_ssh)
+    let remote_driver = JjDriver::with_programs("jj".into(), fake_ssh);
+    let remote_projection = remote_driver
         .project(&remote, CancellationToken::new())
+        .await
+        .unwrap();
+    let remote_directories = remote_driver
+        .list_remote_directories(
+            "fixture-host".into(),
+            "~/fixtures".into(),
+            CancellationToken::new(),
+        )
         .await
         .unwrap();
 
@@ -97,5 +106,16 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     assert_eq!(
         remote_projection.working_copy_has_changes,
         local_projection.working_copy_has_changes
+    );
+    assert_eq!(
+        remote_directories.directories,
+        vec![
+            fake_home
+                .canonicalize()
+                .unwrap()
+                .join("fixtures/repository with spaces")
+                .to_string_lossy()
+                .into_owned()
+        ]
     );
 }

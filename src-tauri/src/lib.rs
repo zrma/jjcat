@@ -3,6 +3,7 @@ pub mod domain;
 pub mod driver;
 mod process;
 mod registry;
+mod ssh_config;
 
 use tauri::Manager;
 
@@ -17,8 +18,11 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::load_registry,
+            commands::list_ssh_hosts,
+            commands::list_remote_directories,
             commands::register_repository,
             commands::select_repository,
+            commands::remove_repository,
             commands::refresh_repository,
             commands::cancel_refresh,
         ])

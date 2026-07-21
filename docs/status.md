@@ -20,7 +20,9 @@
 - bounded timeout/cancellation과 redacted error를 갖춘 OpenSSH stdio driver
 - repository rail, tabs, DAG, change inspector와 cached/stale/disconnected UI
 - 34px compact graph/history row, 하단 file/metadata inspector와 change search/filter
-- native local folder picker와 VisualJJ 방식의 inline multi-bookmark label/overflow
+- 통합 Add dialog의 native local picker, OpenSSH alias/dropdown 및 bounded remote folder browser
+- VisualJJ 방식의 local/remote inline bookmark label, source identity와 overflow
+- filesystem을 건드리지 않는 registry/cache/tab 전용 repository remove
 - local absolute path 및 `~/...` 입력의 canonical identity normalization
 - cat outline과 change DAG를 결합한 header/application identity asset
 - local, simulated SSH, local-only actual SSH 2-repository matrix와 native bundle smoke

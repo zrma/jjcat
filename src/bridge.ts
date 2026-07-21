@@ -1,10 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
 import { DemoBridge } from "./demo";
-import type { AppError, CachedProjection, RegistrySnapshot, RepositoryDraft } from "./types";
+import type {
+  AppError,
+  CachedProjection,
+  RegistrySnapshot,
+  RemoteDirectoryListing,
+  RepositoryDraft,
+} from "./types";
 
 interface Bridge {
   loadRegistry(): Promise<RegistrySnapshot>;
   registerRepository(draft: RepositoryDraft): Promise<RegistrySnapshot>;
+  removeRepository(repositoryId: string): Promise<RegistrySnapshot>;
+  listSshHosts(): Promise<string[]>;
+  listRemoteDirectories(host: string, path: string): Promise<RemoteDirectoryListing>;
   selectRepository(repositoryId: string): Promise<void>;
   refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
@@ -19,6 +28,20 @@ class TauriBridge implements Bridge {
 
   registerRepository(draft: RepositoryDraft) {
     return invoke<RegistrySnapshot>("register_repository", { draft }).catch(normalizeError);
+  }
+
+  removeRepository(repositoryId: string) {
+    return invoke<RegistrySnapshot>("remove_repository", { repositoryId }).catch(normalizeError);
+  }
+
+  listSshHosts() {
+    return invoke<string[]>("list_ssh_hosts").catch(normalizeError);
+  }
+
+  listRemoteDirectories(host: string, path: string) {
+    return invoke<RemoteDirectoryListing>("list_remote_directories", { host, path }).catch(
+      normalizeError,
+    );
   }
 
   selectRepository(repositoryId: string) {

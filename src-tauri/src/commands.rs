@@ -7,10 +7,12 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
-    CachedProjection, Registry, RepositoryId, RepositoryLocation, RepositoryRecord,
+    CachedProjection, Registry, RemoteDirectoryListing, RepositoryId, RepositoryLocation,
+    RepositoryRecord,
 };
 use crate::driver::{DriverError, JjDriver};
 use crate::registry::{RegistryError, RegistryStore};
+use crate::ssh_config::explicit_host_aliases;
 
 pub struct AppState {
     store: Mutex<RegistryStore>,
@@ -63,6 +65,31 @@ enum AppErrorKind {
 pub async fn load_registry(state: State<'_, AppState>) -> Result<RegistrySnapshot, AppError> {
     let store = state.store.lock().await;
     snapshot_from_load(store.load().map_err(storage_error)?)
+}
+
+#[tauri::command]
+pub async fn list_ssh_hosts(app: AppHandle) -> Result<Vec<String>, AppError> {
+    let home_dir = app.path().home_dir().map_err(|_| AppError {
+        kind: AppErrorKind::Storage,
+        message: "home directory could not be resolved".into(),
+    })?;
+    explicit_host_aliases(&home_dir.join(".ssh/config"), &home_dir).map_err(|_| AppError {
+        kind: AppErrorKind::Storage,
+        message: "OpenSSH host aliases could not be read".into(),
+    })
+}
+
+#[tauri::command]
+pub async fn list_remote_directories(
+    host: String,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<RemoteDirectoryListing, AppError> {
+    state
+        .driver
+        .list_remote_directories(host, path, CancellationToken::new())
+        .await
+        .map_err(driver_error)
 }
 
 #[tauri::command]
@@ -125,6 +152,27 @@ pub async fn select_repository(
 }
 
 #[tauri::command]
+pub async fn remove_repository(
+    repository_id: RepositoryId,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    if !registry.remove_repository(&repository_id) {
+        return Err(AppError {
+            kind: AppErrorKind::NotFound,
+            message: "repository is not registered".into(),
+        });
+    }
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
 pub async fn refresh_repository(
     repository_id: RepositoryId,
     request_id: String,
@@ -173,6 +221,16 @@ pub async fn refresh_repository(
     let store = state.store.lock().await;
     let loaded = store.load().map_err(storage_error)?;
     let mut registry = loaded.registry;
+    if !registry
+        .repositories
+        .iter()
+        .any(|registered| registered.id == repository.id)
+    {
+        return Err(AppError {
+            kind: AppErrorKind::NotFound,
+            message: "repository was removed while refresh was running".into(),
+        });
+    }
     registry
         .cached_projections
         .insert(repository.id.clone(), cached.clone());

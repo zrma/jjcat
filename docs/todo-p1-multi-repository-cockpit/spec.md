@@ -15,10 +15,14 @@ refresh와 pinned/recent UX는 없다.
 
 P1 시작 baseline으로 local registration은 absolute path와 `~/...` 입력을 같은 canonical
 absolute identity로 정규화한다. cockpit은 compact graph/history row와 하단 file/metadata
-inspector를 사용한다. native `Repositories` action은 local folder picker를 열고, bookmark는
-VisualJJ처럼 change description 앞의 개별 label로 표시한다. compact row는 앞의 두 label과
-`+N` overflow를, inspector는 전체 label을 표시한다. mutation affordance는 안전한 operation preview가 생기는 P3 전까지
-노출하지 않는다.
+inspector를 사용한다. `Repositories`는 section title로 유지하고 `+`가 여는 통합 Add
+repository dialog의 path action에서 local native folder picker 또는 OpenSSH folder browser를
+연다. folder 선택은 path와 아직 수정하지 않은 display name 제안을 채운다. bookmark는
+VisualJJ처럼 change description 앞의 개별 label로 표시하며 local bookmark와 remote
+bookmark를 source identity와 함께 구분한다. compact row는 앞의 두 label과 `+N` overflow를,
+inspector는 전체 label을 표시한다. repository context menu의 remove는 registry, cache와
+jjcat tab만 정리하며 filesystem 또는 remote repository를 삭제하지 않는다. mutation
+affordance는 안전한 operation preview가 생기는 P3 전까지 노출하지 않는다.
 
 ## Scope
 
@@ -40,7 +44,7 @@ VisualJJ처럼 change description 앞의 개별 label로 표시한다. compact r
 
 | ID | Status | Verify | Work item |
 | --- | --- | --- | --- |
-| C0 | done | domain unit test + desktop/narrow rendered smoke | local `~/...` normalization, native folder picker, compact cockpit와 cat-DAG/bookmark identity |
+| C0 | done | domain/transport unit test + desktop/narrow rendered smoke | local `~/...` normalization, integrated local/SSH folder picker, compact cockpit, registry-only remove와 local/remote bookmark identity |
 | C1 | todo | registry migration test | open tabs, order와 selected tab persistence |
 | C2 | todo | keyboard/pointer rendered smoke | quick switcher search와 tab reopen/close |
 | C3 | todo | scheduler unit/integration test | repository별 refresh dedup, cancel와 backoff |
@@ -58,6 +62,10 @@ VisualJJ처럼 change description 앞의 개별 label로 표시한다. compact r
 - handoff command는 credential이나 private environment를 preview에 노출하지 않는다.
 - representative graph fixture에서 clipping과 interaction regression이 없다.
 - local `~/...` 입력은 home 기준 absolute path와 같은 repository identity를 만든다.
+- OpenSSH explicit alias 선택과 remote directory browse는 credential이나 source content를
+  application storage 또는 tracked evidence에 복제하지 않는다.
+- repository remove 뒤 registry/cache/tab에서는 사라지지만 local과 remote filesystem에는
+  삭제 command가 실행되지 않는다.
 - desktop history row는 graph와 metadata를 한 줄에 배치하고 narrow viewport에서 가로 page
   overflow를 만들지 않는다.
 

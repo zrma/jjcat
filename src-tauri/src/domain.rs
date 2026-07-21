@@ -90,7 +90,7 @@ fn normalize_absolute_path(path: &Path) -> PathBuf {
     normalized
 }
 
-fn is_safe_host(host: &str) -> bool {
+pub(crate) fn is_safe_host(host: &str) -> bool {
     !host.is_empty()
         && !host.starts_with('-')
         && host
@@ -99,8 +99,9 @@ fn is_safe_host(host: &str) -> bool {
 }
 
 fn is_safe_remote_path(path: &str) -> bool {
-    let has_supported_root = path.starts_with('/') || path.starts_with("~/");
-    has_supported_root && path.len() > 2 && !path.chars().any(char::is_control)
+    let has_supported_root =
+        path == "/" || path == "~/" || path.starts_with('/') || path.starts_with("~/");
+    has_supported_root && !path.chars().any(char::is_control)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -166,6 +167,51 @@ pub struct ChangedFile {
     pub path: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookmarkRef {
+    pub name: String,
+    pub remote: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for BookmarkRef {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct BookmarkObject {
+            name: String,
+            #[serde(default)]
+            remote: Option<String>,
+        }
+
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum BookmarkWire {
+            Legacy(String),
+            Object(BookmarkObject),
+        }
+
+        Ok(match BookmarkWire::deserialize(deserializer)? {
+            BookmarkWire::Legacy(name) => Self { name, remote: None },
+            BookmarkWire::Object(bookmark) => Self {
+                name: bookmark.name,
+                remote: bookmark.remote,
+            },
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirectoryListing {
+    pub path: String,
+    pub parent: Option<String>,
+    pub directories: Vec<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeRow {
@@ -174,7 +220,7 @@ pub struct ChangeRow {
     pub summary: String,
     pub author: String,
     pub updated_at: String,
-    pub bookmarks: Vec<String>,
+    pub bookmarks: Vec<BookmarkRef>,
     pub parents: Vec<String>,
     pub files: Vec<ChangedFile>,
     pub conflict: bool,
@@ -223,6 +269,31 @@ impl Default for Registry {
 }
 
 impl Registry {
+    pub fn remove_repository(&mut self, repository_id: &RepositoryId) -> bool {
+        let Some(index) = self
+            .repositories
+            .iter()
+            .position(|repository| &repository.id == repository_id)
+        else {
+            return false;
+        };
+
+        self.repositories.remove(index);
+        self.cached_projections.remove(repository_id);
+        if self.selected_repository.as_ref() == Some(repository_id) {
+            self.selected_repository = self
+                .repositories
+                .get(index)
+                .or_else(|| {
+                    index
+                        .checked_sub(1)
+                        .and_then(|previous| self.repositories.get(previous))
+                })
+                .map(|repository| repository.id.clone());
+        }
+        true
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         if self.schema_version != REGISTRY_SCHEMA_VERSION {
             return Err(DomainError::UnsupportedRegistrySchema(self.schema_version));
@@ -386,5 +457,47 @@ mod tests {
             },
         )
         .expect("remote paths are encoded before crossing the SSH shell boundary");
+    }
+
+    #[test]
+    fn removing_a_repository_only_updates_registry_owned_state() {
+        let first = RepositoryRecord::new(
+            "first",
+            RepositoryLocation::Local {
+                path: "/work/first".into(),
+            },
+        )
+        .unwrap();
+        let second = RepositoryRecord::new(
+            "second",
+            RepositoryLocation::Local {
+                path: "/work/second".into(),
+            },
+        )
+        .unwrap();
+        let mut registry = Registry {
+            selected_repository: Some(first.id.clone()),
+            repositories: vec![first.clone(), second.clone()],
+            ..Registry::default()
+        };
+
+        assert!(registry.remove_repository(&first.id));
+        assert_eq!(registry.repositories, vec![second.clone()]);
+        assert_eq!(registry.selected_repository, Some(second.id));
+        assert!(!registry.remove_repository(&first.id));
+        registry.validate().unwrap();
+    }
+
+    #[test]
+    fn legacy_bookmark_strings_remain_readable_from_projection_cache() {
+        let bookmark: BookmarkRef = serde_json::from_str(r#""main""#).unwrap();
+
+        assert_eq!(
+            bookmark,
+            BookmarkRef {
+                name: "main".into(),
+                remote: None,
+            }
+        );
     }
 }

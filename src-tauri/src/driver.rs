@@ -10,8 +10,8 @@ use time::format_description::well_known::Rfc3339;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
-    ChangeRow, ChangedFile, JjCapability, RepositoryLocation, RepositoryProjection,
-    RepositoryRecord,
+    BookmarkRef, ChangeRow, ChangedFile, JjCapability, RemoteDirectoryListing, RepositoryLocation,
+    RepositoryProjection, RepositoryRecord,
 };
 use crate::process::{CommandOutput, CommandPlan, ProcessError, ProcessFailureKind, run_command};
 
@@ -24,7 +24,8 @@ const LOG_TEMPLATE: &str = concat!(
     "\",\\\"summary\\\":\" ++ description.first_line().escape_json() ++ ",
     "\",\\\"author\\\":\" ++ author.name().escape_json() ++ ",
     "\",\\\"updated_at\\\":\" ++ committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
-    "\",\\\"bookmarks\\\":\" ++ stringify(bookmarks.map(|b| b.name()).join(\",\")).escape_json() ++ ",
+    "\",\\\"local_bookmarks\\\":\" ++ json(self.local_bookmarks()) ++ ",
+    "\",\\\"remote_bookmarks\\\":\" ++ json(self.remote_bookmarks()) ++ ",
     "\",\\\"parents\\\":\" ++ stringify(parents.map(|p| p.change_id().short(12)).join(\",\")).escape_json() ++ ",
     "\",\\\"files\\\":\" ++ stringify(self.diff().files().map(|f| f.status_char() ++ \"\\t\" ++ f.display_diff_path()).join(\"\\n\")).escape_json() ++ ",
     "\",\\\"conflict\\\":\" ++ if(conflict, \"true\", \"false\") ++ ",
@@ -109,6 +110,47 @@ impl JjDriver {
         })
     }
 
+    pub async fn list_remote_directories(
+        &self,
+        host: String,
+        path: String,
+        cancellation: CancellationToken,
+    ) -> Result<RemoteDirectoryListing, DriverError> {
+        let location = RepositoryLocation::Ssh { host, path };
+        location.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        let RepositoryLocation::Ssh { host, path } = &location else {
+            unreachable!();
+        };
+        let plan = CommandPlan {
+            program: self.ssh_program.clone(),
+            args: ssh_arguments(host),
+            current_dir: None,
+            stdin: Some(remote_directory_script(path).into_bytes()),
+        };
+        let repository = RepositoryRecord::new("remote folder browser", location.clone())
+            .expect("validated remote browser location must form a repository identity");
+        let output = run_command(plan, self.timeout, cancellation)
+            .await
+            .map_err(|error| process_error(&repository, error))?;
+        if output.truncated {
+            return Err(DriverError {
+                kind: DriverErrorKind::OutputLimit,
+                message: "remote directory listing exceeded the safe capture limit".into(),
+            });
+        }
+        if output.exit_code != Some(0) {
+            let raw = String::from_utf8_lossy(&output.stderr);
+            return Err(DriverError {
+                kind: DriverErrorKind::CommandFailed,
+                message: redact_error(raw.trim(), &location),
+            });
+        }
+        parse_remote_directories(&output.stdout)
+    }
+
     async fn run_query(
         &self,
         repository: &RepositoryRecord,
@@ -144,30 +186,31 @@ impl JjDriver {
                 current_dir: Some(path.into()),
                 stdin: None,
             },
-            RepositoryLocation::Ssh { host, path } => {
-                let args = vec![
-                    OsString::from("-o"),
-                    OsString::from("BatchMode=yes"),
-                    OsString::from("-o"),
-                    OsString::from("ConnectTimeout=8"),
-                    OsString::from("-o"),
-                    OsString::from("ServerAliveInterval=5"),
-                    OsString::from("-o"),
-                    OsString::from("ServerAliveCountMax=1"),
-                    OsString::from("--"),
-                    OsString::from(host),
-                    OsString::from("sh"),
-                    OsString::from("-s"),
-                ];
-                CommandPlan {
-                    program: self.ssh_program.clone(),
-                    args,
-                    current_dir: None,
-                    stdin: Some(remote_script(path, query).into_bytes()),
-                }
-            }
+            RepositoryLocation::Ssh { host, path } => CommandPlan {
+                program: self.ssh_program.clone(),
+                args: ssh_arguments(host),
+                current_dir: None,
+                stdin: Some(remote_script(path, query).into_bytes()),
+            },
         }
     }
+}
+
+fn ssh_arguments(host: &str) -> Vec<OsString> {
+    vec![
+        OsString::from("-o"),
+        OsString::from("BatchMode=yes"),
+        OsString::from("-o"),
+        OsString::from("ConnectTimeout=8"),
+        OsString::from("-o"),
+        OsString::from("ServerAliveInterval=5"),
+        OsString::from("-o"),
+        OsString::from("ServerAliveCountMax=1"),
+        OsString::from("--"),
+        OsString::from(host),
+        OsString::from("sh"),
+        OsString::from("-s"),
+    ]
 }
 
 fn remote_script(path: &str, query: JjQuery) -> String {
@@ -184,6 +227,17 @@ fn remote_script(path: &str, query: JjQuery) -> String {
     };
     format!(
         "set -eu\nencoded='{encoded_path}'\nrepo=''\nwhile [ -n \"$encoded\" ]; do\n  rest=${{encoded#??}}\n  byte=${{encoded%\"$rest\"}}\n  encoded=$rest\n  octal=$(printf '%03o' \"0x$byte\")\n  repo=\"$repo$(printf \"\\\\$octal\")\"\ndone\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{command}\n"
+    )
+}
+
+fn remote_directory_script(path: &str) -> String {
+    let encoded_path = path
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!(
+        "set -eu\nencoded='{encoded_path}'\ntarget=''\nwhile [ -n \"$encoded\" ]; do\n  rest=${{encoded#??}}\n  byte=${{encoded%\"$rest\"}}\n  encoded=$rest\n  octal=$(printf '%03o' \"0x$byte\")\n  target=\"$target$(printf \"\\\\$octal\")\"\ndone\ncase \"$target\" in\n  \"~/\"*) target=\"$HOME/${{target#??}}\" ;;\nesac\nif [ ! -d \"$target\" ]; then\n  printf '%s\\n' 'remote folder is not available' >&2\n  exit 2\nfi\ncd \"$target\"\ncurrent=$(pwd -P)\nprintf '%s\\0' \"$current\"\nfind \"$current\" -mindepth 1 -maxdepth 1 \\( -type d -o -type l \\) -exec sh -c 'for directory do if [ -d \"$directory\" ]; then printf \"%s\\0\" \"$directory\"; fi; done' sh {{}} +\n"
     )
 }
 
@@ -219,12 +273,20 @@ struct LogRecord {
     summary: String,
     author: String,
     updated_at: String,
-    bookmarks: String,
+    local_bookmarks: Vec<LogBookmarkRecord>,
+    remote_bookmarks: Vec<LogBookmarkRecord>,
     parents: String,
     files: String,
     conflict: bool,
     working_copy: bool,
     empty: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct LogBookmarkRecord {
+    name: String,
+    #[serde(default)]
+    remote: Option<String>,
 }
 
 fn parse_capability(stdout: &[u8]) -> Result<JjCapability, DriverError> {
@@ -255,7 +317,23 @@ fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
                 summary: record.summary,
                 author: record.author,
                 updated_at: record.updated_at,
-                bookmarks: split_non_empty(&record.bookmarks, ','),
+                bookmarks: record
+                    .local_bookmarks
+                    .into_iter()
+                    .map(|bookmark| BookmarkRef {
+                        name: bookmark.name,
+                        remote: None,
+                    })
+                    .chain(
+                        record
+                            .remote_bookmarks
+                            .into_iter()
+                            .map(|bookmark| BookmarkRef {
+                                name: bookmark.name,
+                                remote: bookmark.remote,
+                            }),
+                    )
+                    .collect(),
                 parents: split_non_empty(&record.parents, ','),
                 files: parse_files(&record.files),
                 conflict: record.conflict,
@@ -264,6 +342,53 @@ fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
             })
         })
         .collect()
+}
+
+fn parse_remote_directories(stdout: &[u8]) -> Result<RemoteDirectoryListing, DriverError> {
+    let mut fields = stdout
+        .split(|byte| *byte == 0)
+        .filter(|field| !field.is_empty());
+    let path = fields.next().ok_or_else(|| {
+        invalid_output("remote directory listing did not include its current path")
+    })?;
+    let path = std::str::from_utf8(path)
+        .map_err(|_| invalid_output("remote directory path was not UTF-8"))?
+        .to_owned();
+    if !path.starts_with('/') || path.chars().any(char::is_control) {
+        return Err(invalid_output(
+            "remote directory listing returned an invalid current path",
+        ));
+    }
+    let mut directories = fields
+        .map(|field| {
+            std::str::from_utf8(field)
+                .map_err(|_| invalid_output("remote child directory was not UTF-8"))
+                .map(ToOwned::to_owned)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    directories
+        .retain(|directory| directory.starts_with('/') && !directory.chars().any(char::is_control));
+    directories.sort_by_key(|directory| directory.to_ascii_lowercase());
+    directories.dedup();
+    let parent = remote_parent(&path);
+    Ok(RemoteDirectoryListing {
+        path,
+        parent,
+        directories,
+    })
+}
+
+fn remote_parent(path: &str) -> Option<String> {
+    if path == "/" {
+        return None;
+    }
+    let trimmed = path.trim_end_matches('/');
+    let index = trimmed.rfind('/')?;
+    Some(if index == 0 {
+        "/".into()
+    } else {
+        trimmed[..index].into()
+    })
 }
 
 fn split_non_empty(value: &str, separator: char) -> Vec<String> {
@@ -375,15 +500,40 @@ mod tests {
     #[test]
     fn jsonl_projection_preserves_machine_readable_fields() {
         let rows = parse_log(
-            br#"{"change_id":"abc","commit_id":"def","summary":"feat: fixture","author":"Agent","updated_at":"2026-01-01T00:00:00Z","bookmarks":"main","parents":"parent","files":"M\tsrc/main.rs\nA\tREADME.md","conflict":false,"working_copy":true,"empty":false}
+            br#"{"change_id":"abc","commit_id":"def","summary":"feat: fixture","author":"Agent","updated_at":"2026-01-01T00:00:00Z","local_bookmarks":[{"name":"main","target":[]}],"remote_bookmarks":[{"name":"main","remote":"origin","target":[]}],"parents":"parent","files":"M\tsrc/main.rs\nA\tREADME.md","conflict":false,"working_copy":true,"empty":false}
 "#,
         )
         .unwrap();
 
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].bookmarks, vec!["main"]);
+        assert_eq!(
+            rows[0].bookmarks,
+            vec![
+                BookmarkRef {
+                    name: "main".into(),
+                    remote: None,
+                },
+                BookmarkRef {
+                    name: "main".into(),
+                    remote: Some("origin".into()),
+                },
+            ]
+        );
         assert_eq!(rows[0].files.len(), 2);
         assert!(rows[0].working_copy);
+    }
+
+    #[test]
+    fn remote_directory_listing_preserves_current_parent_and_children() {
+        let listing =
+            parse_remote_directories(b"/srv/work\0/srv/work/zeta\0/srv/work/alpha\0").unwrap();
+
+        assert_eq!(listing.path, "/srv/work");
+        assert_eq!(listing.parent.as_deref(), Some("/srv"));
+        assert_eq!(
+            listing.directories,
+            vec!["/srv/work/alpha", "/srv/work/zeta"]
+        );
     }
 
     #[test]

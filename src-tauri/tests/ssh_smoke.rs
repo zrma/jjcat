@@ -84,6 +84,14 @@ find "$root" -mindepth 1 -maxdepth 4 -type d -name .jj -print |
     );
 
     let driver = JjDriver::default().with_timeout(Duration::from_secs(30));
+    let listing = driver
+        .list_remote_directories(host.clone(), root.clone(), CancellationToken::new())
+        .await
+        .expect("remote folder browsing must succeed for the configured search root");
+    assert!(
+        !listing.directories.is_empty(),
+        "remote folder browsing should expose repository candidates"
+    );
     for (index, path) in paths.into_iter().enumerate() {
         let repository = RepositoryRecord::new(
             format!("remote-smoke-{}", index + 1),
