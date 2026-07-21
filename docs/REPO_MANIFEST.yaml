@@ -1,0 +1,53 @@
+schema_version: 1
+name: jjcat
+description: A local and remote repository manager for Jujutsu
+publication_class: public
+
+entrypoints:
+  handoff: docs/HANDOFF.md
+  agent_harness: docs/agent-harness.md
+  product: docs/PRODUCT.md
+  architecture: docs/ARCHITECTURE.md
+  status: docs/status.md
+  roadmap: docs/roadmap.md
+  completed_milestones: docs/completed-milestones.md
+  escalation: docs/ESCALATION_POLICY.md
+  publication: docs/PUBLICATION.md
+
+active_work_glob: docs/todo-*/spec.md
+active_work: docs/todo-p1-multi-repository-cockpit/spec.md
+required_todo_files:
+  - spec.md
+  - open-questions.md
+
+checks:
+  full: scripts/check.sh
+  harness: scripts/check-agent-harness-interface.sh
+  repository_contract: scripts/check-repository-contract.py
+  publication: scripts/check-publication-boundary.py
+
+publication:
+  content_standard: public-ready
+  remote_visibility_policy: private-or-public
+  remote_status: unconfigured
+  license_status: undecided
+  policy: docs/PUBLICATION.md
+
+commands:
+  start_work: scripts/start-work.sh --work-id <work-id>
+  verify_finalize: scripts/finalize-change.sh --verify-only
+  finalize_local_change: scripts/finalize-change.sh --message "<type>: <summary>"
+
+vcs:
+  local: jj
+  default_bookmark: main
+  change_message: "<type>: <summary>"
+  push_requires_explicit_permission: true
+
+runtime:
+  status: selected
+  desktop: Tauri 2
+  core: Rust 2024 with Tokio
+  frontend: React with TypeScript and Vite
+  application_identifier: com.1day1coding.jjcat
+  architecture_decision: docs/ARCHITECTURE.md

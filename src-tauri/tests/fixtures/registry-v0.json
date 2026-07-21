@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 0,
+  "repositories": [
+    {
+      "displayName": "local-fixture",
+      "location": {
+        "kind": "local",
+        "path": "/fixtures/local-repository"
+      }
+    },
+    {
+      "displayName": "remote-fixture",
+      "location": {
+        "kind": "ssh",
+        "host": "fixture-host",
+        "path": "~/fixtures/remote-repository"
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+[package]
+name = "jjcat"
+version = "0.0.0"
+description = "A local and remote repository manager for Jujutsu"
+edition = "2024"
+rust-version = "1.88"
+
+[lib]
+name = "jjcat_core"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+[dependencies]
+regex = "1.12"
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.11", features = [] }
+thiserror = "2.0"
+time = { version = "0.3", features = ["formatting"] }
+tokio = { version = "1.53", features = ["io-util", "macros", "process", "rt-multi-thread", "sync", "time"] }
+tokio-util = "0.7"
+uuid = { version = "1.24", features = ["serde", "v5"] }
+
+[dev-dependencies]
+tempfile = "3.23"
