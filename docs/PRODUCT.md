@@ -26,6 +26,8 @@ change graph, diff와 안전한 history shaping을 하나의 지속적인 sessio
 - **Repository first:** host 연결보다 사용자가 관리하는 저장소와 상태가 먼저 보인다.
 - **Local and SSH parity:** remote는 별도 모드가 아니라 같은 repository surface다.
 - **Fast switching:** cached view를 즉시 표시하고 refresh는 비동기로 수행한다.
+- **Dense by default:** graph, change ID, description과 핵심 metadata를 compact row에서 함께
+  읽고 선택한 change의 file/metadata는 하단 inspector에서 확인한다.
 - **Safe shaping:** mutation은 대상 revision, 예상 operation, 실행 명령과 undo 경로를 보여준다.
 - **Local first:** credential, source content와 private inventory는 사용자 환경을 벗어나지 않는다.
 - **Keyboard and pointer:** tab, quick switcher, graph navigation과 drag/drop을 모두 지원한다.
@@ -57,4 +59,5 @@ rebase, squash, split, abandon, bookmark move와 push는 read-only surface와 op
 - Description: **A local and remote repository manager for Jujutsu.**
 - Application identifier: `com.1day1coding.jjcat`
 - Visual direction: 고양이 꼬리가 change DAG를 그리는 단순한 silhouette. 실제 asset은
-  선택된 visual target과 asset workflow가 생기기 전까지 생성하지 않는다.
+  cat outline 안의 node와 edge가 change topology를 이루며, mint graph와 amber target node를
+  dark desktop surface 위에 사용한다.

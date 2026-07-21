@@ -13,6 +13,7 @@
 
 ## P1: Multi-repository Cockpit
 
+- [x] compact graph/history baseline, bottom inspector와 local `~/...` registration
 - [ ] host별 repository sidebar와 recent/pinned state
 - [ ] persistent repository tabs와 quick switcher
 - [ ] cached status badge와 asynchronous refresh
@@ -31,6 +32,7 @@
 - [ ] rebase, squash, split와 abandon
 - [ ] bookmark move와 push
 - [ ] operation precondition, preview와 recovery acceptance
+- [ ] pointer drag/drop과 keyboard-equivalent shaping preview
 
 ## P4: Distribution
 

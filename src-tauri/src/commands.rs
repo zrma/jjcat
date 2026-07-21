@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -68,13 +68,20 @@ pub async fn load_registry(state: State<'_, AppState>) -> Result<RegistrySnapsho
 #[tauri::command]
 pub async fn register_repository(
     draft: RepositoryDraft,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<RegistrySnapshot, AppError> {
+    let home_dir = app.path().home_dir().map_err(|_| AppError {
+        kind: AppErrorKind::Storage,
+        message: "home directory could not be resolved".into(),
+    })?;
     let repository =
-        RepositoryRecord::new(draft.display_name, draft.location).map_err(|error| AppError {
-            kind: AppErrorKind::InvalidInput,
-            message: error.to_string(),
-        })?;
+        RepositoryRecord::from_user_input(draft.display_name, draft.location, &home_dir).map_err(
+            |error| AppError {
+                kind: AppErrorKind::InvalidInput,
+                message: error.to_string(),
+            },
+        )?;
     let store = state.store.lock().await;
     let loaded = store.load().map_err(storage_error)?;
     let mut registry = loaded.registry;

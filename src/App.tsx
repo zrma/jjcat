@@ -1,23 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CircleX,
   Database,
-  File,
   FolderGit2,
   GitBranch,
+  History,
   Laptop,
   Plus,
   RefreshCw,
+  Search,
   Server,
   X,
 } from "lucide-react";
 import { bridge, isTauriRuntime } from "./bridge";
+import { Brand } from "./components/Brand";
+import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import type {
   AppError,
   CachedProjection,
-  ChangeRow,
   Registry,
   RepositoryDraft,
   RepositoryRecord,
@@ -31,6 +33,7 @@ type RepositoryState =
   | "disconnected"
   | "disconnected-cached"
   | "empty";
+type HistoryView = "all" | "working-copy";
 
 function App() {
   const [registry, setRegistry] = useState<Registry | null>(null);
@@ -40,8 +43,11 @@ function App() {
   const [refreshing, setRefreshing] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+  const [historyView, setHistoryView] = useState<HistoryView>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -62,13 +68,30 @@ function App() {
     ? registry?.cachedProjections[selectedRepository.id]
     : undefined;
   const selectedProjection = selectedCache?.projection;
+  const visibleChanges = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return (selectedProjection?.changes ?? []).filter((change) => {
+      if (historyView === "working-copy" && !change.workingCopy) return false;
+      if (!query) return true;
+      return [
+        change.summary,
+        change.author,
+        change.changeId,
+        change.commitId,
+        ...change.bookmarks,
+      ].some((value) => value.toLocaleLowerCase().includes(query));
+    });
+  }, [historyView, searchQuery, selectedProjection]);
   const selectedChange = useMemo(() => {
-    const changes = selectedProjection?.changes ?? [];
-    return changes.find((change) => change.changeId === selectedChangeId) ?? changes[0];
-  }, [selectedChangeId, selectedProjection]);
+    return (
+      visibleChanges.find((change) => change.changeId === selectedChangeId) ?? visibleChanges[0]
+    );
+  }, [selectedChangeId, visibleChanges]);
 
   useEffect(() => {
     setSelectedChangeId(null);
+    setSearchQuery("");
+    setHistoryView("all");
   }, [selectedRepository?.id]);
 
   const selectRepository = useCallback(
@@ -132,6 +155,11 @@ function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "r") {
         event.preventDefault();
         if (selectedRepository) void refreshRepository(selectedRepository.id);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
       }
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
         const repositoryId = openIds[Number(event.key) - 1];
@@ -198,13 +226,7 @@ function App() {
           <span />
           <span />
         </div>
-        <div className="wordmark" data-tauri-drag-region>
-          <span>jjcat</span>
-          <svg aria-hidden="true" viewBox="0 0 42 18">
-            <path d="M2 14c9 0 9-10 18-10 6 0 7 7 12 7h7" />
-            <circle cx="40" cy="11" r="2" />
-          </svg>
-        </div>
+        <Brand />
         <nav className="tabs" aria-label="Open repositories">
           {openRepositories.map((repository) => {
             const state = repositoryState(
@@ -242,6 +264,26 @@ function App() {
             <Plus aria-hidden="true" />
           </button>
         </div>
+        <nav className="history-navigation" aria-label="History views">
+          <button
+            type="button"
+            className={historyView === "working-copy" ? "selected" : ""}
+            onClick={() => setHistoryView("working-copy")}
+            disabled={!selectedRepository}
+          >
+            <FolderGit2 aria-hidden="true" />
+            <span>Working Copy</span>
+          </button>
+          <button
+            type="button"
+            className={historyView === "all" ? "selected" : ""}
+            onClick={() => setHistoryView("all")}
+            disabled={!selectedRepository}
+          >
+            <History aria-hidden="true" />
+            <span>All Changes</span>
+          </button>
+        </nav>
         {(["local", "ssh"] as const).map((kind) => (
           <section className="repository-group" key={kind}>
             <h3>{locationLabel(kind)}</h3>
@@ -297,14 +339,27 @@ function App() {
                 )}
                 <span>{locationLabel(selectedRepository.location.kind)}</span>
               </div>
-              <button
-                type="button"
-                className={`refresh-button ${selectedState === "refreshing" ? "active" : ""}`}
-                onClick={() => void refreshRepository(selectedRepository.id)}
-              >
-                {selectedState === "refreshing" ? <X aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
-                {selectedState === "refreshing" ? "Cancel" : "Refresh"}
-              </button>
+              <div className="toolbar-controls">
+                <label className="history-search">
+                  <Search aria-hidden="true" />
+                  <span className="sr-only">Filter changes</span>
+                  <input
+                    ref={searchInputRef}
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Filter changes"
+                  />
+                  <kbd>⌘F</kbd>
+                </label>
+                <button
+                  type="button"
+                  className={`refresh-button ${selectedState === "refreshing" ? "active" : ""}`}
+                  onClick={() => void refreshRepository(selectedRepository.id)}
+                >
+                  {selectedState === "refreshing" ? <X aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+                  {selectedState === "refreshing" ? "Cancel" : "Refresh"}
+                </button>
+              </div>
             </header>
             {errors[selectedRepository.id] && (
               <div className="notice error-notice" role="status">
@@ -313,15 +368,12 @@ function App() {
                 {selectedCache && <span className="notice-tail">Showing cached data.</span>}
               </div>
             )}
-            <div className="content-grid">
-              <ChangeLog
-                changes={selectedProjection?.changes ?? []}
-                selected={selectedChange?.changeId}
-                onSelect={(changeId) => setSelectedChangeId(changeId)}
-                emptyState={selectedState}
-              />
-              <ChangeDetails change={selectedChange} />
-            </div>
+            <ChangeWorkspace
+              changes={visibleChanges}
+              selectedChange={selectedChange}
+              onSelect={setSelectedChangeId}
+              refreshing={selectedState === "refreshing"}
+            />
           </>
         )}
       </section>
@@ -413,150 +465,6 @@ function StatusDot({ state }: { state: RepositoryState }) {
   return <span className={`status-dot ${state}`} aria-label={stateLabel(state)} />;
 }
 
-function ChangeLog({
-  changes,
-  selected,
-  onSelect,
-  emptyState,
-}: {
-  changes: ChangeRow[];
-  selected?: string;
-  onSelect: (changeId: string) => void;
-  emptyState: RepositoryState;
-}) {
-  if (changes.length === 0) {
-    return (
-      <section className="change-log empty-log">
-        <FolderGit2 aria-hidden="true" />
-        <h2>No cached changes</h2>
-        <p>
-          {emptyState === "refreshing"
-            ? "Reading the repository…"
-            : "Refresh this repository to load its Jujutsu change graph."}
-        </p>
-      </section>
-    );
-  }
-  return (
-    <section className="change-log" aria-label="Change log">
-      <div className="log-header">
-        <span>Change</span>
-        <span>Author</span>
-        <span>Updated</span>
-      </div>
-      <div className="log-body">
-        <DagGraph changes={changes} />
-        {changes.map((change) => (
-          <button
-            type="button"
-            className={`change-row ${change.changeId === selected ? "selected" : ""}`}
-            onClick={() => onSelect(change.changeId)}
-            key={`${change.changeId}-${change.commitId}`}
-          >
-            <span className="change-summary">
-              <code>{change.changeId}</code>
-              {change.workingCopy && <strong>Working copy</strong>}
-              <span>{change.summary || "(no description)"}</span>
-            </span>
-            <span className="change-author">{change.author || "—"}</span>
-            <span className="change-updated">{relativeTime(change.updatedAt)}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function DagGraph({ changes }: { changes: ChangeRow[] }) {
-  const rowHeight = 78;
-  const nodeX = 35;
-  return (
-    <svg
-      className="dag-graph"
-      aria-hidden="true"
-      width="76"
-      height={changes.length * rowHeight}
-      viewBox={`0 0 76 ${changes.length * rowHeight}`}
-    >
-      {changes.map((change, index) => {
-        const y = index * rowHeight + rowHeight / 2;
-        const nextY = y + rowHeight;
-        return (
-          <g key={`${change.changeId}-graph`}>
-            {index < changes.length - 1 && <path d={`M${nodeX} ${y} L${nodeX} ${nextY}`} />}
-            {change.parents.length > 1 && index < changes.length - 1 && (
-              <path className="branch-line" d={`M${nodeX} ${y} C${nodeX + 28} ${y + 15}, ${nodeX + 28} ${nextY - 15}, ${nodeX} ${nextY}`} />
-            )}
-            <circle
-              className={change.workingCopy ? "working-node" : change.changeId === "000000000000" ? "root-node" : ""}
-              cx={nodeX}
-              cy={y}
-              r={change.workingCopy ? 9 : 7}
-            />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-function ChangeDetails({ change }: { change?: ChangeRow }) {
-  return (
-    <aside className="change-details">
-      <header>
-        <File aria-hidden="true" />
-        <h2>Change details</h2>
-      </header>
-      {!change ? (
-        <p className="details-empty">Select a change to inspect it.</p>
-      ) : (
-        <div className="details-body">
-          <h3>{change.summary || "(no description)"}</h3>
-          <Detail label="Change ID" value={change.changeId} mono />
-          <Detail label="Commit ID" value={change.commitId} mono />
-          <Detail label="Author" value={change.author || "Unknown"} />
-          <Detail label="Bookmarks" value={change.bookmarks.join(", ") || "—"} accent />
-          <section className="files-section">
-            <h4>Files ({change.files.length})</h4>
-            {change.files.length === 0 ? (
-              <p>No files changed</p>
-            ) : (
-              <ul>
-                {change.files.slice(0, 12).map((file) => (
-                  <li key={`${file.status}-${file.path}`}>
-                    <File aria-hidden="true" />
-                    <span title={file.path}>{file.path}</span>
-                    <code>{file.status}</code>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-      )}
-    </aside>
-  );
-}
-
-function Detail({
-  label,
-  value,
-  mono = false,
-  accent = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-  accent?: boolean;
-}) {
-  return (
-    <dl className="detail-pair">
-      <dt>{label}</dt>
-      <dd className={`${mono ? "mono" : ""} ${accent ? "accent" : ""}`}>{value}</dd>
-    </dl>
-  );
-}
-
 function EmptyRepository({ onAdd }: { onAdd: () => void }) {
   return (
     <section className="empty-repository">
@@ -629,9 +537,14 @@ function AddRepositoryDialog({
           <input
             value={path}
             onChange={(event) => setPath(event.target.value)}
-            placeholder={kind === "local" ? "/absolute/path/to/repository" : "~/projects/repository"}
+            placeholder="~/projects/repository"
             required
           />
+          <span className="field-hint">
+            {kind === "local"
+              ? "Use an absolute path or a path starting with ~/"
+              : "Use an absolute remote path or a path starting with ~/"}
+          </span>
         </label>
         {error && <p className="dialog-error">{error}</p>}
         <footer>

@@ -19,6 +19,9 @@
 - `jj` capability, machine-readable status/log/file projection
 - bounded timeout/cancellation과 redacted error를 갖춘 OpenSSH stdio driver
 - repository rail, tabs, DAG, change inspector와 cached/stale/disconnected UI
+- 34px compact graph/history row, 하단 file/metadata inspector와 change search/filter
+- local absolute path 및 `~/...` 입력의 canonical identity normalization
+- cat outline과 change DAG를 결합한 header/application identity asset
 - local, simulated SSH, local-only actual SSH 2-repository matrix와 native bundle smoke
 
 아직 구현되지 않은 항목:

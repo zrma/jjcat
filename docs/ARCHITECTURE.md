@@ -32,6 +32,10 @@ host reference, repository path, display name, pinned/recent state를 local appl
 credential과 source content는 저장하지 않는다. invalid JSON은 별도 corrupt copy로 보존하고
 빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
 
+local repository 입력은 absolute path와 `~/...`를 허용한다. `~/...`는 Tauri가 제공하는
+user home을 기준으로 lexical normalization한 absolute path로 바꾼 뒤 identity를 계산하고
+registry에 저장한다. process working directory 기준 relative path는 허용하지 않는다.
+
 ### Repository Driver
 
 local과 SSH 구현이 공유하는 typed request/result contract다. command invocation, capability,

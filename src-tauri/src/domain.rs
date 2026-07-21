@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -21,7 +21,10 @@ impl RepositoryLocation {
     pub fn validate(&self) -> Result<(), DomainError> {
         match self {
             Self::Local { path } => {
-                if path.trim() != path || !Path::new(path).is_absolute() {
+                if path.trim() != path
+                    || path.chars().any(char::is_control)
+                    || !Path::new(path).is_absolute()
+                {
                     return Err(DomainError::InvalidLocalPath);
                 }
             }
@@ -43,6 +46,48 @@ impl RepositoryLocation {
             Self::Ssh { host, path } => format!("ssh\0{}\0{path}", host.to_ascii_lowercase()),
         }
     }
+
+    fn into_normalized_user_input(self, home_dir: &Path) -> Result<Self, DomainError> {
+        match self {
+            Self::Local { path } => {
+                if path.trim() != path || path.chars().any(char::is_control) {
+                    return Err(DomainError::InvalidLocalPath);
+                }
+                let input = if let Some(suffix) = path.strip_prefix("~/") {
+                    if suffix.is_empty() || !home_dir.is_absolute() {
+                        return Err(DomainError::InvalidLocalPath);
+                    }
+                    home_dir.join(suffix)
+                } else {
+                    PathBuf::from(path)
+                };
+                if !input.is_absolute() {
+                    return Err(DomainError::InvalidLocalPath);
+                }
+                let normalized = normalize_absolute_path(&input);
+                Ok(Self::Local {
+                    path: normalized.to_string_lossy().into_owned(),
+                })
+            }
+            ssh @ Self::Ssh { .. } => Ok(ssh),
+        }
+    }
+}
+
+fn normalize_absolute_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    normalized
 }
 
 fn is_safe_host(host: &str) -> bool {
@@ -68,6 +113,14 @@ pub struct RepositoryRecord {
 }
 
 impl RepositoryRecord {
+    pub fn from_user_input(
+        display_name: impl Into<String>,
+        location: RepositoryLocation,
+        home_dir: &Path,
+    ) -> Result<Self, DomainError> {
+        Self::new(display_name, location.into_normalized_user_input(home_dir)?)
+    }
+
     pub fn new(
         display_name: impl Into<String>,
         location: RepositoryLocation,
@@ -205,7 +258,7 @@ impl Registry {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DomainError {
-    #[error("local repository paths must be absolute")]
+    #[error("local repository paths must be absolute or start with ~/")]
     InvalidLocalPath,
     #[error("SSH host aliases may contain only letters, digits, dots, underscores, and hyphens")]
     InvalidSshHost,
@@ -247,6 +300,39 @@ mod tests {
         .unwrap();
 
         assert_eq!(first.id, second.id);
+    }
+
+    #[test]
+    fn home_relative_local_input_normalizes_before_identity() {
+        let relative = RepositoryRecord::from_user_input(
+            "repo",
+            RepositoryLocation::Local {
+                path: "~/work/../src/repo".into(),
+            },
+            Path::new("/home/tester"),
+        )
+        .unwrap();
+        let absolute = RepositoryRecord::new(
+            "repo",
+            RepositoryLocation::Local {
+                path: "/home/tester/src/repo".into(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(relative, absolute);
+    }
+
+    #[test]
+    fn local_input_rejects_process_relative_paths() {
+        for path in ["relative/repo", "./repo", "~/repo\nnext"] {
+            let result = RepositoryRecord::from_user_input(
+                "repo",
+                RepositoryLocation::Local { path: path.into() },
+                Path::new("/home/tester"),
+            );
+            assert!(result.is_err(), "path should be rejected: {path}");
+        }
     }
 
     #[test]

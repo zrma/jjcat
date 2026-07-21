@@ -13,6 +13,11 @@ P0는 repository registration, selected repository, cached projection과 현재 
 switch를 증명했다. open-tab ordering은 아직 session state이며 quick switcher, background
 refresh와 pinned/recent UX는 없다.
 
+P1 시작 baseline으로 local registration은 absolute path와 `~/...` 입력을 같은 canonical
+absolute identity로 정규화한다. cockpit은 compact graph/history row와 하단 file/metadata
+inspector를 사용한다. mutation affordance는 안전한 operation preview가 생기는 P3 전까지
+노출하지 않는다.
+
 ## Scope
 
 - schema migration을 포함한 persistent open-tab ordering과 selected tab
@@ -33,6 +38,7 @@ refresh와 pinned/recent UX는 없다.
 
 | ID | Status | Verify | Work item |
 | --- | --- | --- | --- |
+| C0 | done | domain unit test + desktop/narrow rendered smoke | local `~/...` normalization, compact cockpit와 cat-DAG identity |
 | C1 | todo | registry migration test | open tabs, order와 selected tab persistence |
 | C2 | todo | keyboard/pointer rendered smoke | quick switcher search와 tab reopen/close |
 | C3 | todo | scheduler unit/integration test | repository별 refresh dedup, cancel와 backoff |
@@ -49,6 +55,9 @@ refresh와 pinned/recent UX는 없다.
 - failure 뒤 cached projection이 유지되고 retry/backoff 상태가 구분된다.
 - handoff command는 credential이나 private environment를 preview에 노출하지 않는다.
 - representative graph fixture에서 clipping과 interaction regression이 없다.
+- local `~/...` 입력은 home 기준 absolute path와 같은 repository identity를 만든다.
+- desktop history row는 graph와 metadata를 한 줄에 배치하고 narrow viewport에서 가로 page
+  overflow를 만들지 않는다.
 
 ## Publication Impact
 
