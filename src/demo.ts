@@ -41,7 +41,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
   const rows = [
     change("7f3a2b1c9d8e", "8b1c2d3e4f5a", "feat: add repository identity", 0, {
       parents: ["6a7b8c9d0e1f"],
-      bookmarks: ["main"],
+      bookmarks: ["main", "release-candidate", "review-ready"],
       workingCopy: true,
       files: [
         { status: "A", path: "src-tauri/src/domain.rs" },

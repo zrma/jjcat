@@ -23,6 +23,8 @@ Desktop Shell
 
 window, tabs, quick switcher, graph/diff surface와 editor/terminal handoff를 소유한다.
 repository semantics와 SSH process 조립은 소유하지 않는다.
+local repository discovery는 Tauri native directory picker로 경로 하나만 선택하며, 선택된
+경로는 기존 registry validation과 canonical identity 흐름으로 넘긴다.
 
 ### Repository Registry
 

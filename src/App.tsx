@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CircleX,
   Database,
+  FolderSearch,
   FolderGit2,
   GitBranch,
   History,
@@ -13,7 +14,9 @@ import {
   Server,
   X,
 } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { bridge, isTauriRuntime } from "./bridge";
+import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
@@ -46,6 +49,8 @@ function App() {
   const [historyView, setHistoryView] = useState<HistoryView>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
+  const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -181,8 +186,35 @@ function App() {
       const selected = snapshot.registry.selectedRepository;
       if (selected) setOpenIds((current) => (current.includes(selected) ? current : [...current, selected]));
       setShowAdd(false);
+      setRepositoryActionError(null);
     } catch (error) {
       throw error as AppError;
+    }
+  }
+
+  async function browseForLocalRepository() {
+    if (!isTauriRuntime) {
+      setShowAdd(true);
+      return;
+    }
+
+    setBrowsing(true);
+    setRepositoryActionError(null);
+    try {
+      const selectedPath = await open({
+        directory: true,
+        multiple: false,
+        title: "Open local repository",
+      });
+      if (!selectedPath || Array.isArray(selectedPath)) return;
+      await registerRepository({
+        displayName: repositoryNameFromPath(selectedPath),
+        location: { kind: "local", path: selectedPath },
+      });
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message ?? "The repository could not be opened.");
+    } finally {
+      setBrowsing(false);
     }
   }
 
@@ -259,7 +291,16 @@ function App() {
 
       <aside className="repository-rail">
         <div className="rail-heading">
-          <h2>Repositories</h2>
+          <button
+            type="button"
+            className="browse-repositories"
+            onClick={() => void browseForLocalRepository()}
+            disabled={browsing}
+            aria-label="Browse for a local repository"
+          >
+            <FolderSearch aria-hidden="true" />
+            <span>{browsing ? "Opening…" : "Repositories"}</span>
+          </button>
           <button type="button" aria-label="Add repository" onClick={() => setShowAdd(true)}>
             <Plus aria-hidden="true" />
           </button>
@@ -315,6 +356,11 @@ function App() {
       </aside>
 
       <section className="workspace">
+        {repositoryActionError && (
+          <div className="notice error-notice" role="status">
+            <AlertTriangle aria-hidden="true" /> {repositoryActionError}
+          </div>
+        )}
         {recoveryNotice && (
           <div className="notice recovery-notice">
             <AlertTriangle aria-hidden="true" /> {recoveryNotice}
@@ -330,7 +376,7 @@ function App() {
                 <strong>{selectedRepository.displayName}</strong>
                 <span className="divider" />
                 <GitBranch aria-hidden="true" />
-                <span>{selectedChange?.bookmarks[0] ?? "@"}</span>
+                <BookmarkLabels bookmarks={selectedChange?.bookmarks ?? []} limit={1} emptyLabel="@" />
                 <span className="divider" />
                 {selectedRepository.location.kind === "local" ? (
                   <Laptop aria-hidden="true" />
@@ -384,7 +430,7 @@ function App() {
             <StatusDot state={selectedState} />
             <span>{selectedRepository.displayName}</span>
             <span className="divider" />
-            <span>{selectedChange?.bookmarks[0] ?? "@"}</span>
+            <BookmarkLabels bookmarks={selectedChange?.bookmarks ?? []} limit={1} emptyLabel="@" />
             <span className="divider" />
             <strong>{stateLabel(selectedState)}</strong>
             <span className="status-spacer" />
@@ -426,6 +472,11 @@ function App() {
       )}
     </main>
   );
+}
+
+function repositoryNameFromPath(path: string) {
+  const normalized = path.replace(/[\\/]+$/, "");
+  return normalized.split(/[\\/]/).pop() || "repository";
 }
 
 function repositoryState(

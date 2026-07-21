@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import { File, Files, FolderGit2 } from "lucide-react";
 import { relativeTime } from "../lib/format";
 import type { ChangeRow } from "../types";
+import { BookmarkLabels } from "./BookmarkLabels";
 
 interface ChangeWorkspaceProps {
   changes: ChangeRow[];
@@ -61,7 +63,6 @@ function ChangeLog({
         <span>Description</span>
         <span>Author</span>
         <span className="col-commit">Commit</span>
-        <span className="col-bookmarks">Bookmarks</span>
         <span>Updated</span>
       </div>
       <div className="log-body">
@@ -75,15 +76,13 @@ function ChangeLog({
             <DagCell change={change} index={index} count={changes.length} />
             <code className="change-id">{change.changeId}</code>
             <span className="change-description">
-              <span>{change.summary || "(no description)"}</span>
+              <BookmarkLabels bookmarks={change.bookmarks} limit={2} />
+              <span className="change-summary">{change.summary || "(no description)"}</span>
               {change.workingCopy && <strong>Working Copy</strong>}
               {change.conflict && <strong className="conflict-label">Conflict</strong>}
             </span>
             <span className="change-author">{change.author || "—"}</span>
             <code className="change-commit col-commit">{change.commitId}</code>
-            <span className="change-bookmarks col-bookmarks">
-              {change.bookmarks.length > 0 ? change.bookmarks.join(", ") : "—"}
-            </span>
             <span className="change-updated">{relativeTime(change.updatedAt)}</span>
           </button>
         ))}
@@ -154,7 +153,10 @@ function ChangeDetails({ change }: { change?: ChangeRow }) {
           <Detail label="Change ID" value={change.changeId} mono />
           <Detail label="Commit ID" value={change.commitId} mono />
           <Detail label="Author" value={change.author || "Unknown"} />
-          <Detail label="Bookmarks" value={change.bookmarks.join(", ") || "—"} accent />
+          <Detail
+            label="Bookmarks"
+            value={<BookmarkLabels bookmarks={change.bookmarks} emptyLabel="—" />}
+          />
           <Detail label="Parents" value={change.parents.join(", ") || "—"} mono />
           <Detail label="Conflict state" value={change.conflict ? "Conflicted" : "No conflicts"} />
           <Detail label="Working copy" value={change.workingCopy ? "Yes" : "No"} accent={change.workingCopy} />
@@ -172,7 +174,7 @@ function Detail({
   accent = false,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   mono?: boolean;
   accent?: boolean;
 }) {

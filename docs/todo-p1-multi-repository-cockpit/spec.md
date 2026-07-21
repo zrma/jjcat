@@ -15,7 +15,9 @@ refresh와 pinned/recent UX는 없다.
 
 P1 시작 baseline으로 local registration은 absolute path와 `~/...` 입력을 같은 canonical
 absolute identity로 정규화한다. cockpit은 compact graph/history row와 하단 file/metadata
-inspector를 사용한다. mutation affordance는 안전한 operation preview가 생기는 P3 전까지
+inspector를 사용한다. native `Repositories` action은 local folder picker를 열고, bookmark는
+VisualJJ처럼 change description 앞의 개별 label로 표시한다. compact row는 앞의 두 label과
+`+N` overflow를, inspector는 전체 label을 표시한다. mutation affordance는 안전한 operation preview가 생기는 P3 전까지
 노출하지 않는다.
 
 ## Scope
@@ -38,7 +40,7 @@ inspector를 사용한다. mutation affordance는 안전한 operation preview가
 
 | ID | Status | Verify | Work item |
 | --- | --- | --- | --- |
-| C0 | done | domain unit test + desktop/narrow rendered smoke | local `~/...` normalization, compact cockpit와 cat-DAG identity |
+| C0 | done | domain unit test + desktop/narrow rendered smoke | local `~/...` normalization, native folder picker, compact cockpit와 cat-DAG/bookmark identity |
 | C1 | todo | registry migration test | open tabs, order와 selected tab persistence |
 | C2 | todo | keyboard/pointer rendered smoke | quick switcher search와 tab reopen/close |
 | C3 | todo | scheduler unit/integration test | repository별 refresh dedup, cancel와 backoff |
