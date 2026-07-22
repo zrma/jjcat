@@ -170,6 +170,54 @@ pub struct ChangedFile {
     pub path: String,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WhitespaceMode {
+    #[default]
+    Preserve,
+    IgnoreAll,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DiffLineKind {
+    Context,
+    Addition,
+    Deletion,
+    Metadata,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffLine {
+    pub kind: DiffLineKind,
+    pub old_line: Option<u32>,
+    pub new_line: Option<u32>,
+    pub content: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffHunk {
+    pub header: String,
+    pub lines: Vec<DiffLine>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiffProjection {
+    pub repository_id: RepositoryId,
+    pub change_id: String,
+    pub commit_id: String,
+    pub file: ChangedFile,
+    pub whitespace_mode: WhitespaceMode,
+    pub hunks: Vec<DiffHunk>,
+    pub binary: bool,
+    pub truncated: bool,
+    pub additions: usize,
+    pub deletions: usize,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookmarkRef {

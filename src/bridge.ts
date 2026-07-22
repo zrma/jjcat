@@ -8,6 +8,8 @@ import type {
   RepositoryDraft,
   HandoffPreview,
   HandoffTarget,
+  FileDiffProjection,
+  FileDiffRequest,
 } from "./types";
 
 interface Bridge {
@@ -24,6 +26,7 @@ interface Bridge {
   setRepositoryPinned(repositoryId: string, pinned: boolean): Promise<RegistrySnapshot>;
   refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
+  loadFileDiff(request: FileDiffRequest): Promise<FileDiffProjection>;
   previewRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
   launchRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
 }
@@ -76,6 +79,10 @@ class TauriBridge implements Bridge {
 
   cancelRefresh(requestId: string) {
     return invoke<boolean>("cancel_refresh", { requestId }).catch(normalizeError);
+  }
+
+  loadFileDiff(request: FileDiffRequest) {
+    return invoke<FileDiffProjection>("load_file_diff", { request }).catch(normalizeError);
   }
 
   previewRepositoryHandoff(repositoryId: string, target: HandoffTarget) {

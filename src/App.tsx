@@ -34,9 +34,12 @@ import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshSchedule
 import type {
   AppError,
   CachedProjection,
+  DiffViewMode,
+  FileDiffProjection,
   Registry,
   RepositoryDraft,
   RepositoryRecord,
+  WhitespaceMode,
 } from "./types";
 
 type RepositoryState =
@@ -68,6 +71,12 @@ function App() {
   const [failureCounts, setFailureCounts] = useState<Record<string, number>>({});
   const [retryAt, setRetryAt] = useState<Record<string, number>>({});
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<FileDiffProjection | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>("unified");
+  const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>("preserve");
   const [historyView, setHistoryView] = useState<HistoryView>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -81,6 +90,7 @@ function App() {
   const refreshingRef = useRef<Record<string, string>>({});
   const failureCountsRef = useRef<Record<string, number>>({});
   const cancelledRefreshesRef = useRef<Set<string>>(new Set());
+  const diffRequestRef = useRef(0);
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -125,6 +135,42 @@ function App() {
     setSearchQuery("");
     setHistoryView("all");
   }, [selectedRepository?.id]);
+
+  useEffect(() => {
+    diffRequestRef.current += 1;
+    setSelectedFilePath(null);
+    setFileDiff(null);
+    setDiffLoading(false);
+    setDiffError(null);
+  }, [selectedRepository?.id, selectedChange?.changeId, selectedChange?.commitId]);
+
+  useEffect(() => {
+    if (!selectedRepository || !selectedChange || !selectedFilePath) return;
+    const request = ++diffRequestRef.current;
+    setFileDiff(null);
+    setDiffLoading(true);
+    setDiffError(null);
+    bridge
+      .loadFileDiff({
+        repositoryId: selectedRepository.id,
+        changeId: selectedChange.changeId,
+        commitId: selectedChange.commitId,
+        path: selectedFilePath,
+        whitespaceMode,
+      })
+      .then((projection) => {
+        if (request === diffRequestRef.current) setFileDiff(projection);
+      })
+      .catch((error: AppError) => {
+        if (request === diffRequestRef.current) setDiffError(error.message);
+      })
+      .finally(() => {
+        if (request === diffRequestRef.current) setDiffLoading(false);
+      });
+    return () => {
+      if (request === diffRequestRef.current) diffRequestRef.current += 1;
+    };
+  }, [selectedChange, selectedFilePath, selectedRepository, whitespaceMode]);
 
   const selectRepository = useCallback(
     async (repositoryId: string) => {
@@ -615,6 +661,15 @@ function App() {
               selectedChange={selectedChange}
               onSelect={setSelectedChangeId}
               refreshing={selectedState === "refreshing"}
+              selectedFilePath={selectedFilePath}
+              diff={fileDiff}
+              diffLoading={diffLoading}
+              diffError={diffError}
+              diffViewMode={diffViewMode}
+              whitespaceMode={whitespaceMode}
+              onSelectFile={setSelectedFilePath}
+              onDiffViewModeChange={setDiffViewMode}
+              onWhitespaceModeChange={setWhitespaceMode}
             />
           </>
         )}

@@ -17,6 +17,43 @@ export interface ChangedFile {
   path: string;
 }
 
+export type WhitespaceMode = "preserve" | "ignoreAll";
+export type DiffViewMode = "unified" | "sideBySide";
+export type DiffLineKind = "context" | "addition" | "deletion" | "metadata";
+
+export interface DiffLine {
+  kind: DiffLineKind;
+  oldLine: number | null;
+  newLine: number | null;
+  content: string;
+}
+
+export interface DiffHunk {
+  header: string;
+  lines: DiffLine[];
+}
+
+export interface FileDiffRequest {
+  repositoryId: RepositoryId;
+  changeId: string;
+  commitId: string;
+  path: string;
+  whitespaceMode: WhitespaceMode;
+}
+
+export interface FileDiffProjection {
+  repositoryId: RepositoryId;
+  changeId: string;
+  commitId: string;
+  file: ChangedFile;
+  whitespaceMode: WhitespaceMode;
+  hunks: DiffHunk[];
+  binary: boolean;
+  truncated: boolean;
+  additions: number;
+  deletions: number;
+}
+
 export interface BookmarkRef {
   name: string;
   remote: string | null;

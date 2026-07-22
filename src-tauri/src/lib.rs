@@ -21,6 +21,7 @@ pub fn run() {
             commands::load_registry,
             commands::list_ssh_hosts,
             commands::list_remote_directories,
+            commands::load_file_diff,
             commands::register_repository,
             commands::select_repository,
             commands::update_open_repositories,

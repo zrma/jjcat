@@ -11,14 +11,29 @@ import { File, Files, FolderGit2 } from "lucide-react";
 import { relativeTime } from "../lib/format";
 import { layoutDag, type DagRowLayout } from "../lib/dag";
 import { virtualRange } from "../lib/virtualization";
-import type { ChangeRow } from "../types";
+import type {
+  ChangeRow,
+  DiffViewMode,
+  FileDiffProjection,
+  WhitespaceMode,
+} from "../types";
 import { BookmarkLabels } from "./BookmarkLabels";
+import { DiffViewer } from "./DiffViewer";
 
 interface ChangeWorkspaceProps {
   changes: ChangeRow[];
   selectedChange?: ChangeRow;
   onSelect: (changeId: string) => void;
   refreshing: boolean;
+  selectedFilePath: string | null;
+  diff: FileDiffProjection | null;
+  diffLoading: boolean;
+  diffError: string | null;
+  diffViewMode: DiffViewMode;
+  whitespaceMode: WhitespaceMode;
+  onSelectFile: (path: string) => void;
+  onDiffViewModeChange: (mode: DiffViewMode) => void;
+  onWhitespaceModeChange: (mode: WhitespaceMode) => void;
 }
 
 const VIRTUALIZATION_THRESHOLD = 40;
@@ -34,6 +49,15 @@ export function ChangeWorkspace({
   selectedChange,
   onSelect,
   refreshing,
+  selectedFilePath,
+  diff,
+  diffLoading,
+  diffError,
+  diffViewMode,
+  whitespaceMode,
+  onSelectFile,
+  onDiffViewModeChange,
+  onWhitespaceModeChange,
 }: ChangeWorkspaceProps) {
   return (
     <div className="content-grid">
@@ -43,7 +67,18 @@ export function ChangeWorkspace({
         onSelect={onSelect}
         refreshing={refreshing}
       />
-      <ChangeDetails change={selectedChange} />
+      <ChangeDetails
+        change={selectedChange}
+        selectedFilePath={selectedFilePath}
+        diff={diff}
+        diffLoading={diffLoading}
+        diffError={diffError}
+        diffViewMode={diffViewMode}
+        whitespaceMode={whitespaceMode}
+        onSelectFile={onSelectFile}
+        onDiffViewModeChange={onDiffViewModeChange}
+        onWhitespaceModeChange={onWhitespaceModeChange}
+      />
     </div>
   );
 }
@@ -268,7 +303,29 @@ function DagCell({
   );
 }
 
-function ChangeDetails({ change }: { change?: ChangeRow }) {
+function ChangeDetails({
+  change,
+  selectedFilePath,
+  diff,
+  diffLoading,
+  diffError,
+  diffViewMode,
+  whitespaceMode,
+  onSelectFile,
+  onDiffViewModeChange,
+  onWhitespaceModeChange,
+}: {
+  change?: ChangeRow;
+  selectedFilePath: string | null;
+  diff: FileDiffProjection | null;
+  diffLoading: boolean;
+  diffError: string | null;
+  diffViewMode: DiffViewMode;
+  whitespaceMode: WhitespaceMode;
+  onSelectFile: (path: string) => void;
+  onDiffViewModeChange: (mode: DiffViewMode) => void;
+  onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+}) {
   if (!change) {
     return (
       <aside className="change-details details-empty">
@@ -291,15 +348,32 @@ function ChangeDetails({ change }: { change?: ChangeRow }) {
           <ul>
             {change.files.map((file) => (
               <li key={`${file.status}-${file.path}`}>
-                <File aria-hidden="true" />
-                <span title={file.path}>{file.path}</span>
-                <code>{file.status}</code>
+                <button
+                  type="button"
+                  className={selectedFilePath === file.path ? "selected" : ""}
+                  onClick={() => onSelectFile(file.path)}
+                >
+                  <File aria-hidden="true" />
+                  <span title={file.path}>{file.path}</span>
+                  <code>{file.status}</code>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </section>
-      <section className="detail-inspector">
+      {selectedFilePath || diffLoading || diffError ? (
+        <DiffViewer
+          projection={diff}
+          loading={diffLoading}
+          error={diffError}
+          viewMode={diffViewMode}
+          whitespaceMode={whitespaceMode}
+          onViewModeChange={onDiffViewModeChange}
+          onWhitespaceModeChange={onWhitespaceModeChange}
+        />
+      ) : (
+        <section className="detail-inspector">
         <header>
           <h2>{change.summary || "(no description)"}</h2>
         </header>
@@ -316,7 +390,8 @@ function ChangeDetails({ change }: { change?: ChangeRow }) {
           <Detail label="Working copy" value={change.workingCopy ? "Yes" : "No"} accent={change.workingCopy} />
           <Detail label="Empty" value={change.empty ? "Yes" : "No"} />
         </div>
-      </section>
+        </section>
+      )}
     </aside>
   );
 }

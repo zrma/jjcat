@@ -10,13 +10,18 @@ use time::format_description::well_known::Rfc3339;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
-    BookmarkRef, ChangeRow, ChangedFile, JjCapability, RemoteDirectoryListing, RepositoryLocation,
-    RepositoryProjection, RepositoryRecord,
+    BookmarkRef, ChangeRow, ChangedFile, DiffHunk, DiffLine, DiffLineKind, FileDiffProjection,
+    JjCapability, RemoteDirectoryListing, RepositoryLocation, RepositoryProjection,
+    RepositoryRecord, WhitespaceMode,
 };
-use crate::process::{CommandOutput, CommandPlan, ProcessError, ProcessFailureKind, run_command};
+use crate::process::{
+    CommandOutput, CommandPlan, ProcessError, ProcessFailureKind, run_command,
+    run_command_with_limit,
+};
 
 pub const MINIMUM_JJ_VERSION: &str = "0.30.0";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(20);
+const DIFF_OUTPUT_LIMIT: usize = 512 * 1024;
 const LOG_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
     "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
@@ -151,6 +156,56 @@ impl JjDriver {
         parse_remote_directories(&output.stdout)
     }
 
+    pub async fn file_diff(
+        &self,
+        repository: &RepositoryRecord,
+        change_id: String,
+        commit_id: String,
+        file: ChangedFile,
+        whitespace_mode: WhitespaceMode,
+        cancellation: CancellationToken,
+    ) -> Result<FileDiffProjection, DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        if !valid_commit_id(&commit_id) || !valid_repository_path(&file.path) {
+            return Err(DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "diff revision or repository path is invalid".into(),
+            });
+        }
+        let query = JjQuery::Diff {
+            commit_id: commit_id.clone(),
+            path: file.path.clone(),
+            whitespace_mode,
+        };
+        let plan = self.command_plan(repository, query);
+        let output = run_command_with_limit(plan, self.timeout, cancellation, DIFF_OUTPUT_LIMIT)
+            .await
+            .map_err(|error| process_error(repository, error))?;
+        if output.exit_code != Some(0) {
+            let raw = String::from_utf8_lossy(&output.stderr);
+            return Err(DriverError {
+                kind: DriverErrorKind::CommandFailed,
+                message: redact_error(raw.trim(), &repository.location),
+            });
+        }
+        let parsed = parse_git_diff(&output.stdout, output.truncated)?;
+        Ok(FileDiffProjection {
+            repository_id: repository.id.clone(),
+            change_id,
+            commit_id,
+            file,
+            whitespace_mode,
+            hunks: parsed.hunks,
+            binary: parsed.binary,
+            truncated: parsed.truncated,
+            additions: parsed.additions,
+            deletions: parsed.deletions,
+        })
+    }
+
     async fn run_query(
         &self,
         repository: &RepositoryRecord,
@@ -182,7 +237,7 @@ impl JjDriver {
         match &repository.location {
             RepositoryLocation::Local { path } => CommandPlan {
                 program: self.jj_program.clone(),
-                args: query_args.into_iter().map(OsString::from).collect(),
+                args: query_args,
                 current_dir: Some(path.into()),
                 stdin: None,
             },
@@ -224,10 +279,33 @@ fn remote_script(path: &str, query: JjQuery) -> String {
         JjQuery::Log => format!(
             "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(@, 40)' -T '{LOG_TEMPLATE}'"
         ),
+        JjQuery::Diff {
+            commit_id,
+            path,
+            whitespace_mode,
+        } => {
+            let encoded_commit = encode_hex(&commit_id);
+            let encoded_file = encode_hex(&path);
+            let whitespace = match whitespace_mode {
+                WhitespaceMode::Preserve => "",
+                WhitespaceMode::IgnoreAll => " --ignore-all-space",
+            };
+            format!(
+                "commit=$(decode_hex '{encoded_commit}')\nfile=$(decode_hex '{encoded_file}')\ncd \"$repo\"\nexec \"$jj_bin\" --ignore-working-copy diff --color never -r \"$commit\" --git --context 3{whitespace} -- \"$file\""
+            )
+        }
     };
     format!(
-        "set -eu\nencoded='{encoded_path}'\nrepo=''\nwhile [ -n \"$encoded\" ]; do\n  rest=${{encoded#??}}\n  byte=${{encoded%\"$rest\"}}\n  encoded=$rest\n  octal=$(printf '%03o' \"0x$byte\")\n  repo=\"$repo$(printf \"\\\\$octal\")\"\ndone\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{command}\n"
+        "set -eu\ndecode_hex() {{\n  encoded=$1\n  decoded=''\n  while [ -n \"$encoded\" ]; do\n    rest=${{encoded#??}}\n    byte=${{encoded%\"$rest\"}}\n    encoded=$rest\n    octal=$(printf '%03o' \"0x$byte\")\n    decoded=\"$decoded$(printf \"\\\\$octal\")\"\n  done\n  printf '%s' \"$decoded\"\n}}\nrepo=$(decode_hex '{encoded_path}')\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{command}\n"
     )
+}
+
+fn encode_hex(value: &str) -> String {
+    value
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn remote_directory_script(path: &str) -> String {
@@ -241,17 +319,22 @@ fn remote_directory_script(path: &str) -> String {
     )
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum JjQuery {
     Version,
     Log,
+    Diff {
+        commit_id: String,
+        path: String,
+        whitespace_mode: WhitespaceMode,
+    },
 }
 
 impl JjQuery {
-    fn args(self) -> Vec<&'static str> {
+    fn args(&self) -> Vec<OsString> {
         match self {
-            Self::Version => vec!["--version"],
-            Self::Log => vec![
+            Self::Version => vec!["--version".into()],
+            Self::Log => [
                 "--ignore-working-copy",
                 "log",
                 "--no-graph",
@@ -261,7 +344,33 @@ impl JjQuery {
                 "ancestors(@, 40)",
                 "-T",
                 LOG_TEMPLATE,
-            ],
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+            Self::Diff {
+                commit_id,
+                path,
+                whitespace_mode,
+            } => {
+                let mut args = vec![
+                    "--ignore-working-copy".into(),
+                    "diff".into(),
+                    "--color".into(),
+                    "never".into(),
+                    "-r".into(),
+                    commit_id.into(),
+                    "--git".into(),
+                    "--context".into(),
+                    "3".into(),
+                ];
+                if *whitespace_mode == WhitespaceMode::IgnoreAll {
+                    args.push("--ignore-all-space".into());
+                }
+                args.push("--".into());
+                args.push(path.into());
+                args
+            }
         }
     }
 }
@@ -410,6 +519,100 @@ fn parse_files(value: &str) -> Vec<ChangedFile> {
             })
         })
         .collect()
+}
+
+struct ParsedDiff {
+    hunks: Vec<DiffHunk>,
+    binary: bool,
+    truncated: bool,
+    additions: usize,
+    deletions: usize,
+}
+
+fn parse_git_diff(stdout: &[u8], truncated: bool) -> Result<ParsedDiff, DriverError> {
+    let text = String::from_utf8_lossy(stdout);
+    let hunk_header =
+        Regex::new(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@").expect("valid hunk header regex");
+    let mut hunks: Vec<DiffHunk> = Vec::new();
+    let mut old_line = 0;
+    let mut new_line = 0;
+    let mut additions = 0;
+    let mut deletions = 0;
+    let mut binary = false;
+
+    for raw_line in text.lines() {
+        if raw_line.starts_with("Binary files ") || raw_line == "GIT binary patch" {
+            binary = true;
+        }
+        if let Some(captures) = hunk_header.captures(raw_line) {
+            old_line = captures[1]
+                .parse()
+                .map_err(|_| invalid_output("diff hunk old line was invalid"))?;
+            new_line = captures[2]
+                .parse()
+                .map_err(|_| invalid_output("diff hunk new line was invalid"))?;
+            hunks.push(DiffHunk {
+                header: raw_line.into(),
+                lines: Vec::new(),
+            });
+            continue;
+        }
+        let Some(hunk) = hunks.last_mut() else {
+            continue;
+        };
+        let (kind, old_number, new_number, content) =
+            if let Some(content) = raw_line.strip_prefix('+') {
+                let line = (DiffLineKind::Addition, None, Some(new_line), content);
+                new_line += 1;
+                additions += 1;
+                line
+            } else if let Some(content) = raw_line.strip_prefix('-') {
+                let line = (DiffLineKind::Deletion, Some(old_line), None, content);
+                old_line += 1;
+                deletions += 1;
+                line
+            } else if let Some(content) = raw_line.strip_prefix(' ') {
+                let line = (
+                    DiffLineKind::Context,
+                    Some(old_line),
+                    Some(new_line),
+                    content,
+                );
+                old_line += 1;
+                new_line += 1;
+                line
+            } else {
+                (DiffLineKind::Metadata, None, None, raw_line)
+            };
+        hunk.lines.push(DiffLine {
+            kind,
+            old_line: old_number,
+            new_line: new_number,
+            content: content.into(),
+        });
+    }
+
+    Ok(ParsedDiff {
+        hunks,
+        binary,
+        truncated,
+        additions,
+        deletions,
+    })
+}
+
+fn valid_commit_id(value: &str) -> bool {
+    (1..=64).contains(&value.len()) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn valid_repository_path(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 4096
+        && !value.starts_with('/')
+        && !value.chars().any(char::is_control)
+        && value
+            .split('/')
+            .all(|component| !component.is_empty() && component != "." && component != "..")
 }
 
 fn invalid_output(message: &str) -> DriverError {
@@ -570,5 +773,65 @@ mod tests {
         assert!(!message.contains("/home/tester/private/file"));
         assert!(message.contains("<ssh-host>"));
         assert!(message.contains("<repo-path>"));
+    }
+
+    #[test]
+    fn git_diff_parser_preserves_line_numbers_and_change_counts() {
+        let diff = parse_git_diff(
+            b"diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -2,3 +2,4 @@ section\n same\n-old\n+new\n+more\n tail\n\\ No newline at end of file\n",
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(diff.additions, 2);
+        assert_eq!(diff.deletions, 1);
+        assert_eq!(diff.hunks.len(), 1);
+        assert_eq!(diff.hunks[0].lines[1].old_line, Some(3));
+        assert_eq!(diff.hunks[0].lines[2].new_line, Some(3));
+        assert_eq!(diff.hunks[0].lines[3].new_line, Some(4));
+        assert_eq!(diff.hunks[0].lines[5].kind, DiffLineKind::Metadata);
+    }
+
+    #[test]
+    fn git_diff_parser_reports_binary_and_bounded_output_states() {
+        let diff = parse_git_diff(
+            b"diff --git a/image.png b/image.png\nBinary files a/image.png and b/image.png differ\n",
+            true,
+        )
+        .unwrap();
+
+        assert!(diff.binary);
+        assert!(diff.truncated);
+        assert!(diff.hunks.is_empty());
+    }
+
+    #[test]
+    fn diff_plan_keeps_revision_and_path_out_of_the_ssh_script_source() {
+        let repository = remote_repository();
+        let driver = JjDriver::default();
+        let plan = driver.command_plan(
+            &repository,
+            JjQuery::Diff {
+                commit_id: "012345abcdef".into(),
+                path: "folder/file with spaces.txt".into(),
+                whitespace_mode: WhitespaceMode::IgnoreAll,
+            },
+        );
+        let script = String::from_utf8(plan.stdin.unwrap()).unwrap();
+
+        assert!(!script.contains("folder/file with spaces.txt"));
+        assert!(!script.contains("012345abcdef"));
+        assert!(script.contains("666f6c6465722f66696c652077697468207370616365732e747874"));
+        assert!(script.contains("--ignore-all-space"));
+        assert!(script.contains("\"$file\""));
+    }
+
+    #[test]
+    fn diff_selectors_reject_parent_traversal_and_non_commit_revisions() {
+        assert!(valid_commit_id("012345abcdef"));
+        assert!(!valid_commit_id("main"));
+        assert!(valid_repository_path("src/main.rs"));
+        assert!(!valid_repository_path("../outside"));
+        assert!(!valid_repository_path("/absolute/path"));
     }
 }

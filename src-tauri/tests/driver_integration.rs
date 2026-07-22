@@ -3,7 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Command;
 
-use jjcat_core::domain::{RepositoryLocation, RepositoryRecord};
+use jjcat_core::domain::{RepositoryLocation, RepositoryRecord, WhitespaceMode};
 use jjcat_core::driver::JjDriver;
 use tempfile::tempdir;
 use tokio_util::sync::CancellationToken;
@@ -91,6 +91,45 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         .await
         .unwrap();
 
+    let selected = local_projection
+        .changes
+        .iter()
+        .find(|change| {
+            change
+                .files
+                .iter()
+                .any(|file| file.path == "projection.txt")
+        })
+        .unwrap();
+    let selected_file = selected
+        .files
+        .iter()
+        .find(|file| file.path == "projection.txt")
+        .unwrap()
+        .clone();
+    let local_diff = JjDriver::default()
+        .file_diff(
+            &local,
+            selected.change_id.clone(),
+            selected.commit_id.clone(),
+            selected_file.clone(),
+            WhitespaceMode::Preserve,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let remote_diff = remote_driver
+        .file_diff(
+            &remote,
+            selected.change_id.clone(),
+            selected.commit_id.clone(),
+            selected_file,
+            WhitespaceMode::Preserve,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
     let local_summaries = local_projection
         .changes
         .iter()
@@ -107,6 +146,10 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         remote_projection.working_copy_has_changes,
         local_projection.working_copy_has_changes
     );
+    assert_eq!(remote_diff.hunks, local_diff.hunks);
+    assert_eq!(local_diff.additions, 1);
+    assert!(!local_diff.binary);
+    assert!(!local_diff.truncated);
     assert_eq!(
         remote_directories.directories,
         vec![

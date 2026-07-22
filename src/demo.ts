@@ -6,6 +6,8 @@ import type {
   RepositoryDraft,
   RepositoryRecord,
   HandoffTarget,
+  FileDiffRequest,
+  FileDiffProjection,
 } from "./types";
 
 const LOCAL_ID = "e21c6676-690c-5847-b407-137074516f66";
@@ -142,6 +144,44 @@ export class DemoBridge {
 
   async loadRegistry() {
     return structuredClone(this.snapshot);
+  }
+
+  async loadFileDiff(request: FileDiffRequest): Promise<FileDiffProjection> {
+    const selected = this.snapshot.registry.cachedProjections[request.repositoryId]?.projection.changes
+      .find((candidate) => candidate.changeId === request.changeId && candidate.commitId === request.commitId);
+    const file = selected?.files.find((candidate) => candidate.path === request.path);
+    if (!file) {
+      throw { kind: "notFound", message: "The selected file is not in this change." } satisfies AppError;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+    const fileName = file.path.split("/").pop() ?? file.path;
+    const whitespaceLine = request.whitespaceMode === "preserve"
+      ? [{ kind: "addition" as const, oldLine: null, newLine: 4, content: "  const spacing = true;" }]
+      : [];
+    return {
+      repositoryId: request.repositoryId,
+      changeId: request.changeId,
+      commitId: request.commitId,
+      file,
+      whitespaceMode: request.whitespaceMode,
+      binary: false,
+      truncated: false,
+      additions: 2 + whitespaceLine.length,
+      deletions: 1,
+      hunks: [
+        {
+          header: `@@ -1,3 +1,${3 + whitespaceLine.length} @@ ${fileName}`,
+          lines: [
+            { kind: "context", oldLine: 1, newLine: 1, content: `// ${fileName}` },
+            { kind: "deletion", oldLine: 2, newLine: null, content: "const mode = \"legacy\";" },
+            { kind: "addition", oldLine: null, newLine: 2, content: "const mode = \"jjcat\";" },
+            { kind: "addition", oldLine: null, newLine: 3, content: "const remoteReady = true;" },
+            ...whitespaceLine,
+            { kind: "context", oldLine: 3, newLine: 3 + whitespaceLine.length, content: "export { mode };" },
+          ],
+        },
+      ],
+    };
   }
 
   async registerRepository(draft: RepositoryDraft) {

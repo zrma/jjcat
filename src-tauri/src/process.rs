@@ -45,6 +45,15 @@ pub async fn run_command(
     timeout: Duration,
     cancellation: CancellationToken,
 ) -> Result<CommandOutput, ProcessError> {
+    run_command_with_limit(plan, timeout, cancellation, DEFAULT_OUTPUT_LIMIT).await
+}
+
+pub async fn run_command_with_limit(
+    plan: CommandPlan,
+    timeout: Duration,
+    cancellation: CancellationToken,
+    output_limit: usize,
+) -> Result<CommandOutput, ProcessError> {
     let mut command = Command::new(&plan.program);
     command
         .args(&plan.args)
@@ -76,8 +85,8 @@ pub async fn run_command(
 
     let stdout = child.stdout.take().expect("stdout must be piped");
     let stderr = child.stderr.take().expect("stderr must be piped");
-    let stdout_task = tokio::spawn(read_bounded(stdout, DEFAULT_OUTPUT_LIMIT));
-    let stderr_task = tokio::spawn(read_bounded(stderr, DEFAULT_OUTPUT_LIMIT));
+    let stdout_task = tokio::spawn(read_bounded(stdout, output_limit));
+    let stderr_task = tokio::spawn(read_bounded(stderr, output_limit));
     let deadline = tokio::time::sleep(timeout);
     tokio::pin!(deadline);
 
