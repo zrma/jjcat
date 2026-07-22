@@ -60,6 +60,8 @@ readme = read("README.md")
 handoff = read("docs/HANDOFF.md")
 publication = read("docs/PUBLICATION.md")
 start_work = read("scripts/start-work.sh")
+cargo_manifest = read("src-tauri/Cargo.toml")
+package_manifest = read("package.json")
 
 for fragment in (
     "name: jjcat",
@@ -68,7 +70,7 @@ for fragment in (
     "remote_visibility_policy: private-or-public",
     "remote_status: configured-public",
     "remote: https://github.com/zrma/jjcat",
-    "license_status: undecided",
+    "license_status: Apache-2.0",
     "application_identifier: com.1day1coding.jjcat",
     "status: selected",
     "desktop: Tauri 2",
@@ -98,8 +100,18 @@ if "publication class는 public" not in handoff:
     fail("handoff does not declare the public tracked surface")
 if "`jjcat`의 tracked repository surface는 `public`" not in publication:
     fail("publication policy does not declare the public tracked surface")
-if (ROOT / "LICENSE").exists() or (ROOT / "LICENSE.md").exists():
-    fail("manifest says license is undecided but a root license file exists")
+license_path = ROOT / "LICENSE"
+if not license_path.is_file():
+    fail("Apache-2.0 LICENSE is missing")
+license_text = license_path.read_text(encoding="utf-8")
+if "Apache License" not in license_text or "Version 2.0, January 2004" not in license_text:
+    fail("root LICENSE is not the Apache License 2.0 text")
+if 'license = "Apache-2.0"' not in cargo_manifest:
+    fail("Cargo package license differs from Apache-2.0")
+if '"license": "Apache-2.0"' not in package_manifest:
+    fail("frontend package license differs from Apache-2.0")
+if "Apache License 2.0" not in readme or "Apache License 2.0" not in handoff:
+    fail("README or handoff license declaration differs from Apache-2.0")
 
 markdown_link_pattern = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 markdown_paths = set(ROOT.glob("*.md"))

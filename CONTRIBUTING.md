@@ -31,3 +31,8 @@ issue, pull request, fixture 또는 tracked 문서에 첨부하지 않는다. AI
 `scripts/check-publication-boundary.py`를 적용한다. 실제 secret이나 private identifier를
 발견했다면 내용을 복사해 public issue로 보고하지 말고 `SECURITY.md`의 private reporting
 경로를 사용한다.
+
+## Contribution License
+
+별도 합의가 없는 한 프로젝트에 제출한 contribution은 Apache License 2.0 조건으로
+제공하는 데 동의한 것으로 본다.

@@ -40,7 +40,7 @@ source, fixture, snapshot, change description과 CI 설정을 공개 가능한 `
 
 1. `scripts/check.sh`와 `scripts/check-publication-boundary.py`를 실행한다.
 2. push될 tree와 change description에 local-only content가 없는지 확인한다.
-3. license를 선택하지 않았다면 그 상태가 README와 manifest에 일치하는지 확인한다.
+3. root `LICENSE`, package metadata, README와 manifest의 license 선언이 일치하는지 확인한다.
 
 public remote 생성, private에서 public으로 visibility 전환, public push 직전에는 다음을
 추가로 확인한다.

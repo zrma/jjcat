@@ -28,9 +28,8 @@ Pre-alpha P0 read-only cockpit이 동작한다. Tauri desktop shell에서 local/
 raw tool log는 기록하지 않는다. 자세한 기준은 [Publication Policy](docs/PUBLICATION.md)에
 있다.
 
-[GitHub origin](https://github.com/zrma/jjcat)은 public으로 구성했다. 다만 license는 아직
-선택하지 않았다. `LICENSE`가 추가되기 전까지 특정 open-source license가 적용된다고
-가정하지 않는다.
+[GitHub origin](https://github.com/zrma/jjcat)은 public으로 구성했으며 source code는
+Apache License 2.0으로 제공한다.
 
 ## Repository Workflow
 
@@ -68,7 +67,12 @@ scripts/start-work.sh --work-id <work-id>
 scripts/finalize-change.sh --message "docs: describe the milestone"
 ```
 
-push, visibility 변경, license 선택은 별도 사용자 결정과 publication gate를 요구한다.
+push, visibility 변경, package publish와 release는 별도 사용자 결정과 publication gate를
+요구한다.
 
 기여 방법은 [CONTRIBUTING.md](CONTRIBUTING.md), 보안 이슈 신고 경계는
 [SECURITY.md](SECURITY.md)를 따른다.
+
+## License
+
+`jjcat`은 [Apache License 2.0](LICENSE)으로 제공한다.

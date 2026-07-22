@@ -31,7 +31,7 @@ publication:
   remote_visibility_policy: private-or-public
   remote_status: configured-public
   remote: https://github.com/zrma/jjcat
-  license_status: undecided
+  license_status: Apache-2.0
   policy: docs/PUBLICATION.md
 
 commands:
