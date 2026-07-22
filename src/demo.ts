@@ -53,6 +53,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
       parents: ["6a7b8c9d0e1f"],
       bookmarks: [
         { name: "main", remote: null },
+        { name: "main", remote: "git" },
         { name: "main", remote: "origin" },
         { name: "review-ready", remote: null },
       ],

@@ -1,5 +1,5 @@
-import { Cloud } from "lucide-react";
-import { uniqueBookmarks } from "../lib/bookmarks";
+import { Cloud, GitBranch } from "lucide-react";
+import { groupBookmarksAtRevision, uniqueBookmarks } from "../lib/bookmarks";
 import type { BookmarkRef } from "../types";
 
 interface BookmarkLabelsProps {
@@ -16,13 +16,14 @@ export function BookmarkLabels({
   className = "",
 }: BookmarkLabelsProps) {
   const labels = uniqueBookmarks(bookmarks);
+  const groups = groupBookmarksAtRevision(labels);
 
   if (labels.length === 0) {
     return emptyLabel ? <span className="bookmark-empty">{emptyLabel}</span> : null;
   }
 
-  const visible = labels.slice(0, limit);
-  const hidden = labels.slice(limit);
+  const visible = groups.slice(0, limit);
+  const hidden = groups.slice(limit);
   const describe = (bookmark: BookmarkRef) =>
     bookmark.remote ? `${bookmark.name}@${bookmark.remote}` : bookmark.name;
 
@@ -31,22 +32,49 @@ export function BookmarkLabels({
       className={`bookmark-list ${className}`.trim()}
       aria-label={`Bookmarks: ${labels.map(describe).join(", ")}`}
     >
-      {visible.map((bookmark) => (
+      {visible.map(({ primary, alignedRemotes }) => (
         <span
-          className={`bookmark-label ${bookmark.remote ? "remote" : "local"}`}
-          title={bookmark.remote ? `Remote bookmark ${describe(bookmark)}` : `Local bookmark ${bookmark.name}`}
-          key={describe(bookmark)}
+          className={`bookmark-label ${primary.remote ? "remote" : "local"}`}
+          title={
+            primary.remote
+              ? `Remote bookmark ${describe(primary)}`
+              : `Local bookmark ${primary.name}${
+                  alignedRemotes.length > 0
+                    ? `; aligned with ${alignedRemotes.map(describe).join(", ")}`
+                    : ""
+                }`
+          }
+          key={describe(primary)}
         >
-          {bookmark.remote && <Cloud aria-hidden="true" />}
-          <span>{bookmark.name}</span>
-          {bookmark.remote && <small>@{bookmark.remote}</small>}
+          {primary.remote && <Cloud aria-hidden="true" />}
+          <span>{primary.name}</span>
+          {primary.remote && <small>@{primary.remote}</small>}
+          {alignedRemotes.length > 0 && (
+            <span className="bookmark-aligned-markers" aria-hidden="true">
+              {alignedRemotes.map((remote) => (
+                <span
+                  className={`bookmark-aligned-marker ${remote.remote === "git" ? "git" : "network"}`}
+                  title={
+                    remote.remote === "git"
+                      ? `Git branch ${describe(remote)} is at this revision`
+                      : `Remote bookmark ${describe(remote)} is at this revision (last fetched)`
+                  }
+                  key={describe(remote)}
+                >
+                  {remote.remote === "git" ? <GitBranch /> : <Cloud />}
+                </span>
+              ))}
+            </span>
+          )}
         </span>
       ))}
       {hidden.length > 0 && (
         <span
           className="bookmark-overflow"
-          title={hidden.map(describe).join("\n")}
-          aria-label={`${hidden.length} more bookmarks: ${hidden.map(describe).join(", ")}`}
+          title={hidden.map(({ primary }) => describe(primary)).join("\n")}
+          aria-label={`${hidden.length} more bookmark positions: ${hidden
+            .map(({ primary }) => describe(primary))
+            .join(", ")}`}
         >
           +{hidden.length}
         </span>

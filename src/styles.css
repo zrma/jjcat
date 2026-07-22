@@ -819,6 +819,36 @@ body[data-runtime="tauri"] .brand-lockup {
   text-overflow: ellipsis;
 }
 
+.bookmark-aligned-markers {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+  padding-left: 4px;
+  border-left: 1px solid #55636a;
+}
+
+.bookmark-aligned-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookmark-aligned-marker.git {
+  color: #aebbc1;
+}
+
+.bookmark-aligned-marker.network {
+  color: #e5a849;
+}
+
+.bookmark-aligned-marker svg {
+  width: 9px;
+  height: 9px;
+  stroke-width: 2;
+}
+
 .bookmark-label.remote > small {
   color: #c99a58;
   font-size: 8px;
