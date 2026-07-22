@@ -1,6 +1,6 @@
 # Spec: P2 Graph and Diff
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -32,12 +32,12 @@ lane projection이고 file inspector는 path/status metadata만 표시한다. da
 
 | ID | Status | Verify | Work item |
 | --- | --- | --- | --- |
-| C1 | todo | topology fixture + rendered smoke | multi-lane DAG와 keyboard revision navigation |
-| C2 | todo | local/SSH driver integration | bounded file list와 unified diff |
-| C3 | todo | rendered mode matrix | side-by-side diff와 whitespace mode |
-| C4 | todo | projection fixture | conflict, outgoing와 behind state |
-| C5 | todo | operation fixture | operation log와 undo eligibility preview |
-| C6 | todo | `scripts/check.sh` | full local gate와 current docs |
+| C1 | done | topology fixture + rendered smoke | multi-lane DAG와 keyboard revision navigation |
+| C2 | done | local/SSH driver integration | bounded file list와 unified diff |
+| C3 | done | rendered mode matrix | side-by-side diff와 whitespace mode |
+| C4 | done | projection fixture | conflict, outgoing와 behind state |
+| C5 | done | operation fixture | operation log와 undo eligibility preview |
+| C6 | done | `scripts/check.sh` | full local gate와 current docs |
 
 ## Required Evidence
 
@@ -46,6 +46,20 @@ lane projection이고 file inspector는 path/status metadata만 표시한다. da
 - local과 SSH driver가 같은 bounded diff contract를 사용하며 binary/large output을 제한한다.
 - conflict, outgoing와 behind가 refresh/cache freshness와 혼동되지 않는다.
 - operation surface는 실행 가능 여부와 target을 보여주되 P2에서 mutation을 실행하지 않는다.
+
+검증 결과:
+
+- deterministic topology fixture와 160-row rendered smoke에서 merge lane, pointer/keyboard 선택,
+  virtual scroll 뒤 선택 행 추적을 확인했다.
+- local과 simulated SSH가 같은 structured hunk를 반환하고 actual SSH smoke에서 bounded diff와
+  read-only operation query를 확인했다. diff capture는 512 KiB에서 잘리고 binary/truncated
+  상태를 content 대신 표시한다.
+- unified/side-by-side와 preserve/ignore-all whitespace matrix를 browser에서 전환했으며
+  conflict와 last-fetched outgoing/behind가 cache freshness와 분리되어 표시된다.
+- operation query 전후 operation identity가 유지되고 undo action은 target preview만 제공하는
+  disabled control이다.
+- canonical local gate와 native desktop smoke가 통과했다. private runtime identity와 raw
+  evidence는 tracked artifact에 기록하지 않았다.
 
 ## Publication Impact
 

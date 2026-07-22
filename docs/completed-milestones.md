@@ -42,3 +42,16 @@ implementation은 다음 P0 milestone로 넘겼다.
   중간 revision interaction을 검증했다.
 - native desktop, owner-controlled SSH 2-repository matrix와 canonical local gate를 통과했다.
   private identity, path와 raw output은 tracked evidence에 남기지 않았다.
+
+## 2026-07-23: P2 Graph and Diff
+
+- parent relation을 deterministic multi-lane topology로 계산하고 bounded virtual history에서
+  pointer/keyboard revision navigation을 통합했다.
+- selected revision/file만 읽는 512 KiB bounded structured diff를 local과 SSH에 동일하게
+  적용하고 unified/side-by-side, whitespace mode와 binary/truncated state를 구현했다.
+- conflict와 locally stored remote refs 기준 outgoing/behind를 cache freshness와 분리해
+  `Last fetched` 상태로 표시했다.
+- `--at-op=@ --ignore-working-copy` 기반 recent operation log와 disabled undo eligibility
+  preview를 추가하고 query 전후 operation identity가 유지됨을 검증했다.
+- deterministic fixtures, simulated 및 owner-controlled SSH, browser/native smoke와 canonical
+  local gate를 통과했다. private identity, source content와 raw evidence는 기록하지 않았다.

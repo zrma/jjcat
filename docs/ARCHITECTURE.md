@@ -14,7 +14,8 @@ Desktop Shell
        -> Local Driver -> jj CLI
        -> SSH Driver   -> OpenSSH stdio -> jj CLI or jjcat-agent
        -> Projection Cache
-       -> Per-repository Operation Queue
+       -> Read-only Operation Inspection
+       -> Per-repository Operation Queue (P3)
 ```
 
 ## Component Boundaries
@@ -86,13 +87,36 @@ template와 remote terminal working-directory bootstrap은 이후 configuration 
 ### Change History Rendering
 
 40개 이상 change는 고정 높이 windowing과 overscan을 사용해 visible row만 DOM에 유지한다.
-전체 row count와 item position은 accessibility metadata로 보존한다. P2의 multi-lane topology와
-revision navigation은 이 bounded rendering contract 위에 추가한다.
+전체 row count와 item position은 accessibility metadata로 보존한다. parent relation 전체를
+먼저 deterministic lane model로 계산하므로 virtual window 밖에서도 edge가 안정적이다.
+pointer와 위/아래 방향키 selection은 같은 revision state를 사용하며 화면 밖 선택은 scroll
+window가 따라간다.
+
+### Diff Inspection
+
+file list는 cached revision metadata지만 source content는 사용자가 file을 선택한 시점에만
+commit identity와 cached file membership을 다시 확인한 뒤 읽는다. local과 SSH 모두 같은
+structured hunk contract를 반환하며 capture는 512 KiB로 제한한다. binary와 truncated output은
+명시적 metadata state로 표시하고 content를 registry/cache에 저장하지 않는다. frontend는 같은
+projection을 unified 또는 side-by-side로 렌더링하고 whitespace mode 변경 시 선택 file만 다시
+조회한다.
+
+### Remote Divergence
+
+outgoing과 behind는 network fetch를 실행하지 않고 local bookmark와 `git` pseudo-remote를
+제외한 network remote bookmark의 locally stored graph를 비교한다. UI는 이를 `Last fetched`로
+표시하고 projection cache의 cached/stale/disconnected freshness와 별도 상태로 유지한다.
+
+### Operation Inspection
+
+최근 operation은 `--at-op=@ --ignore-working-copy`를 강제한 local/SSH query로 최대 20개만
+읽는다. current non-snapshot operation만 undo eligibility target으로 분류하지만 P2 UI는 실제
+command를 제공하지 않고 disabled preview로 target과 범위를 설명한다.
 
 ### Operation Queue
 
-repository별 mutation을 직렬화한다. 실행 전 operation ID와 target identity를 확인하고,
-결과 operation 및 undo 경로를 기록한다. 다른 repository의 작업은 독립적으로 진행한다.
+P3에서 repository별 mutation을 직렬화한다. 실행 전 operation ID와 target identity를 확인하고,
+결과 operation 및 undo 경로를 기록한다. P2에는 queue나 mutation 실행 경로가 없다.
 
 ## CLI Integration Contract
 

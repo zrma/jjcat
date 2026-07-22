@@ -96,10 +96,10 @@ if not manifest_class or not harness_class or manifest_class.group(1) != harness
 
 if "All your jj repos, one window." not in readme:
     fail("README product identity is missing")
-if "P2: Graph and Diff" not in status:
-    fail("status does not identify the active milestone")
-if "P1 multi-repository cockpit은" not in status:
-    fail("status does not record P1 completion")
+if "`P2: Graph and Diff`까지 완료됐다" not in status:
+    fail("status does not record P2 completion")
+if "다음 milestone은 P3 safe shaping" not in status:
+    fail("status does not identify the next milestone boundary")
 if "현재 content class는 `public`" not in status:
     fail("status does not declare the public tracked surface")
 if "publication class는 public" not in handoff:
@@ -188,12 +188,14 @@ for todo_dir in todo_dirs:
         active_count += 1
         active_specs.append(str((todo_dir / "spec.md").relative_to(ROOT)))
 
-if active_count != 1:
-    fail(f"expected exactly one active todo, found {active_count}")
 manifest_active = re.search(r"^active_work: ([^\s]+)$", manifest, re.MULTILINE)
 if not manifest_active:
     fail("manifest does not declare active_work")
-if active_specs != [manifest_active.group(1)]:
+declared_active = manifest_active.group(1)
+if declared_active == "none":
+    if active_count != 0:
+        fail(f"manifest declares no active work but found {active_count} active todo")
+elif active_count != 1 or active_specs != [declared_active]:
     fail(f"manifest active_work differs from active todo: {active_specs}")
 
 print("repository contract is valid")

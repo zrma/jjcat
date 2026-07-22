@@ -2,7 +2,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-use jjcat_core::domain::{RepositoryLocation, RepositoryRecord};
+use jjcat_core::domain::{RepositoryLocation, RepositoryRecord, WhitespaceMode};
 use jjcat_core::driver::JjDriver;
 use tokio_util::sync::CancellationToken;
 
@@ -92,6 +92,7 @@ find "$root" -mindepth 1 -maxdepth 4 -type d -name .jj -print |
         !listing.directories.is_empty(),
         "remote folder browsing should expose repository candidates"
     );
+    let mut diff_count = 0;
     for (index, path) in paths.into_iter().enumerate() {
         let repository = RepositoryRecord::new(
             format!("remote-smoke-{}", index + 1),
@@ -107,7 +108,39 @@ find "$root" -mindepth 1 -maxdepth 4 -type d -name .jj -print |
             .expect("remote projection must succeed");
         assert!(!projection.changes.is_empty());
         assert!(projection.capability.supported);
+        let first_operations = driver
+            .operation_log(&repository, CancellationToken::new())
+            .await
+            .expect("remote operation inspection must succeed");
+        let second_operations = driver
+            .operation_log(&repository, CancellationToken::new())
+            .await
+            .expect("repeated remote operation inspection must succeed");
+        assert_eq!(first_operations.operations, second_operations.operations);
+        if let Some((change, file)) = projection
+            .changes
+            .iter()
+            .find_map(|change| change.files.first().map(|file| (change, file.clone())))
+        {
+            let diff = driver
+                .file_diff(
+                    &repository,
+                    change.change_id.clone(),
+                    change.commit_id.clone(),
+                    file,
+                    WhitespaceMode::Preserve,
+                    CancellationToken::new(),
+                )
+                .await
+                .expect("remote bounded diff must succeed");
+            assert_eq!(diff.repository_id, repository.id);
+            diff_count += 1;
+        }
     }
+    assert!(
+        diff_count > 0,
+        "at least one remote revision must expose a bounded diff"
+    );
 
     println!("local-only SSH smoke passed");
 }

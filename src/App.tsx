@@ -64,22 +64,29 @@ function isTextEntry(target: EventTarget | null) {
   );
 }
 
-function SyncSummary({ sync, conflicts }: { sync: SyncStatus; conflicts: number }) {
+function SyncSummary({ sync, conflicts }: { sync?: SyncStatus; conflicts: number }) {
+  const state = sync ?? {
+    available: false,
+    remoteHeads: 0,
+    outgoing: 0,
+    behind: 0,
+    basis: "lastFetched" as const,
+  };
   return (
     <div
       className="sync-summary"
       aria-label={
-        sync.available
-          ? `Remote state from last fetch: ${sync.outgoing} outgoing, ${sync.behind} behind, ${conflicts} conflicts`
+        state.available
+          ? `Remote state from last fetch: ${state.outgoing} outgoing, ${state.behind} behind, ${conflicts} conflicts`
           : `No fetched network remote state; ${conflicts} conflicts`
       }
       title="Remote comparison uses locally stored refs from the last fetch. It does not contact the network."
     >
       {conflicts > 0 && <strong className="sync-conflict">{conflicts} conflict</strong>}
-      {sync.available ? (
+      {state.available ? (
         <>
-          <strong className="sync-outgoing">↑ {sync.outgoing}</strong>
-          <strong className="sync-behind">↓ {sync.behind}</strong>
+          <strong className="sync-outgoing">↑ {state.outgoing}</strong>
+          <strong className="sync-behind">↓ {state.behind}</strong>
           <span>Last fetched</span>
         </>
       ) : (

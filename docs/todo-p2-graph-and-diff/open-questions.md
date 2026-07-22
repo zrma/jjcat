@@ -1,5 +1,7 @@
 # Open Questions
 
+Status: resolved for P2
+
 ## Q1: Diff projection과 rendering 경계
 
 - Default: driver는 bounded structured file hunks를 반환하고 frontend가 unified/side-by-side를
@@ -22,3 +24,6 @@
 - Escalate when: read-only inspection만으로 recovery workflow를 검증할 수 없다.
 
 현재 사용자 결정을 기다리는 blocker는 없다.
+
+P2에서는 세 default를 그대로 채택했다. configuration 가능한 diff limit와 실제 operation
+undo는 각각 이후 configuration 및 P3 mutation milestone에서 다시 판단한다.

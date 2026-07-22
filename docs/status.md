@@ -2,15 +2,15 @@
 
 ## Current Milestone
 
-`P2: Graph and Diff`가 active다. P0 read-only foundation과 P1 multi-repository cockpit은
-완료됐다.
+`P2: Graph and Diff`까지 완료됐다. 다음 milestone은 P3 safe shaping이며 아직 시작하지
+않았다.
 
 완료된 기반:
 
 - 제품명 `jjcat`과 tagline
 - stable application identifier `com.1day1coding.jjcat`
 - local/SSH multi-repository product contract
-- driver, registry, cache, operation queue와 SSH trust boundary
+- driver, registry, cache, operation safety contract와 SSH trust boundary
 - canonical `agent-harness-v1` 문서 구조
 - repository contract와 publication boundary local gate
 - `docs/todo-*` 기반 자율 작업 bootstrap
@@ -33,14 +33,13 @@
 - repository별 refresh dedup/cancel, active/inactive interval과 bounded failure backoff
 - structured argv를 사용하는 local/SSH VS Code 및 platform terminal handoff
 - 40개 이상 history의 bounded row virtualization과 representative interaction fixture
+- stable multi-lane change topology와 pointer/keyboard revision navigation
+- selected revision/file만 읽는 512 KiB bounded local/SSH structured diff
+- unified/side-by-side renderer, whitespace mode와 binary/truncated fallback
+- cache freshness와 분리된 conflict 및 last-fetched outgoing/behind 상태
+- operation identity를 변경하지 않는 recent operation log와 disabled undo eligibility preview
 
-아직 구현되지 않은 항목:
-
-- multi-lane DAG와 revision keyboard navigation
-- unified/side-by-side file diff surface
-- conflict, outgoing와 behind projection
-- operation log 및 undo preview surface
-- mutation command
+아직 구현되지 않은 항목은 fetch를 포함한 mutation command, 실제 undo와 shaping preview다.
 
 ## Known Upstream Constraints
 
@@ -63,5 +62,6 @@
 
 ## Next Slice
 
-[P2 spec](todo-p2-graph-and-diff/spec.md)의 C1부터 시작해 bounded history row 위에 multi-lane
-topology model과 keyboard revision navigation을 추가한다.
+[P2 spec](todo-p2-graph-and-diff/spec.md)은 완료됐다. 다음 작업은 별도 goal에서 P3 mutation
+precondition과 preview contract를 먼저 고정한 뒤 `new`, `edit`, `describe`, `fetch`의 가장
+작은 vertical slice를 여는 것이다.

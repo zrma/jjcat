@@ -22,10 +22,10 @@
 
 ## P2: Graph And Diff
 
-- [ ] multi-lane change DAG와 revision navigation
-- [ ] file list, unified와 side-by-side diff
-- [ ] conflict, outgoing와 behind projection
-- [ ] operation log와 undo surface
+- [x] multi-lane change DAG와 revision navigation
+- [x] file list, unified와 side-by-side diff
+- [x] conflict, outgoing와 behind projection
+- [x] operation log와 read-only undo eligibility surface
 
 ## P3: Safe Shaping
 
