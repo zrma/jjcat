@@ -84,6 +84,15 @@ export interface RepositoryProjection {
   changes: ChangeRow[];
   conflicts: number;
   workingCopyHasChanges: boolean;
+  syncStatus: SyncStatus;
+}
+
+export interface SyncStatus {
+  available: boolean;
+  remoteHeads: number;
+  outgoing: number;
+  behind: number;
+  basis: "lastFetched";
 }
 
 export interface CachedProjection {

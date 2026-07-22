@@ -24,6 +24,7 @@ function change(
     workingCopy: boolean;
     empty: boolean;
     files: { status: string; path: string }[];
+    conflict: boolean;
   }> = {},
 ) {
   return {
@@ -35,7 +36,7 @@ function change(
     bookmarks: options.bookmarks ?? [],
     parents: options.parents ?? [],
     files: options.files ?? [],
-    conflict: false,
+    conflict: options.conflict ?? false,
     workingCopy: options.workingCopy ?? false,
     empty: options.empty ?? false,
   };
@@ -75,6 +76,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
     }),
     change("5e6f7a8b9c0d", "5f6a7b8c9d0e", "docs: define P0 boundary", 120, {
       parents: ["4d5e6f7a8b9c"],
+      conflict: true,
     }),
     change("4d5e6f7a8b9c", "4e5f6a7b8c9d", "refactor: split config loader", 300, {
       parents: ["3c4d5e6f7a8b", "2b3c4d5e6f7a"],
@@ -99,8 +101,15 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
         supported: true,
       },
       changes: rows,
-      conflicts: 0,
+      conflicts: 1,
       workingCopyHasChanges: true,
+      syncStatus: {
+        available: true,
+        remoteHeads: 1,
+        outgoing: repositoryId === LOCAL_ID ? 3 : 1,
+        behind: repositoryId === LOCAL_ID ? 1 : 0,
+        basis: "lastFetched",
+      },
     },
   };
 }

@@ -288,6 +288,35 @@ pub struct RepositoryProjection {
     pub changes: Vec<ChangeRow>,
     pub conflicts: usize,
     pub working_copy_has_changes: bool,
+    #[serde(default)]
+    pub sync_status: SyncStatus,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStatus {
+    pub available: bool,
+    pub remote_heads: usize,
+    pub outgoing: usize,
+    pub behind: usize,
+    #[serde(default = "last_fetched_basis")]
+    pub basis: String,
+}
+
+impl Default for SyncStatus {
+    fn default() -> Self {
+        Self {
+            available: false,
+            remote_heads: 0,
+            outgoing: 0,
+            behind: 0,
+            basis: last_fetched_basis(),
+        }
+    }
+}
+
+fn last_fetched_basis() -> String {
+    "lastFetched".into()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

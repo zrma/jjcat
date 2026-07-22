@@ -146,6 +146,8 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         remote_projection.working_copy_has_changes,
         local_projection.working_copy_has_changes
     );
+    assert_eq!(remote_projection.sync_status, local_projection.sync_status);
+    assert!(!local_projection.sync_status.available);
     assert_eq!(remote_diff.hunks, local_diff.hunks);
     assert_eq!(local_diff.additions, 1);
     assert!(!local_diff.binary);

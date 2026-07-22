@@ -39,6 +39,7 @@ import type {
   Registry,
   RepositoryDraft,
   RepositoryRecord,
+  SyncStatus,
   WhitespaceMode,
 } from "./types";
 
@@ -59,6 +60,31 @@ function isTextEntry(target: EventTarget | null) {
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
+
+function SyncSummary({ sync, conflicts }: { sync: SyncStatus; conflicts: number }) {
+  return (
+    <div
+      className="sync-summary"
+      aria-label={
+        sync.available
+          ? `Remote state from last fetch: ${sync.outgoing} outgoing, ${sync.behind} behind, ${conflicts} conflicts`
+          : `No fetched network remote state; ${conflicts} conflicts`
+      }
+      title="Remote comparison uses locally stored refs from the last fetch. It does not contact the network."
+    >
+      {conflicts > 0 && <strong className="sync-conflict">{conflicts} conflict</strong>}
+      {sync.available ? (
+        <>
+          <strong className="sync-outgoing">↑ {sync.outgoing}</strong>
+          <strong className="sync-behind">↓ {sync.behind}</strong>
+          <span>Last fetched</span>
+        </>
+      ) : (
+        <span>No fetched remote</span>
+      )}
+    </div>
   );
 }
 
@@ -604,6 +630,12 @@ function App() {
                 )}
                 <span>{locationLabel(selectedRepository.location.kind)}</span>
               </div>
+              {selectedProjection && (
+                <SyncSummary
+                  sync={selectedProjection.syncStatus}
+                  conflicts={selectedProjection.conflicts}
+                />
+              )}
               <div className="toolbar-controls">
                 <button
                   type="button"

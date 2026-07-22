@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use crate::domain::{
     BookmarkRef, ChangeRow, ChangedFile, DiffHunk, DiffLine, DiffLineKind, FileDiffProjection,
     JjCapability, RemoteDirectoryListing, RepositoryLocation, RepositoryProjection,
-    RepositoryRecord, WhitespaceMode,
+    RepositoryRecord, SyncStatus, WhitespaceMode,
 };
 use crate::process::{
     CommandOutput, CommandPlan, ProcessError, ProcessFailureKind, run_command,
@@ -22,6 +22,9 @@ use crate::process::{
 pub const MINIMUM_JJ_VERSION: &str = "0.30.0";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(20);
 const DIFF_OUTPUT_LIMIT: usize = 512 * 1024;
+const NETWORK_REMOTE_HEADS: &str = r#"remote_bookmarks(remote=~exact:"git")"#;
+const OUTGOING_REVISIONS: &str = r#"remote_bookmarks(remote=~exact:"git")..bookmarks()"#;
+const BEHIND_REVISIONS: &str = r#"bookmarks()..remote_bookmarks(remote=~exact:"git")"#;
 const LOG_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
     "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
@@ -93,15 +96,32 @@ impl JjDriver {
             });
         }
 
-        let log_output = self
-            .run_query(repository, JjQuery::Log, cancellation)
-            .await?;
+        let (log_output, remote_heads, outgoing, behind) = tokio::try_join!(
+            self.run_query(repository, JjQuery::Log, cancellation.child_token()),
+            self.run_query(
+                repository,
+                JjQuery::SyncMetric(SyncMetric::RemoteHeads),
+                cancellation.child_token()
+            ),
+            self.run_query(
+                repository,
+                JjQuery::SyncMetric(SyncMetric::Outgoing),
+                cancellation.child_token()
+            ),
+            self.run_query(
+                repository,
+                JjQuery::SyncMetric(SyncMetric::Behind),
+                cancellation
+            ),
+        )?;
         let changes = parse_log(&log_output.stdout)?;
         let conflicts = changes.iter().filter(|change| change.conflict).count();
         let working_copy_has_changes = changes
             .iter()
             .find(|change| change.working_copy)
             .is_some_and(|change| !change.empty);
+        let sync_status =
+            parse_sync_status(&remote_heads.stdout, &outgoing.stdout, &behind.stdout)?;
 
         Ok(RepositoryProjection {
             repository_id: repository.id.clone(),
@@ -112,6 +132,7 @@ impl JjDriver {
             changes,
             conflicts,
             working_copy_has_changes,
+            sync_status,
         })
     }
 
@@ -294,6 +315,10 @@ fn remote_script(path: &str, query: JjQuery) -> String {
                 "commit=$(decode_hex '{encoded_commit}')\nfile=$(decode_hex '{encoded_file}')\ncd \"$repo\"\nexec \"$jj_bin\" --ignore-working-copy diff --color never -r \"$commit\" --git --context 3{whitespace} -- \"$file\""
             )
         }
+        JjQuery::SyncMetric(metric) => format!(
+            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --color never --count -r '{}'",
+            metric.revset()
+        ),
     };
     format!(
         "set -eu\ndecode_hex() {{\n  encoded=$1\n  decoded=''\n  while [ -n \"$encoded\" ]; do\n    rest=${{encoded#??}}\n    byte=${{encoded%\"$rest\"}}\n    encoded=$rest\n    octal=$(printf '%03o' \"0x$byte\")\n    decoded=\"$decoded$(printf \"\\\\$octal\")\"\n  done\n  printf '%s' \"$decoded\"\n}}\nrepo=$(decode_hex '{encoded_path}')\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{command}\n"
@@ -328,6 +353,24 @@ enum JjQuery {
         path: String,
         whitespace_mode: WhitespaceMode,
     },
+    SyncMetric(SyncMetric),
+}
+
+#[derive(Clone, Copy)]
+enum SyncMetric {
+    RemoteHeads,
+    Outgoing,
+    Behind,
+}
+
+impl SyncMetric {
+    fn revset(self) -> &'static str {
+        match self {
+            Self::RemoteHeads => NETWORK_REMOTE_HEADS,
+            Self::Outgoing => OUTGOING_REVISIONS,
+            Self::Behind => BEHIND_REVISIONS,
+        }
+    }
 }
 
 impl JjQuery {
@@ -371,6 +414,18 @@ impl JjQuery {
                 args.push(path.into());
                 args
             }
+            Self::SyncMetric(metric) => [
+                "--ignore-working-copy",
+                "log",
+                "--color",
+                "never",
+                "--count",
+                "-r",
+                metric.revset(),
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
         }
     }
 }
@@ -519,6 +574,35 @@ fn parse_files(value: &str) -> Vec<ChangedFile> {
             })
         })
         .collect()
+}
+
+fn parse_count(stdout: &[u8], label: &str) -> Result<usize, DriverError> {
+    let text = std::str::from_utf8(stdout)
+        .map_err(|_| invalid_output(&format!("{label} count was not UTF-8")))?;
+    text.trim()
+        .parse()
+        .map_err(|_| invalid_output(&format!("{label} count was invalid")))
+}
+
+fn parse_sync_status(
+    remote_heads: &[u8],
+    outgoing: &[u8],
+    behind: &[u8],
+) -> Result<SyncStatus, DriverError> {
+    let remote_heads = parse_count(remote_heads, "remote head")?;
+    Ok(SyncStatus {
+        available: remote_heads > 0,
+        remote_heads,
+        outgoing: (remote_heads > 0)
+            .then(|| parse_count(outgoing, "outgoing revision"))
+            .transpose()?
+            .unwrap_or(0),
+        behind: (remote_heads > 0)
+            .then(|| parse_count(behind, "behind revision"))
+            .transpose()?
+            .unwrap_or(0),
+        basis: "lastFetched".into(),
+    })
 }
 
 struct ParsedDiff {
@@ -833,5 +917,21 @@ mod tests {
         assert!(valid_repository_path("src/main.rs"));
         assert!(!valid_repository_path("../outside"));
         assert!(!valid_repository_path("/absolute/path"));
+    }
+
+    #[test]
+    fn sync_projection_distinguishes_last_fetched_ahead_and_behind_state() {
+        let status = parse_sync_status(b"2\n", b"4\n", b"3\n").unwrap();
+
+        assert!(status.available);
+        assert_eq!(status.remote_heads, 2);
+        assert_eq!(status.outgoing, 4);
+        assert_eq!(status.behind, 3);
+        assert_eq!(status.basis, "lastFetched");
+
+        let without_remote = parse_sync_status(b"0\n", b"8\n", b"9\n").unwrap();
+        assert!(!without_remote.available);
+        assert_eq!(without_remote.outgoing, 0);
+        assert_eq!(without_remote.behind, 0);
     }
 }
