@@ -64,6 +64,7 @@ roadmap = read("docs/roadmap.md")
 start_work = read("scripts/start-work.sh")
 cargo_manifest = read("src-tauri/Cargo.toml")
 package_manifest = read("package.json")
+ci_workflow = read(".github/workflows/ci.yml")
 
 for fragment in (
     "name: jjcat",
@@ -123,6 +124,15 @@ if "dependency-refresh-or-linux-distribution" not in security:
     fail("security policy does not define the upstream advisory review boundary")
 if "RUSTSEC-2024-0429" not in roadmap:
     fail("distribution roadmap does not require upstream advisory review")
+for fragment in (
+    "name: Install Jujutsu",
+    "JJCAT_JJ_VERSION: 0.43.0",
+    "JJCAT_JJ_X86_64_LINUX_SHA256: 59e5588583ac82b623239929368c65b90735931c0f26b5a16c1f04d5bb97643d",
+    "sha256sum --check --strict",
+    '"$jj_bin_dir/jj" --version',
+):
+    if fragment not in ci_workflow:
+        fail(f"CI Jujutsu prerequisite is missing {fragment!r}")
 
 markdown_link_pattern = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 markdown_paths = set(ROOT.glob("*.md"))

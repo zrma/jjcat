@@ -33,5 +33,23 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libxdo-dev \
             wget
+      - name: Install Jujutsu
+        env:
+          JJCAT_JJ_VERSION: 0.43.0
+          JJCAT_JJ_X86_64_LINUX_SHA256: 59e5588583ac82b623239929368c65b90735931c0f26b5a16c1f04d5bb97643d
+        run: |
+          jj_archive="${RUNNER_TEMP}/jjcat-jj.tar.gz"
+          jj_extract_dir="${RUNNER_TEMP}/jjcat-jj-${JJCAT_JJ_VERSION}"
+          jj_bin_dir="${RUNNER_TEMP}/jjcat-bin"
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            "https://github.com/jj-vcs/jj/releases/download/v${JJCAT_JJ_VERSION}/jj-v${JJCAT_JJ_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            -o "$jj_archive"
+          printf '%s  %s\n' "$JJCAT_JJ_X86_64_LINUX_SHA256" "$jj_archive" \
+            | sha256sum --check --strict
+          mkdir -p "$jj_extract_dir" "$jj_bin_dir"
+          tar -xzf "$jj_archive" -C "$jj_extract_dir" ./jj
+          install -m 0755 "$jj_extract_dir/jj" "$jj_bin_dir/jj"
+          echo "$jj_bin_dir" >> "$GITHUB_PATH"
+          "$jj_bin_dir/jj" --version
       - run: pnpm install --frozen-lockfile
       - run: scripts/check.sh
