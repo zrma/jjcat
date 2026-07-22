@@ -23,6 +23,7 @@ import { bridge, isTauriRuntime } from "./bridge";
 import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
+import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import type {
   AppError,
@@ -53,6 +54,7 @@ function App() {
   const [historyView, setHistoryView] = useState<HistoryView>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showSwitcher, setShowSwitcher] = useState(false);
   const [contextMenu, setContextMenu] = useState<RepositoryContextMenu | null>(null);
   const [removeTarget, setRemoveTarget] = useState<RepositoryRecord | null>(null);
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
@@ -184,6 +186,10 @@ function App() {
         event.preventDefault();
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setShowSwitcher(true);
       }
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
         const repositoryId = registry?.openRepositoryIds[Number(event.key) - 1];
@@ -332,9 +338,14 @@ function App() {
       <aside className="repository-rail">
         <div className="rail-heading">
           <h2>Repositories</h2>
-          <button type="button" aria-label="Add repository" onClick={() => setShowAdd(true)}>
-            <Plus aria-hidden="true" />
-          </button>
+          <div className="rail-actions">
+            <button type="button" aria-label="Switch repository" title="Switch repository (⌘K)" onClick={() => setShowSwitcher(true)}>
+              <Search aria-hidden="true" />
+            </button>
+            <button type="button" aria-label="Add repository" onClick={() => setShowAdd(true)}>
+              <Plus aria-hidden="true" />
+            </button>
+          </div>
         </div>
         <nav className="history-navigation" aria-label="History views">
           <button
@@ -508,6 +519,14 @@ function App() {
 
       {showAdd && (
         <AddRepositoryDialog onClose={() => setShowAdd(false)} onSubmit={registerRepository} />
+      )}
+      {showSwitcher && (
+        <RepositoryQuickSwitcher
+          repositories={registry.repositories}
+          openRepositoryIds={registry.openRepositoryIds}
+          onSelect={selectRepository}
+          onClose={() => setShowSwitcher(false)}
+        />
       )}
       {contextMenu && (
         <RepositoryMenu
