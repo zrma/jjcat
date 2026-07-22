@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -112,6 +113,7 @@ pub async fn register_repository(
     let store = state.store.lock().await;
     let loaded = store.load().map_err(storage_error)?;
     let mut registry = loaded.registry;
+    let repository_id = repository.id.clone();
     if let Some(existing) = registry
         .repositories
         .iter_mut()
@@ -119,9 +121,11 @@ pub async fn register_repository(
     {
         existing.display_name = repository.display_name;
     } else {
-        registry.repositories.push(repository.clone());
+        registry.repositories.push(repository);
     }
-    registry.selected_repository = Some(repository.id);
+    registry
+        .open_repository(&repository_id, current_timestamp())
+        .map_err(domain_error)?;
     store.save(&registry).map_err(storage_error)?;
     Ok(RegistrySnapshot {
         registry,
@@ -133,22 +137,42 @@ pub async fn register_repository(
 pub async fn select_repository(
     repository_id: RepositoryId,
     state: State<'_, AppState>,
-) -> Result<(), AppError> {
+) -> Result<RegistrySnapshot, AppError> {
     let store = state.store.lock().await;
     let loaded = store.load().map_err(storage_error)?;
     let mut registry = loaded.registry;
-    if !registry
-        .repositories
-        .iter()
-        .any(|repository| repository.id == repository_id)
-    {
-        return Err(AppError {
-            kind: AppErrorKind::NotFound,
-            message: "repository is not registered".into(),
-        });
+    registry
+        .open_repository(&repository_id, current_timestamp())
+        .map_err(domain_error)?;
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
+pub async fn update_open_repositories(
+    open_repository_ids: Vec<RepositoryId>,
+    selected_repository: Option<RepositoryId>,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    registry
+        .set_open_repositories(open_repository_ids, selected_repository.clone())
+        .map_err(domain_error)?;
+    if let Some(repository_id) = selected_repository {
+        registry
+            .open_repository(&repository_id, current_timestamp())
+            .map_err(domain_error)?;
     }
-    registry.selected_repository = Some(repository_id);
-    store.save(&registry).map_err(storage_error)
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
 }
 
 #[tauri::command]
@@ -234,7 +258,6 @@ pub async fn refresh_repository(
     registry
         .cached_projections
         .insert(repository.id.clone(), cached.clone());
-    registry.selected_repository = Some(repository.id);
     store.save(&registry).map_err(storage_error)?;
     Ok(cached)
 }
@@ -276,6 +299,19 @@ fn storage_error(error: RegistryError) -> AppError {
         kind: AppErrorKind::Storage,
         message,
     }
+}
+
+fn domain_error(error: crate::domain::DomainError) -> AppError {
+    AppError {
+        kind: AppErrorKind::InvalidInput,
+        message: error.to_string(),
+    }
+}
+
+fn current_timestamp() -> String {
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .expect("RFC3339 formatting is infallible for the current timestamp")
 }
 
 fn driver_error(error: DriverError) -> AppError {

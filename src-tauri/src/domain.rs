@@ -111,6 +111,8 @@ pub struct RepositoryRecord {
     pub display_name: String,
     pub location: RepositoryLocation,
     pub pinned: bool,
+    #[serde(default)]
+    pub last_opened_at: Option<String>,
 }
 
 impl RepositoryRecord {
@@ -140,6 +142,7 @@ impl RepositoryRecord {
             display_name: display_name.to_owned(),
             location,
             pinned: false,
+            last_opened_at: None,
         })
     }
 
@@ -246,13 +249,14 @@ pub struct CachedProjection {
     pub projection: RepositoryProjection,
 }
 
-pub const REGISTRY_SCHEMA_VERSION: u32 = 1;
+pub const REGISTRY_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Registry {
     pub schema_version: u32,
     pub selected_repository: Option<RepositoryId>,
+    pub open_repository_ids: Vec<RepositoryId>,
     pub repositories: Vec<RepositoryRecord>,
     pub cached_projections: BTreeMap<RepositoryId, CachedProjection>,
 }
@@ -262,6 +266,7 @@ impl Default for Registry {
         Self {
             schema_version: REGISTRY_SCHEMA_VERSION,
             selected_repository: None,
+            open_repository_ids: Vec::new(),
             repositories: Vec::new(),
             cached_projections: BTreeMap::new(),
         }
@@ -269,6 +274,40 @@ impl Default for Registry {
 }
 
 impl Registry {
+    pub fn open_repository(
+        &mut self,
+        repository_id: &RepositoryId,
+        opened_at: String,
+    ) -> Result<(), DomainError> {
+        let repository = self
+            .repositories
+            .iter_mut()
+            .find(|repository| &repository.id == repository_id)
+            .ok_or(DomainError::UnknownOpenRepository)?;
+        repository.last_opened_at = Some(opened_at);
+        if !self.open_repository_ids.contains(repository_id) {
+            self.open_repository_ids.push(repository_id.clone());
+        }
+        self.selected_repository = Some(repository_id.clone());
+        Ok(())
+    }
+
+    pub fn set_open_repositories(
+        &mut self,
+        open_repository_ids: Vec<RepositoryId>,
+        selected_repository: Option<RepositoryId>,
+    ) -> Result<(), DomainError> {
+        let previous_open = std::mem::replace(&mut self.open_repository_ids, open_repository_ids);
+        let previous_selected =
+            std::mem::replace(&mut self.selected_repository, selected_repository);
+        if let Err(error) = self.validate() {
+            self.open_repository_ids = previous_open;
+            self.selected_repository = previous_selected;
+            return Err(error);
+        }
+        Ok(())
+    }
+
     pub fn remove_repository(&mut self, repository_id: &RepositoryId) -> bool {
         let Some(index) = self
             .repositories
@@ -278,18 +317,25 @@ impl Registry {
             return false;
         };
 
+        let open_index = self
+            .open_repository_ids
+            .iter()
+            .position(|open_id| open_id == repository_id);
         self.repositories.remove(index);
         self.cached_projections.remove(repository_id);
+        self.open_repository_ids
+            .retain(|open_id| open_id != repository_id);
         if self.selected_repository.as_ref() == Some(repository_id) {
-            self.selected_repository = self
-                .repositories
-                .get(index)
-                .or_else(|| {
-                    index
-                        .checked_sub(1)
-                        .and_then(|previous| self.repositories.get(previous))
-                })
-                .map(|repository| repository.id.clone());
+            self.selected_repository = open_index.and_then(|open_index| {
+                self.open_repository_ids
+                    .get(open_index)
+                    .or_else(|| {
+                        open_index
+                            .checked_sub(1)
+                            .and_then(|previous| self.open_repository_ids.get(previous))
+                    })
+                    .cloned()
+            });
         }
         true
     }
@@ -312,9 +358,22 @@ impl Registry {
         if self
             .selected_repository
             .as_ref()
-            .is_some_and(|selected| !unique.contains(selected))
+            .is_some_and(|selected| !self.open_repository_ids.contains(selected))
         {
             return Err(DomainError::UnknownSelectedRepository);
+        }
+        let unique_open = self
+            .open_repository_ids
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        if unique_open.len() != self.open_repository_ids.len() {
+            return Err(DomainError::DuplicateOpenRepository);
+        }
+        if unique_open
+            .iter()
+            .any(|repository_id| !unique.contains(repository_id))
+        {
+            return Err(DomainError::UnknownOpenRepository);
         }
         if self
             .cached_projections
@@ -343,6 +402,10 @@ pub enum DomainError {
     DuplicateRepository,
     #[error("selected repository is not registered")]
     UnknownSelectedRepository,
+    #[error("open repository is not registered")]
+    UnknownOpenRepository,
+    #[error("open repository list contains duplicate identities")]
+    DuplicateOpenRepository,
     #[error("cached projection belongs to an unregistered repository")]
     UnknownCachedRepository,
     #[error("registry schema {0} is newer than this version of jjcat")]
@@ -477,6 +540,7 @@ mod tests {
         .unwrap();
         let mut registry = Registry {
             selected_repository: Some(first.id.clone()),
+            open_repository_ids: vec![first.id.clone(), second.id.clone()],
             repositories: vec![first.clone(), second.clone()],
             ..Registry::default()
         };
@@ -486,6 +550,54 @@ mod tests {
         assert_eq!(registry.selected_repository, Some(second.id));
         assert!(!registry.remove_repository(&first.id));
         registry.validate().unwrap();
+    }
+
+    #[test]
+    fn open_repository_order_and_selection_are_validated_together() {
+        let first = RepositoryRecord::new(
+            "first",
+            RepositoryLocation::Local {
+                path: "/work/first".into(),
+            },
+        )
+        .unwrap();
+        let second = RepositoryRecord::new(
+            "second",
+            RepositoryLocation::Local {
+                path: "/work/second".into(),
+            },
+        )
+        .unwrap();
+        let mut registry = Registry {
+            repositories: vec![first.clone(), second.clone()],
+            ..Registry::default()
+        };
+
+        registry
+            .open_repository(&second.id, "2026-01-02T03:04:05Z".into())
+            .unwrap();
+        registry
+            .open_repository(&first.id, "2026-01-02T03:05:05Z".into())
+            .unwrap();
+        assert_eq!(
+            registry.open_repository_ids,
+            vec![second.id.clone(), first.id.clone()]
+        );
+        assert_eq!(registry.selected_repository, Some(first.id.clone()));
+        assert_eq!(
+            registry.repositories[0].last_opened_at.as_deref(),
+            Some("2026-01-02T03:05:05Z")
+        );
+
+        let result = registry.set_open_repositories(vec![second.id.clone()], Some(first.id));
+        assert!(matches!(
+            result,
+            Err(DomainError::UnknownSelectedRepository)
+        ));
+        assert_eq!(
+            registry.open_repository_ids,
+            vec![second.id.clone(), registry.repositories[0].id.clone()]
+        );
     }
 
     #[test]

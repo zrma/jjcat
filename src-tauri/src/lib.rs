@@ -22,6 +22,7 @@ pub fn run() {
             commands::list_remote_directories,
             commands::register_repository,
             commands::select_repository,
+            commands::update_open_repositories,
             commands::remove_repository,
             commands::refresh_repository,
             commands::cancel_refresh,

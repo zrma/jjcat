@@ -46,7 +46,6 @@ type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
 function App() {
   const [registry, setRegistry] = useState<Registry | null>(null);
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
-  const [openIds, setOpenIds] = useState<string[]>([]);
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -68,7 +67,6 @@ function App() {
       .then((snapshot) => {
         setRegistry(snapshot.registry);
         setRecoveryNotice(snapshot.recoveryNotice);
-        setOpenIds(snapshot.registry.repositories.map((repository) => repository.id));
       })
       .catch((error: AppError) => setFatalError(error.message));
   }, []);
@@ -108,18 +106,16 @@ function App() {
 
   const selectRepository = useCallback(
     async (repositoryId: string) => {
-      if (!registry) return;
-      setOpenIds((current) =>
-        current.includes(repositoryId) ? current : [...current, repositoryId],
-      );
-      setRegistry({ ...registry, selectedRepository: repositoryId });
       try {
-        await bridge.selectRepository(repositoryId);
+        const snapshot = await bridge.selectRepository(repositoryId);
+        setRegistry(snapshot.registry);
+        setRecoveryNotice(snapshot.recoveryNotice);
+        setRepositoryActionError(null);
       } catch (error) {
-        setFatalError((error as AppError).message);
+        setRepositoryActionError((error as AppError).message);
       }
     },
-    [registry],
+    [],
   );
 
   const refreshRepository = useCallback(
@@ -190,7 +186,7 @@ function App() {
         searchInputRef.current?.select();
       }
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
-        const repositoryId = openIds[Number(event.key) - 1];
+        const repositoryId = registry?.openRepositoryIds[Number(event.key) - 1];
         if (repositoryId) {
           event.preventDefault();
           void selectRepository(repositoryId);
@@ -199,7 +195,7 @@ function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openIds, refreshRepository, selectRepository, selectedRepository]);
+  }, [refreshRepository, registry?.openRepositoryIds, selectRepository, selectedRepository]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -222,8 +218,6 @@ function App() {
       const snapshot = await bridge.registerRepository(draft);
       setRegistry(snapshot.registry);
       setRecoveryNotice(snapshot.recoveryNotice);
-      const selected = snapshot.registry.selectedRepository;
-      if (selected) setOpenIds((current) => (current.includes(selected) ? current : [...current, selected]));
       setShowAdd(false);
       setRepositoryActionError(null);
     } catch (error) {
@@ -236,11 +230,6 @@ function App() {
       const snapshot = await bridge.removeRepository(repository.id);
       setRegistry(snapshot.registry);
       setRecoveryNotice(snapshot.recoveryNotice);
-      setOpenIds((current) => {
-        const next = current.filter((id) => id !== repository.id);
-        const fallback = snapshot.registry.selectedRepository;
-        return fallback && !next.includes(fallback) ? [...next, fallback] : next;
-      });
       setFreshIds((current) => {
         const next = new Set(current);
         next.delete(repository.id);
@@ -259,11 +248,21 @@ function App() {
     }
   }
 
-  function closeTab(repositoryId: string) {
-    const next = openIds.filter((id) => id !== repositoryId);
-    setOpenIds(next);
-    if (registry?.selectedRepository === repositoryId && next[0]) {
-      void selectRepository(next[0]);
+  async function closeTab(repositoryId: string) {
+    if (!registry) return;
+    const openIndex = registry.openRepositoryIds.indexOf(repositoryId);
+    const next = registry.openRepositoryIds.filter((id) => id !== repositoryId);
+    const selectedRepository =
+      registry.selectedRepository === repositoryId
+        ? next[openIndex] ?? next[openIndex - 1] ?? null
+        : registry.selectedRepository;
+    try {
+      const snapshot = await bridge.updateOpenRepositories(next, selectedRepository);
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message);
     }
   }
 
@@ -284,7 +283,7 @@ function App() {
     return <main className="loading-state">Loading repositories…</main>;
   }
 
-  const openRepositories = openIds
+  const openRepositories = registry.openRepositoryIds
     .map((id) => registry.repositories.find((repository) => repository.id === id))
     .filter((repository): repository is RepositoryRecord => Boolean(repository));
   const selectedState = selectedRepository
@@ -320,7 +319,7 @@ function App() {
                   type="button"
                   className="tab-close"
                   aria-label={`Close ${repository.displayName} tab`}
-                  onClick={() => closeTab(repository.id)}
+                  onClick={() => void closeTab(repository.id)}
                 >
                   <X aria-hidden="true" />
                 </button>

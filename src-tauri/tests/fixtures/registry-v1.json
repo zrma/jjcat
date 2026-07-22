@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "selectedRepository": "6862f02d-6039-55f9-8ed6-9edd811862fa",
+  "repositories": [
+    {
+      "id": "8ddcd31a-add6-5c22-a517-cc357d2cba7c",
+      "displayName": "local-fixture",
+      "location": {
+        "kind": "local",
+        "path": "/fixtures/local-repository"
+      },
+      "pinned": false
+    },
+    {
+      "id": "6862f02d-6039-55f9-8ed6-9edd811862fa",
+      "displayName": "remote-fixture",
+      "location": {
+        "kind": "ssh",
+        "host": "fixture-host",
+        "path": "~/fixtures/remote-repository"
+      },
+      "pinned": true
+    }
+  ],
+  "cachedProjections": {}
+}

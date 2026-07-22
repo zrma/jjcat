@@ -9,6 +9,7 @@ export interface RepositoryRecord {
   displayName: string;
   location: RepositoryLocation;
   pinned: boolean;
+  lastOpenedAt: string | null;
 }
 
 export interface ChangedFile {
@@ -56,6 +57,7 @@ export interface CachedProjection {
 export interface Registry {
   schemaVersion: number;
   selectedRepository: RepositoryId | null;
+  openRepositoryIds: RepositoryId[];
   repositories: RepositoryRecord[];
   cachedProjections: Record<RepositoryId, CachedProjection>;
 }

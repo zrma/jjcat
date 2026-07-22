@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -96,6 +97,7 @@ fn parse_registry(source: &str) -> Result<Registry, RegistryError> {
     let envelope: Envelope = serde_json::from_str(source)?;
     let registry = match envelope.schema_version {
         REGISTRY_SCHEMA_VERSION => serde_json::from_str(source)?,
+        1 => migrate_v1(serde_json::from_str(source)?)?,
         0 => migrate_v0(serde_json::from_str(source)?)?,
         version => return Err(RegistryError::UnsupportedSchema(version)),
     };
@@ -116,6 +118,27 @@ struct RepositoryV0 {
     location: RepositoryLocation,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RegistryV1 {
+    selected_repository: Option<crate::domain::RepositoryId>,
+    repositories: Vec<RepositoryRecord>,
+    cached_projections: BTreeMap<crate::domain::RepositoryId, crate::domain::CachedProjection>,
+}
+
+fn migrate_v1(legacy: RegistryV1) -> Result<Registry, DomainError> {
+    let open_repository_ids = legacy.selected_repository.iter().cloned().collect();
+    let registry = Registry {
+        selected_repository: legacy.selected_repository,
+        open_repository_ids,
+        repositories: legacy.repositories,
+        cached_projections: legacy.cached_projections,
+        ..Registry::default()
+    };
+    registry.validate()?;
+    Ok(registry)
+}
+
 fn migrate_v0(legacy: RegistryV0) -> Result<Registry, DomainError> {
     let repositories = legacy
         .repositories
@@ -124,6 +147,7 @@ fn migrate_v0(legacy: RegistryV0) -> Result<Registry, DomainError> {
         .collect::<Result<Vec<_>, _>>()?;
     let selected_repository = repositories.first().map(|repository| repository.id.clone());
     let registry = Registry {
+        open_repository_ids: selected_repository.iter().cloned().collect(),
         selected_repository,
         repositories,
         ..Registry::default()
@@ -163,9 +187,17 @@ mod tests {
             },
         )
         .unwrap();
+        let second = RepositoryRecord::new(
+            "second-fixture",
+            RepositoryLocation::Local {
+                path: "/fixtures/second-repository".into(),
+            },
+        )
+        .unwrap();
         let registry = Registry {
-            selected_repository: Some(repository.id.clone()),
-            repositories: vec![repository],
+            selected_repository: Some(second.id.clone()),
+            open_repository_ids: vec![second.id.clone(), repository.id.clone()],
+            repositories: vec![repository, second],
             ..Registry::default()
         };
 
@@ -190,6 +222,26 @@ mod tests {
             migrated.repositories[0].id,
             RepositoryId("legacy-index".into())
         );
+        assert_eq!(
+            migrated.open_repository_ids,
+            vec![migrated.repositories[0].id.clone()]
+        );
+    }
+
+    #[test]
+    fn version_one_fixture_migrates_open_tab_and_selection() {
+        let migrated = parse_registry(include_str!("../tests/fixtures/registry-v1.json")).unwrap();
+
+        assert_eq!(migrated.schema_version, REGISTRY_SCHEMA_VERSION);
+        assert_eq!(
+            migrated.selected_repository,
+            Some(migrated.repositories[1].id.clone())
+        );
+        assert_eq!(
+            migrated.open_repository_ids,
+            vec![migrated.repositories[1].id.clone()]
+        );
+        assert_eq!(migrated.repositories[1].last_opened_at, None);
     }
 
     #[test]

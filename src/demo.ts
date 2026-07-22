@@ -98,20 +98,23 @@ export class DemoBridge {
     this.snapshot = {
       recoveryNotice: null,
       registry: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         selectedRepository: LOCAL_ID,
+        openRepositoryIds: [LOCAL_ID, SSH_ID],
         repositories: [
           {
             id: LOCAL_ID,
             displayName: "jjcat",
             location: { kind: "local", path: "/fixtures/jjcat" },
             pinned: true,
+            lastOpenedAt: now,
           },
           {
             id: SSH_ID,
             displayName: "infra-lab",
             location: { kind: "ssh", host: "fixture-host", path: "~/fixtures/infra-lab" },
             pinned: true,
+            lastOpenedAt: stale,
           },
         ],
         cachedProjections: {
@@ -132,9 +135,11 @@ export class DemoBridge {
       displayName: draft.displayName,
       location: draft.location,
       pinned: false,
+      lastOpenedAt: new Date().toISOString(),
     };
     this.snapshot.registry.repositories.push(repository);
     this.snapshot.registry.selectedRepository = repository.id;
+    this.snapshot.registry.openRepositoryIds.push(repository.id);
     return this.loadRegistry();
   }
 
@@ -147,10 +152,14 @@ export class DemoBridge {
     }
     this.snapshot.registry.repositories.splice(index, 1);
     delete this.snapshot.registry.cachedProjections[repositoryId];
+    const openIndex = this.snapshot.registry.openRepositoryIds.indexOf(repositoryId);
+    this.snapshot.registry.openRepositoryIds = this.snapshot.registry.openRepositoryIds.filter(
+      (candidate) => candidate !== repositoryId,
+    );
     if (this.snapshot.registry.selectedRepository === repositoryId) {
       this.snapshot.registry.selectedRepository =
-        this.snapshot.registry.repositories[index]?.id ??
-        this.snapshot.registry.repositories[index - 1]?.id ??
+        this.snapshot.registry.openRepositoryIds[openIndex] ??
+        this.snapshot.registry.openRepositoryIds[openIndex - 1] ??
         null;
     }
     return this.loadRegistry();
@@ -181,7 +190,38 @@ export class DemoBridge {
   }
 
   async selectRepository(repositoryId: string) {
+    const repository = this.snapshot.registry.repositories.find(
+      (candidate) => candidate.id === repositoryId,
+    );
+    if (!repository) {
+      throw { kind: "notFound", message: "Repository is not registered." } satisfies AppError;
+    }
+    if (!this.snapshot.registry.openRepositoryIds.includes(repositoryId)) {
+      this.snapshot.registry.openRepositoryIds.push(repositoryId);
+    }
     this.snapshot.registry.selectedRepository = repositoryId;
+    repository.lastOpenedAt = new Date().toISOString();
+    return this.loadRegistry();
+  }
+
+  async updateOpenRepositories(openRepositoryIds: string[], selectedRepository: string | null) {
+    const known = new Set(this.snapshot.registry.repositories.map((repository) => repository.id));
+    if (
+      new Set(openRepositoryIds).size !== openRepositoryIds.length ||
+      openRepositoryIds.some((repositoryId) => !known.has(repositoryId)) ||
+      (selectedRepository !== null && !openRepositoryIds.includes(selectedRepository))
+    ) {
+      throw { kind: "invalidInput", message: "Open repository state is invalid." } satisfies AppError;
+    }
+    this.snapshot.registry.openRepositoryIds = [...openRepositoryIds];
+    this.snapshot.registry.selectedRepository = selectedRepository;
+    if (selectedRepository) {
+      const selected = this.snapshot.registry.repositories.find(
+        (repository) => repository.id === selectedRepository,
+      );
+      if (selected) selected.lastOpenedAt = new Date().toISOString();
+    }
+    return this.loadRegistry();
   }
 
   async refreshRepository(repositoryId: string, requestId: string) {

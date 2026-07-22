@@ -14,7 +14,11 @@ interface Bridge {
   removeRepository(repositoryId: string): Promise<RegistrySnapshot>;
   listSshHosts(): Promise<string[]>;
   listRemoteDirectories(host: string, path: string): Promise<RemoteDirectoryListing>;
-  selectRepository(repositoryId: string): Promise<void>;
+  selectRepository(repositoryId: string): Promise<RegistrySnapshot>;
+  updateOpenRepositories(
+    openRepositoryIds: string[],
+    selectedRepository: string | null,
+  ): Promise<RegistrySnapshot>;
   refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
 }
@@ -45,7 +49,14 @@ class TauriBridge implements Bridge {
   }
 
   selectRepository(repositoryId: string) {
-    return invoke<void>("select_repository", { repositoryId }).catch(normalizeError);
+    return invoke<RegistrySnapshot>("select_repository", { repositoryId }).catch(normalizeError);
+  }
+
+  updateOpenRepositories(openRepositoryIds: string[], selectedRepository: string | null) {
+    return invoke<RegistrySnapshot>("update_open_repositories", {
+      openRepositoryIds,
+      selectedRepository,
+    }).catch(normalizeError);
   }
 
   refreshRepository(repositoryId: string, requestId: string) {
