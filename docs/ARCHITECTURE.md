@@ -34,9 +34,9 @@ remote folder를 탐색한다. 선택된 경로는 기존 registry validation과
 
 host reference, repository path, display name, pinned/recent state를 local application data로
 저장한다. private host inventory와 실제 path는 tracked repository artifact에 넣지 않는다.
-현재 schema v1 JSON은 repository, selected repository와 cached projection만 저장하며
-credential과 source content는 저장하지 않는다. invalid JSON은 별도 corrupt copy로 보존하고
-빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
+현재 schema v2 JSON은 repository, selected/open repository ordering, pinned/recent metadata와
+cached projection을 저장하며 credential과 source content는 저장하지 않는다. invalid JSON은
+별도 corrupt copy로 보존하고 빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
 repository remove는 registry entry, cached projection과 shell의 open tab만 제거하며 local
 directory, remote directory와 Jujutsu metadata에는 delete command를 실행하지 않는다.
 
@@ -71,6 +71,23 @@ plain `jj` CLI만으로 안정적인 projection을 만들 수 없다는 evidence
 
 선택한 저장소의 last-known status, graph와 revision detail을 즉시 표시한다. stale state를
 명확히 표시하고 refresh 결과와 섞어 현재 상태처럼 보이지 않게 한다.
+active/inactive tab은 서로 다른 bounded interval로 refresh하며 repository별 동시 query는
+하나만 허용한다. 실패는 cache를 보존하고 bounded exponential backoff와 offline state로
+표시한다.
+
+### Developer Tool Handoff
+
+editor handoff는 local path 또는 OpenSSH alias와 remote path를 VS Code CLI의 분리된 argv로
+전달한다. terminal handoff는 platform launcher를 사용한다. shell command string을 만들지
+않으며 UI 결과에는 repository display name과 action label만 표시한다. custom editor command
+template와 remote terminal working-directory bootstrap은 이후 configuration milestone에서
+다룬다.
+
+### Change History Rendering
+
+40개 이상 change는 고정 높이 windowing과 overscan을 사용해 visible row만 DOM에 유지한다.
+전체 row count와 item position은 accessibility metadata로 보존한다. P2의 multi-lane topology와
+revision navigation은 이 bounded rendering contract 위에 추가한다.
 
 ### Operation Queue
 
@@ -103,8 +120,8 @@ repository별 mutation을 직렬화한다. 실행 전 operation ID와 target ide
   disconnected states와 keyboard switch를 구현하고 desktop/narrow viewport에서 검증했다.
 - **Projection:** supported floor는 `jj 0.30.0`이며 machine-readable JSONL template를 쓴다.
   P0 local, simulated SSH와 local-only actual SSH matrix가 helper 없이 통과했다.
-- **Registry:** application data의 schema-versioned JSON을 사용한다. schema v0 migration,
-  v1 round trip, invalid data recovery와 future-schema fail-closed를 test한다.
+- **Registry:** application data의 schema-versioned JSON을 사용한다. schema v0/v1 migration,
+  v2 round trip, invalid data recovery와 future-schema fail-closed를 test한다.
 - **Packaging cost:** macOS는 Xcode, Linux는 WebKitGTK 계열 system dependency를 요구한다.
   signing, notarization, updater와 cross-platform package acceptance는 P4에서 다룬다.
 

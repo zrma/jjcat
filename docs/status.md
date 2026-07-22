@@ -2,7 +2,8 @@
 
 ## Current Milestone
 
-`P1: Multi-repository Cockpit`이 active다. P0 read-only foundation은 완료됐다.
+`P2: Graph and Diff`가 active다. P0 read-only foundation과 P1 multi-repository cockpit은
+완료됐다.
 
 완료된 기반:
 
@@ -26,13 +27,19 @@
 - local absolute path 및 `~/...` 입력의 canonical identity normalization
 - cat outline과 change DAG를 결합한 header/application identity asset
 - local, simulated SSH, local-only actual SSH 2-repository matrix와 native bundle smoke
+- v1→v2 migration을 포함한 persistent tab ordering과 selected tab restart recovery
+- keyboard/pointer quick switcher search, close와 reopen
+- pinned/recent repository grouping과 compact freshness/error state
+- repository별 refresh dedup/cancel, active/inactive interval과 bounded failure backoff
+- structured argv를 사용하는 local/SSH VS Code 및 platform terminal handoff
+- 40개 이상 history의 bounded row virtualization과 representative interaction fixture
 
 아직 구현되지 않은 항목:
 
-- persistent open-tab ordering과 quick switcher
-- background refresh와 pinned/recent repository UX
-- full file diff surface와 graph virtualization
-- editor/terminal handoff
+- multi-lane DAG와 revision keyboard navigation
+- unified/side-by-side file diff surface
+- conflict, outgoing와 behind projection
+- operation log 및 undo preview surface
 - mutation command
 
 ## Known Upstream Constraints
@@ -56,5 +63,5 @@
 
 ## Next Slice
 
-[P1 spec](todo-p1-multi-repository-cockpit/spec.md)의 C1부터 시작해 open-tab ordering과
-selected tab을 schema migration과 함께 영속화한다.
+[P2 spec](todo-p2-graph-and-diff/spec.md)의 C1부터 시작해 bounded history row 위에 multi-lane
+topology model과 keyboard revision navigation을 추가한다.

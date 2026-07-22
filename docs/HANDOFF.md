@@ -11,7 +11,7 @@
 
 ## Current Baseline
 
-- repository는 실행 가능한 pre-alpha P0 read-only cockpit과 AI-first harness를 가진다.
+- repository는 실행 가능한 pre-alpha P1 multi-repository cockpit과 AI-first harness를 가진다.
 - runtime은 Tauri 2, Rust 2024 core와 React/TypeScript/Vite frontend다.
 - local과 SSH transport는 같은 Repository Driver contract를 사용한다.
 - SSH는 OpenSSH stdio와 외부 credential ownership을 기본으로 한다.
@@ -29,15 +29,16 @@
 - `docs/status.md`: implemented와 planned의 현재 경계.
 - `docs/roadmap.md`: milestone 순서.
 - `docs/PUBLICATION.md`: 공개 가능 기록과 최초 publish gate.
-- `docs/todo-p1-multi-repository-cockpit/`: 현재 acceptance와 open questions.
+- `docs/todo-p2-graph-and-diff/`: 현재 acceptance와 open questions.
 - `scripts/check.sh`: canonical local gate.
 
 ## Current Work
 
-`P1: Multi-repository Cockpit`
+`P2: Graph and Diff`
 
-P0에서 검증한 registry, cache와 local/SSH projection contract 위에 persistent open tabs,
-quick switcher와 background refresh를 추가한다. mutation과 remote helper는 계속 범위 밖이다.
+P1에서 검증한 persistent multi-repository session, background refresh와 bounded history rendering
+위에 multi-lane graph navigation과 file diff surface를 추가한다. shaping mutation과 remote
+helper는 계속 범위 밖이다.
 
 ## Completion Rule
 

@@ -18,10 +18,10 @@
 
 ## Q3: Editor와 terminal handoff
 
-- Default: OS/default application과 configured command template를 분리하고 command preview에는
-  repository display name만 보인다.
-- Resolution owner: P1 implementation.
+- Resolution: 제품의 VS Code Remote SSH entry scenario에 맞춰 editor는 VS Code CLI의 structured
+  argv를 사용하고 terminal은 OS별 launcher를 사용한다. preview에는 repository display name만
+  보인다. custom command template는 후속 configuration 범위다.
 - Evidence: local/SSH platform smoke와 argument injection test.
-- Escalate when: 특정 editor integration을 P1 기본값으로 고정해야 한다.
+- Revisit when: editor 선택과 custom command template가 user-facing configuration을 요구한다.
 
 현재 사용자 결정을 기다리는 blocker는 없다.

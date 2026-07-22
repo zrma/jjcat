@@ -27,3 +27,18 @@ implementation은 다음 P0 milestone로 넘겼다.
   desktop 및 narrow viewport에서 검증했다.
 - local fixture, simulated SSH fixture와 local-only actual SSH 2-repository matrix를
   통과했다. private host, path와 raw output은 tracked evidence에 남기지 않았다.
+
+## 2026-07-22: P1 Multi-repository Cockpit
+
+- registry schema v2 migration으로 open tab order, selected tab, pinned와 recent state를 restart
+  이후에도 복구한다.
+- keyboard/pointer quick switcher, tab close/reopen과 repository freshness/error badges를
+  compact cockpit에 통합했다.
+- repository별 background refresh dedup, cancellation, active/inactive interval과 bounded failure
+  backoff를 추가하고 실패 중 last-known cache를 유지한다.
+- local/SSH repository를 structured argv로 VS Code 또는 platform terminal에 넘기는 handoff를
+  추가하고 preview에서 private context를 제외했다.
+- representative 160-row fixture에서 visible window만 DOM에 유지하는 history virtualization과
+  중간 revision interaction을 검증했다.
+- native desktop, owner-controlled SSH 2-repository matrix와 canonical local gate를 통과했다.
+  private identity, path와 raw output은 tracked evidence에 남기지 않았다.

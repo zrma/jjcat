@@ -1,6 +1,6 @@
 # Spec: P1 Multi-repository Cockpit
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -10,8 +10,8 @@ P0의 read-only local/SSH projection 위에서 여러 repository를 지속적으
 ## Context
 
 P0는 repository registration, selected repository, cached projection과 현재 session의 tab
-switch를 증명했다. open-tab ordering은 아직 session state이며 quick switcher, background
-refresh와 pinned/recent UX는 없다.
+switch를 증명했다. P1은 이 contract를 registry schema v2, persistent open-tab ordering,
+quick switcher, background refresh와 pinned/recent UX로 확장했다.
 
 P1 시작 baseline으로 local registration은 absolute path와 `~/...` 입력을 같은 canonical
 absolute identity로 정규화한다. cockpit은 compact graph/history row와 하단 file/metadata
@@ -45,13 +45,13 @@ affordance는 안전한 operation preview가 생기는 P3 전까지 노출하지
 | ID | Status | Verify | Work item |
 | --- | --- | --- | --- |
 | C0 | done | domain/transport unit test + desktop/narrow rendered smoke | local `~/...` normalization, integrated local/SSH folder picker, compact cockpit, registry-only remove와 local/remote bookmark identity |
-| C1 | todo | registry migration test | open tabs, order와 selected tab persistence |
-| C2 | todo | keyboard/pointer rendered smoke | quick switcher search와 tab reopen/close |
-| C3 | todo | scheduler unit/integration test | repository별 refresh dedup, cancel와 backoff |
-| C4 | todo | rendered state matrix | pinned/recent와 fresh/stale/error badge |
-| C5 | todo | platform handoff smoke | local/remote editor와 terminal open contract |
-| C6 | todo | performance fixture | bounded graph rendering at representative row count |
-| C7 | todo | `scripts/check.sh` | full local gate와 current docs |
+| C1 | done | registry migration test | open tabs, order와 selected tab persistence |
+| C2 | done | keyboard/pointer rendered smoke | quick switcher search와 tab reopen/close |
+| C3 | done | scheduler unit/integration test | repository별 refresh dedup, cancel와 backoff |
+| C4 | done | rendered state matrix | pinned/recent와 fresh/stale/error badge |
+| C5 | done | platform handoff smoke | local/remote editor와 terminal open contract |
+| C6 | done | performance fixture | bounded graph rendering at representative row count |
+| C7 | done | `scripts/check.sh` | full local gate와 current docs |
 
 ## Required Evidence
 
@@ -86,3 +86,18 @@ affordance는 안전한 operation preview가 생기는 P3 전까지 노출하지
 
 모든 acceptance가 done이고 restart/rendered/performance evidence와 `scripts/check.sh`가
 통과하며 status/roadmap이 actual runtime과 일치해야 한다.
+
+## Completion Evidence
+
+- registry v1→v2 migration과 restart round trip이 open tab order, selected tab과 recent metadata를
+  보존한다.
+- keyboard와 pointer rendered smoke가 quick switcher search, tab close/reopen과 pin state 이동을
+  검증했다.
+- scheduler/backend tests가 repository별 refresh dedup, cancellation, independent interval과
+  bounded failure backoff를 검증했고 failure rendered smoke에서 cached projection이 유지됐다.
+- handoff plan tests가 local/SSH path를 shell string이 아닌 단일 argv로 보존하며 preview에는
+  display name만 포함함을 검증했다.
+- representative 160-row rendered fixture가 최대 31개 DOM row를 유지했고 중간 revision 선택과
+  inspector 갱신을 통과했다.
+- native desktop와 owner-controlled SSH 2-repository smoke 및 canonical local gate가 통과했다.
+  private identity, path와 raw output은 tracked evidence에 포함하지 않았다.

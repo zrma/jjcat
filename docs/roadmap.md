@@ -14,14 +14,15 @@
 ## P1: Multi-repository Cockpit
 
 - [x] compact graph/history baseline, bottom inspector와 local `~/...` registration
-- [ ] host별 repository sidebar와 recent/pinned state
-- [ ] persistent repository tabs와 quick switcher
-- [ ] cached status badge와 asynchronous refresh
-- [ ] local/remote editor 및 terminal open action
+- [x] host별 repository sidebar와 recent/pinned state
+- [x] persistent repository tabs와 quick switcher
+- [x] cached status badge와 asynchronous refresh
+- [x] local/remote editor 및 terminal open action
+- [x] bounded change-history virtualization spike
 
 ## P2: Graph And Diff
 
-- [ ] virtualized change DAG와 revision navigation
+- [ ] multi-lane change DAG와 revision navigation
 - [ ] file list, unified와 side-by-side diff
 - [ ] conflict, outgoing와 behind projection
 - [ ] operation log와 undo surface
