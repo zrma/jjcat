@@ -59,6 +59,8 @@ status = read("docs/status.md")
 readme = read("README.md")
 handoff = read("docs/HANDOFF.md")
 publication = read("docs/PUBLICATION.md")
+security = read("SECURITY.md")
+roadmap = read("docs/roadmap.md")
 start_work = read("scripts/start-work.sh")
 cargo_manifest = read("src-tauri/Cargo.toml")
 package_manifest = read("package.json")
@@ -71,6 +73,9 @@ for fragment in (
     "remote_status: configured-public",
     "remote: https://github.com/zrma/jjcat",
     "license_status: Apache-2.0",
+    "id: RUSTSEC-2024-0429",
+    "scope: upstream-linux-transitive",
+    "review: dependency-refresh-or-linux-distribution",
     "application_identifier: com.1day1coding.jjcat",
     "status: selected",
     "desktop: Tauri 2",
@@ -112,6 +117,12 @@ if '"license": "Apache-2.0"' not in package_manifest:
     fail("frontend package license differs from Apache-2.0")
 if "Apache License 2.0" not in readme or "Apache License 2.0" not in handoff:
     fail("README or handoff license declaration differs from Apache-2.0")
+if "RUSTSEC-2024-0429" not in security or "upstream-linux-transitive" not in security:
+    fail("security policy does not track the accepted upstream advisory")
+if "dependency-refresh-or-linux-distribution" not in security:
+    fail("security policy does not define the upstream advisory review boundary")
+if "RUSTSEC-2024-0429" not in roadmap:
+    fail("distribution roadmap does not require upstream advisory review")
 
 markdown_link_pattern = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 markdown_paths = set(ROOT.glob("*.md"))

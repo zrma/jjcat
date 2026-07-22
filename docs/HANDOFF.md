@@ -18,6 +18,9 @@
 - publication class는 public이며 모든 tracked artifact는 remote visibility와 무관하게
   `public-ready`로 유지한다.
 - GitHub origin은 public으로 구성했으며 source code는 Apache License 2.0으로 제공한다.
+- Linux/BSD Tauri/Wry GTK chain의 `RUSTSEC-2024-0429`는 해결되지 않은 accepted
+  upstream constraint다. dependency refresh 또는 Linux distribution 전에
+  `SECURITY.md`와 P4 roadmap의 종료 조건을 재검토한다.
 
 ## Architecture Map
 

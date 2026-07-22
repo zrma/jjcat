@@ -38,5 +38,6 @@
 
 - [ ] macOS packaging, signing과 update path
 - [ ] Linux와 Windows acceptance
+- [ ] Linux packaging 전에 `RUSTSEC-2024-0429` upstream resolution 또는 validated pinned backport 재검토
 - [ ] optional `jjcat-agent` install/upgrade/remove contract
 - [ ] release artifacts와 user documentation

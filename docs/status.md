@@ -35,6 +35,14 @@
 - editor/terminal handoff
 - mutation command
 
+## Known Upstream Constraints
+
+- `RUSTSEC-2024-0429`는 Linux/BSD Tauri/Wry GTK dependency chain의
+  `upstream-linux-transitive` advisory로 허용했으며 해결된 것으로 간주하지 않는다.
+- 현재 source에서 영향을 받는 iterator API의 직접 사용은 확인하지 못했다.
+- `dependency-refresh-or-linux-distribution` 시점에 upstream resolution 또는 검증된
+  pinned backport를 다시 판단한다. 세부 경계는 `SECURITY.md`와 P4 roadmap에 고정했다.
+
 ## Publication Boundary
 
 - 현재 content class는 `public`이며 tracked artifact는 remote visibility와 무관하게

@@ -34,6 +34,12 @@ publication:
   license_status: Apache-2.0
   policy: docs/PUBLICATION.md
 
+security:
+  accepted_advisories:
+    - id: RUSTSEC-2024-0429
+      scope: upstream-linux-transitive
+      review: dependency-refresh-or-linux-distribution
+
 commands:
   start_work: scripts/start-work.sh --work-id <work-id>
   verify_finalize: scripts/finalize-change.sh --verify-only
