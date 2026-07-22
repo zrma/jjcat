@@ -28,6 +28,7 @@ import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import { groupRepositories } from "./lib/repositories";
+import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
 import type {
   AppError,
   CachedProjection,
@@ -53,6 +54,8 @@ function App() {
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [failureCounts, setFailureCounts] = useState<Record<string, number>>({});
+  const [retryAt, setRetryAt] = useState<Record<string, number>>({});
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
   const [historyView, setHistoryView] = useState<HistoryView>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -64,6 +67,8 @@ function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const refreshingRef = useRef<Record<string, string>>({});
+  const failureCountsRef = useRef<Record<string, number>>({});
+  const cancelledRefreshesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -124,17 +129,25 @@ function App() {
   );
 
   const refreshRepository = useCallback(
-    async (repositoryId: string) => {
+    async (repositoryId: string, cancelActive = true) => {
       if (!registry) return;
       const activeRequest = refreshingRef.current[repositoryId];
       if (activeRequest) {
-        await bridge.cancelRefresh(activeRequest);
+        if (cancelActive) {
+          cancelledRefreshesRef.current.add(activeRequest);
+          await bridge.cancelRefresh(activeRequest);
+        }
         return;
       }
       const requestId = crypto.randomUUID();
       refreshingRef.current[repositoryId] = requestId;
       setRefreshing((current) => ({ ...current, [repositoryId]: requestId }));
       setErrors((current) => {
+        const next = { ...current };
+        delete next[repositoryId];
+        return next;
+      });
+      setRetryAt((current) => {
         const next = { ...current };
         delete next[repositoryId];
         return next;
@@ -150,9 +163,23 @@ function App() {
             : current,
         );
         setFreshIds((current) => new Set(current).add(repositoryId));
+        delete failureCountsRef.current[repositoryId];
+        setFailureCounts((current) => {
+          const next = { ...current };
+          delete next[repositoryId];
+          return next;
+        });
       } catch (error) {
+        if (cancelledRefreshesRef.current.delete(requestId)) return;
         const appError = error as AppError;
         setErrors((current) => ({ ...current, [repositoryId]: appError.message }));
+        const nextFailureCount = (failureCountsRef.current[repositoryId] ?? 0) + 1;
+        failureCountsRef.current[repositoryId] = nextFailureCount;
+        setFailureCounts((current) => ({ ...current, [repositoryId]: nextFailureCount }));
+        setRetryAt((current) => ({
+          ...current,
+          [repositoryId]: Date.now() + failureBackoffMs(nextFailureCount),
+        }));
       } finally {
         if (refreshingRef.current[repositoryId] === requestId) {
           delete refreshingRef.current[repositoryId];
@@ -176,8 +203,22 @@ function App() {
     ) {
       return;
     }
-    void refreshRepository(selectedRepository.id);
+    void refreshRepository(selectedRepository.id, false);
   }, [errors, refreshRepository, selectedCache, selectedRepository]);
+
+  useEffect(() => {
+    if (!registry) return;
+    const timers = planRepositoryRefreshes(
+      registry.openRepositoryIds,
+      registry.selectedRepository,
+      registry.cachedProjections,
+      failureCounts,
+      Date.now(),
+    ).map(({ repositoryId, delayMs }) =>
+      window.setTimeout(() => void refreshRepository(repositoryId, false), delayMs),
+    );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [failureCounts, refreshRepository, registry]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -245,6 +286,17 @@ function App() {
         return next;
       });
       setErrors((current) => {
+        const next = { ...current };
+        delete next[repository.id];
+        return next;
+      });
+      delete failureCountsRef.current[repository.id];
+      setFailureCounts((current) => {
+        const next = { ...current };
+        delete next[repository.id];
+        return next;
+      });
+      setRetryAt((current) => {
         const next = { ...current };
         delete next[repository.id];
         return next;
@@ -475,6 +527,11 @@ function App() {
                 <AlertTriangle aria-hidden="true" />
                 <span>{errors[selectedRepository.id]}</span>
                 {selectedCache && <span className="notice-tail">Showing cached data.</span>}
+                {retryAt[selectedRepository.id] && (
+                  <span className="notice-tail">
+                    Background retry in {Math.max(1, Math.ceil((retryAt[selectedRepository.id] - Date.now()) / 1000))}s.
+                  </span>
+                )}
               </div>
             )}
             <ChangeWorkspace

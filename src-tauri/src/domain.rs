@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 const REPOSITORY_NAMESPACE: Uuid = Uuid::from_u128(0xa851f5bc_59be_4a98_a18a_9598116b7b9d);
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RepositoryId(pub String);
 

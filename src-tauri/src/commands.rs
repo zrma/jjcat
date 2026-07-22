@@ -18,7 +18,65 @@ use crate::ssh_config::explicit_host_aliases;
 pub struct AppState {
     store: Mutex<RegistryStore>,
     driver: JjDriver,
-    active_refreshes: Mutex<HashMap<String, CancellationToken>>,
+    active_refreshes: Mutex<ActiveRefreshes>,
+}
+
+#[derive(Default)]
+struct ActiveRefreshes {
+    by_repository: HashMap<RepositoryId, ActiveRefresh>,
+}
+
+struct ActiveRefresh {
+    request_id: String,
+    cancellation: CancellationToken,
+}
+
+impl ActiveRefreshes {
+    fn start(
+        &mut self,
+        repository_id: RepositoryId,
+        request_id: String,
+    ) -> Result<CancellationToken, ()> {
+        if self.by_repository.contains_key(&repository_id)
+            || self
+                .by_repository
+                .values()
+                .any(|refresh| refresh.request_id == request_id)
+        {
+            return Err(());
+        }
+        let cancellation = CancellationToken::new();
+        self.by_repository.insert(
+            repository_id,
+            ActiveRefresh {
+                request_id,
+                cancellation: cancellation.clone(),
+            },
+        );
+        Ok(cancellation)
+    }
+
+    fn finish(&mut self, repository_id: &RepositoryId, request_id: &str) {
+        if self
+            .by_repository
+            .get(repository_id)
+            .is_some_and(|refresh| refresh.request_id == request_id)
+        {
+            self.by_repository.remove(repository_id);
+        }
+    }
+
+    fn cancel(&self, request_id: &str) -> bool {
+        let Some(refresh) = self
+            .by_repository
+            .values()
+            .find(|refresh| refresh.request_id == request_id)
+        else {
+            return false;
+        };
+        refresh.cancellation.cancel();
+        true
+    }
 }
 
 impl AppState {
@@ -26,7 +84,7 @@ impl AppState {
         Self {
             store: Mutex::new(RegistryStore::new(registry_path)),
             driver: JjDriver::default(),
-            active_refreshes: Mutex::new(HashMap::new()),
+            active_refreshes: Mutex::new(ActiveRefreshes::default()),
         }
     }
 }
@@ -241,20 +299,22 @@ pub async fn refresh_repository(
             })?
     };
 
-    let cancellation = CancellationToken::new();
-    {
+    let cancellation = {
         let mut active = state.active_refreshes.lock().await;
-        if active.contains_key(&request_id) {
-            return Err(AppError {
+        active
+            .start(repository.id.clone(), request_id.clone())
+            .map_err(|_| AppError {
                 kind: AppErrorKind::Busy,
-                message: "refresh request ID is already active".into(),
-            });
-        }
-        active.insert(request_id.clone(), cancellation.clone());
-    }
+                message: "repository refresh is already active".into(),
+            })?
+    };
 
     let result = state.driver.project(&repository, cancellation).await;
-    state.active_refreshes.lock().await.remove(&request_id);
+    state
+        .active_refreshes
+        .lock()
+        .await
+        .finish(&repository.id, &request_id);
     let projection = result.map_err(driver_error)?;
     let cached = CachedProjection {
         cached_at: projection.refreshed_at.clone(),
@@ -286,12 +346,7 @@ pub async fn cancel_refresh(
     request_id: String,
     state: State<'_, AppState>,
 ) -> Result<bool, AppError> {
-    let active = state.active_refreshes.lock().await;
-    let Some(cancellation) = active.get(&request_id) else {
-        return Ok(false);
-    };
-    cancellation.cancel();
-    Ok(true)
+    Ok(state.active_refreshes.lock().await.cancel(&request_id))
 }
 
 fn snapshot_from_load(loaded: crate::registry::RegistryLoad) -> Result<RegistrySnapshot, AppError> {
@@ -337,5 +392,28 @@ fn driver_error(error: DriverError) -> AppError {
     AppError {
         kind: AppErrorKind::Driver,
         message: error.message,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_refreshes_deduplicate_by_repository_and_request() {
+        let first = RepositoryId("first".into());
+        let second = RepositoryId("second".into());
+        let mut active = ActiveRefreshes::default();
+
+        let token = active.start(first.clone(), "request-one".into()).unwrap();
+        assert!(active.start(first.clone(), "request-two".into()).is_err());
+        assert!(active.start(second.clone(), "request-one".into()).is_err());
+        assert!(active.start(second, "request-two".into()).is_ok());
+        assert!(active.cancel("request-one"));
+        assert!(token.is_cancelled());
+        active.finish(&first, "stale-request");
+        assert!(active.by_repository.contains_key(&first));
+        active.finish(&first, "request-one");
+        assert!(!active.by_repository.contains_key(&first));
     }
 }
