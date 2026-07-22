@@ -50,6 +50,15 @@ type RepositoryState =
 type HistoryView = "all" | "working-copy";
 type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
 
+function isTextEntry(target: EventTarget | null) {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
+
 function App() {
   const [registry, setRegistry] = useState<Registry | null>(null);
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
@@ -245,10 +254,40 @@ function App() {
           void selectRepository(repositoryId);
         }
       }
+      if (
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+        !isTextEntry(event.target)
+      ) {
+        const currentIndex = visibleChanges.findIndex(
+          (change) => change.changeId === selectedChange?.changeId,
+        );
+        const nextIndex = Math.max(
+          0,
+          Math.min(
+            visibleChanges.length - 1,
+            currentIndex + (event.key === "ArrowDown" ? 1 : -1),
+          ),
+        );
+        const next = visibleChanges[nextIndex];
+        if (next && nextIndex !== currentIndex) {
+          event.preventDefault();
+          setSelectedChangeId(next.changeId);
+        }
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [refreshRepository, registry?.openRepositoryIds, selectRepository, selectedRepository]);
+  }, [
+    refreshRepository,
+    registry?.openRepositoryIds,
+    selectRepository,
+    selectedChange?.changeId,
+    selectedRepository,
+    visibleChanges,
+  ]);
 
   useEffect(() => {
     if (!contextMenu) return;

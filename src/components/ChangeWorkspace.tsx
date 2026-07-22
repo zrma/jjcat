@@ -1,6 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { File, Files, FolderGit2 } from "lucide-react";
 import { relativeTime } from "../lib/format";
+import { layoutDag, type DagRowLayout } from "../lib/dag";
 import { virtualRange } from "../lib/virtualization";
 import type { ChangeRow } from "../types";
 import { BookmarkLabels } from "./BookmarkLabels";
@@ -16,6 +25,9 @@ const VIRTUALIZATION_THRESHOLD = 40;
 const HISTORY_ROW_HEIGHT = 34;
 const HISTORY_HEADER_HEIGHT = 30;
 const HISTORY_OVERSCAN = 6;
+const DAG_LANE_GAP = 14;
+const DAG_PADDING = 8;
+const MAX_VISIBLE_DAG_LANES = 10;
 
 export function ChangeWorkspace({
   changes,
@@ -50,6 +62,10 @@ function ChangeLog({
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
   const virtualized = changes.length >= VIRTUALIZATION_THRESHOLD;
+  const dag = useMemo(() => layoutDag(changes), [changes]);
+  const visibleLaneCount = Math.min(dag.maxLaneCount, MAX_VISIBLE_DAG_LANES);
+  const dagWidth = Math.max(42, DAG_PADDING * 2 + visibleLaneCount * DAG_LANE_GAP);
+  const graphStyle = { "--dag-width": `${dagWidth}px` } as CSSProperties;
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -71,6 +87,19 @@ function ChangeLog({
     setViewport((current) => ({ ...current, scrollTop: 0 }));
   }, [changes[0]?.changeId]);
 
+  useEffect(() => {
+    const index = changes.findIndex((change) => change.changeId === selected);
+    const element = scrollRef.current;
+    if (!element || index < 0) return;
+    const rowTop = HISTORY_HEADER_HEIGHT + index * HISTORY_ROW_HEIGHT;
+    const rowBottom = rowTop + HISTORY_ROW_HEIGHT;
+    if (rowTop < element.scrollTop + HISTORY_HEADER_HEIGHT) {
+      element.scrollTop = Math.max(0, rowTop - HISTORY_HEADER_HEIGHT);
+    } else if (rowBottom > element.scrollTop + element.clientHeight) {
+      element.scrollTop = rowBottom - element.clientHeight;
+    }
+  }, [changes, selected]);
+
   if (changes.length === 0) {
     return (
       <section className="change-log empty-log">
@@ -91,6 +120,7 @@ function ChangeLog({
       aria-label="Change history"
       aria-rowcount={changes.length}
       ref={scrollRef}
+      style={graphStyle}
       onScroll={(event) => {
         const scrollTop = event.currentTarget.scrollTop;
         setViewport((current) => ({ ...current, scrollTop }));
@@ -106,6 +136,8 @@ function ChangeLog({
       </div>
       <ChangeRows
         changes={changes}
+        dagRows={dag.rows}
+        dagWidth={dagWidth}
         selected={selected}
         onSelect={onSelect}
         virtualized={virtualized}
@@ -118,6 +150,8 @@ function ChangeLog({
 
 function ChangeRows({
   changes,
+  dagRows,
+  dagWidth,
   selected,
   onSelect,
   virtualized,
@@ -125,6 +159,8 @@ function ChangeRows({
   scrollTop,
 }: {
   changes: ChangeRow[];
+  dagRows: DagRowLayout[];
+  dagWidth: number;
   selected?: string;
   onSelect: (changeId: string) => void;
   virtualized: boolean;
@@ -165,7 +201,7 @@ function ChangeRows({
             onClick={() => onSelect(change.changeId)}
             key={`${change.changeId}-${change.commitId}`}
           >
-            <DagCell change={change} index={index} count={changes.length} />
+            <DagCell change={change} layout={dagRows[index]} width={dagWidth} />
             <code className="change-id">{change.changeId}</code>
             <span className="change-description">
               <BookmarkLabels bookmarks={change.bookmarks} limit={2} />
@@ -183,21 +219,47 @@ function ChangeRows({
   );
 }
 
-function DagCell({ change, index, count }: { change: ChangeRow; index: number; count: number }) {
-  const hasPrevious = index > 0;
-  const hasNext = index < count - 1;
+function laneX(lane: number) {
+  return DAG_PADDING + Math.min(lane, MAX_VISIBLE_DAG_LANES - 1) * DAG_LANE_GAP;
+}
+
+function DagCell({
+  change,
+  layout,
+  width,
+}: {
+  change: ChangeRow;
+  layout: DagRowLayout;
+  width: number;
+}) {
   const isRoot = change.changeId === "000000000000";
+  const nodeX = laneX(layout.lane);
   return (
-    <span className="dag-cell" aria-hidden="true">
-      <svg viewBox="0 0 42 34" preserveAspectRatio="none">
-        {hasPrevious && <path d="M21 0V17" />}
-        {hasNext && <path d="M21 17V34" />}
-        {change.parents.length > 1 && hasNext && (
-          <path className="branch-line" d="M21 17 C38 20 38 31 21 34" />
+    <span
+      className="dag-cell"
+      aria-hidden="true"
+      data-lane={layout.lane}
+      data-lane-overflow={layout.lane >= MAX_VISIBLE_DAG_LANES ? "true" : undefined}
+    >
+      <svg viewBox={`0 0 ${width} 34`} preserveAspectRatio="xMinYMid meet">
+        {layout.hasIncoming && (
+          <path className={`lane-${layout.lane % 6}`} d={`M${nodeX} 0V17`} />
         )}
+        {layout.edges.map((edge, index) => {
+          const fromX = laneX(edge.fromLane);
+          const toX = laneX(edge.toLane);
+          const startY = edge.kind === "parent" ? 17 : 0;
+          return (
+            <path
+              className={`lane-${edge.fromLane % 6} ${edge.kind === "parent" && (edge.parentIndex ?? 0) > 0 ? "branch-line" : ""}`}
+              d={`M${fromX} ${startY} C${fromX} 24 ${toX} 25 ${toX} 34`}
+              key={`${edge.kind}-${edge.fromLane}-${edge.toLane}-${index}`}
+            />
+          );
+        })}
         <circle
-          className={`${change.workingCopy ? "working-node" : ""} ${isRoot ? "root-node" : ""}`}
-          cx="21"
+          className={`lane-${layout.lane % 6} ${change.workingCopy ? "working-node" : ""} ${isRoot ? "root-node" : ""}`}
+          cx={nodeX}
           cy="17"
           r={change.workingCopy ? "6" : "4.5"}
         />

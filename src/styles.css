@@ -18,7 +18,8 @@
   --amber: #ffc24f;
   --danger: #ef6a6a;
   --row-height: 34px;
-  --history-columns: 42px 128px minmax(360px, 1fr) 96px 96px 84px;
+  --dag-width: 42px;
+  --history-columns: var(--dag-width) 128px minmax(360px, 1fr) 96px 96px 84px;
 }
 
 * {
@@ -697,7 +698,7 @@ body[data-runtime="tauri"] .brand-lockup {
 
 .dag-cell svg {
   display: block;
-  width: 42px;
+  width: var(--dag-width);
   height: 34px;
   overflow: visible;
 }
@@ -712,6 +713,26 @@ body[data-runtime="tauri"] .brand-lockup {
 .dag-cell .branch-line {
   stroke: var(--amber);
   stroke-opacity: 0.85;
+}
+
+.dag-cell .lane-1 {
+  stroke: #ffc24f;
+}
+
+.dag-cell .lane-2 {
+  stroke: #7ab8ff;
+}
+
+.dag-cell .lane-3 {
+  stroke: #d59cff;
+}
+
+.dag-cell .lane-4 {
+  stroke: #ff8da1;
+}
+
+.dag-cell .lane-5 {
+  stroke: #8ddf78;
 }
 
 .dag-cell circle {
@@ -1803,7 +1824,7 @@ body[data-runtime="tauri"] .brand-lockup {
 
 @media (max-width: 1250px) {
   :root {
-    --history-columns: 42px 128px minmax(300px, 1fr) 96px 96px 84px;
+    --history-columns: var(--dag-width) 128px minmax(300px, 1fr) 96px 96px 84px;
   }
 
   .detail-grid {
@@ -1813,7 +1834,7 @@ body[data-runtime="tauri"] .brand-lockup {
 
 @media (max-width: 1060px) {
   :root {
-    --history-columns: 42px 120px minmax(240px, 1fr) 92px 82px;
+    --history-columns: var(--dag-width) 120px minmax(240px, 1fr) 92px 82px;
   }
 
   .col-commit {
@@ -1855,7 +1876,7 @@ body[data-runtime="tauri"] .brand-lockup {
 
 @media (max-width: 760px) {
   :root {
-    --history-columns: 42px 112px minmax(220px, 1fr) 82px;
+    --history-columns: var(--dag-width) 112px minmax(220px, 1fr) 82px;
   }
 
   .app-shell {
