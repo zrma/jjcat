@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { File, Files, FolderGit2 } from "lucide-react";
 import { relativeTime } from "../lib/format";
+import { virtualRange } from "../lib/virtualization";
 import type { ChangeRow } from "../types";
 import { BookmarkLabels } from "./BookmarkLabels";
 
@@ -10,6 +11,11 @@ interface ChangeWorkspaceProps {
   onSelect: (changeId: string) => void;
   refreshing: boolean;
 }
+
+const VIRTUALIZATION_THRESHOLD = 40;
+const HISTORY_ROW_HEIGHT = 34;
+const HISTORY_HEADER_HEIGHT = 30;
+const HISTORY_OVERSCAN = 6;
 
 export function ChangeWorkspace({
   changes,
@@ -41,6 +47,30 @@ function ChangeLog({
   onSelect: (changeId: string) => void;
   refreshing: boolean;
 }) {
+  const scrollRef = useRef<HTMLElement>(null);
+  const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
+  const virtualized = changes.length >= VIRTUALIZATION_THRESHOLD;
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const updateHeight = () =>
+      setViewport((current) => ({
+        ...current,
+        height: Math.max(0, element.clientHeight - HISTORY_HEADER_HEIGHT),
+      }));
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element) element.scrollTop = 0;
+    setViewport((current) => ({ ...current, scrollTop: 0 }));
+  }, [changes[0]?.changeId]);
+
   if (changes.length === 0) {
     return (
       <section className="change-log empty-log">
@@ -56,7 +86,16 @@ function ChangeLog({
   }
 
   return (
-    <section className="change-log" aria-label="Change history">
+    <section
+      className="change-log"
+      aria-label="Change history"
+      aria-rowcount={changes.length}
+      ref={scrollRef}
+      onScroll={(event) => {
+        const scrollTop = event.currentTarget.scrollTop;
+        setViewport((current) => ({ ...current, scrollTop }));
+      }}
+    >
       <div className="log-header" aria-hidden="true">
         <span>Graph</span>
         <span>Change</span>
@@ -65,11 +104,64 @@ function ChangeLog({
         <span className="col-commit">Commit</span>
         <span>Updated</span>
       </div>
-      <div className="log-body">
-        {changes.map((change, index) => (
+      <ChangeRows
+        changes={changes}
+        selected={selected}
+        onSelect={onSelect}
+        virtualized={virtualized}
+        viewportHeight={viewport.height}
+        scrollTop={viewport.scrollTop}
+      />
+    </section>
+  );
+}
+
+function ChangeRows({
+  changes,
+  selected,
+  onSelect,
+  virtualized,
+  viewportHeight,
+  scrollTop,
+}: {
+  changes: ChangeRow[];
+  selected?: string;
+  onSelect: (changeId: string) => void;
+  virtualized: boolean;
+  viewportHeight: number;
+  scrollTop: number;
+}) {
+  const range = virtualized
+    ? virtualRange(
+        changes.length,
+        HISTORY_ROW_HEIGHT,
+        viewportHeight,
+        scrollTop,
+        HISTORY_OVERSCAN,
+      )
+    : {
+        startIndex: 0,
+        endIndex: changes.length,
+        offsetTop: 0,
+        totalHeight: changes.length * HISTORY_ROW_HEIGHT,
+      };
+  const visibleChanges = changes.slice(range.startIndex, range.endIndex);
+
+  return (
+    <div
+      className={`log-body ${virtualized ? "virtualized" : ""}`}
+      style={virtualized ? { height: range.totalHeight } : undefined}
+      data-rendered-rows={visibleChanges.length}
+    >
+      {visibleChanges.map((change, visibleIndex) => {
+        const index = range.startIndex + visibleIndex;
+        return (
           <button
             type="button"
-            className={`change-row ${change.changeId === selected ? "selected" : ""}`}
+            className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""}`}
+            style={virtualized ? { top: index * HISTORY_ROW_HEIGHT } : undefined}
+            aria-posinset={index + 1}
+            aria-setsize={changes.length}
             onClick={() => onSelect(change.changeId)}
             key={`${change.changeId}-${change.commitId}`}
           >
@@ -85,9 +177,9 @@ function ChangeLog({
             <code className="change-commit col-commit">{change.commitId}</code>
             <span className="change-updated">{relativeTime(change.updatedAt)}</span>
           </button>
-        ))}
-      </div>
-    </section>
+        );
+      })}
+    </div>
   );
 }
 

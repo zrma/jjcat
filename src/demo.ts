@@ -40,6 +40,14 @@ function change(
 }
 
 function projection(repositoryId: string, cachedAt: string): CachedProjection {
+  const fixtureHistory = Array.from({ length: 153 }, (_, index) => {
+    const sequence = index + 16;
+    const changeId = sequence.toString(16).padStart(12, "0");
+    const commitId = (sequence + 4_096).toString(16).padStart(12, "0");
+    return change(changeId, commitId, `chore: fixture history row ${sequence}`, 360 + index * 12, {
+      parents: [(sequence + 1).toString(16).padStart(12, "0")],
+    });
+  });
   const rows = [
     change("7f3a2b1c9d8e", "8b1c2d3e4f5a", "feat: add repository identity", 0, {
       parents: ["6a7b8c9d0e1f"],
@@ -70,6 +78,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
     change("2b3c4d5e6f7a", "2c3d4e5f6a7b", "chore: initialize jjcat", 2880, {
       parents: ["000000000000"],
     }),
+    ...fixtureHistory,
     change("000000000000", "000000000000", "(root)", 2880, { empty: true }),
   ];
   return {

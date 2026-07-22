@@ -650,6 +650,15 @@ body[data-runtime="tauri"] .brand-lockup {
   min-width: 900px;
 }
 
+.log-body.virtualized {
+  contain: strict;
+}
+
+.change-row.virtualized-row {
+  position: absolute;
+  left: 0;
+}
+
 .change-row {
   width: 100%;
   height: var(--row-height);
