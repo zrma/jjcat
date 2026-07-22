@@ -176,6 +176,25 @@ pub async fn update_open_repositories(
 }
 
 #[tauri::command]
+pub async fn set_repository_pinned(
+    repository_id: RepositoryId,
+    pinned: bool,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    registry
+        .set_repository_pinned(&repository_id, pinned)
+        .map_err(domain_error)?;
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
 pub async fn remove_repository(
     repository_id: RepositoryId,
     state: State<'_, AppState>,

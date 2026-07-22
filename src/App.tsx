@@ -11,6 +11,8 @@ import {
   GitBranch,
   History,
   Laptop,
+  Pin,
+  PinOff,
   Plus,
   RefreshCw,
   Search,
@@ -25,6 +27,7 @@ import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
+import { groupRepositories } from "./lib/repositories";
 import type {
   AppError,
   CachedProjection,
@@ -254,6 +257,17 @@ function App() {
     }
   }
 
+  async function setRepositoryPinned(repository: RepositoryRecord, pinned: boolean) {
+    try {
+      const snapshot = await bridge.setRepositoryPinned(repository.id, pinned);
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message);
+    }
+  }
+
   async function closeTab(repositoryId: string) {
     if (!registry) return;
     const openIndex = registry.openRepositoryIds.indexOf(repositoryId);
@@ -367,12 +381,10 @@ function App() {
             <span>All Changes</span>
           </button>
         </nav>
-        {(["local", "ssh"] as const).map((kind) => (
-          <section className="repository-group" key={kind}>
-            <h3>{locationLabel(kind)}</h3>
-            {registry.repositories
-              .filter((repository) => repository.location.kind === kind)
-              .map((repository) => {
+        {groupRepositories(registry.repositories).map((group) => (
+          <section className="repository-group" key={group.label}>
+            <h3>{group.label}</h3>
+            {group.repositories.map((repository) => {
                 const state = repositoryState(
                   repository.id,
                   registry.cachedProjections[repository.id],
@@ -395,8 +407,9 @@ function App() {
                     }}
                     key={repository.id}
                   >
-                    {kind === "local" ? <Database aria-hidden="true" /> : <Server aria-hidden="true" />}
+                    {repository.location.kind === "local" ? <Database aria-hidden="true" /> : <Server aria-hidden="true" />}
                     <span>{repository.displayName}</span>
+                    <span className={`repository-state ${state}`}>{compactStateLabel(state)}</span>
                     <StatusDot state={state} />
                   </button>
                 );
@@ -539,6 +552,13 @@ function App() {
             setContextMenu(null);
             void refreshRepository(contextMenu.repositoryId);
           }}
+          onPin={() => {
+            const repository = registry.repositories.find(
+              (candidate) => candidate.id === contextMenu.repositoryId,
+            );
+            setContextMenu(null);
+            if (repository) void setRepositoryPinned(repository, !repository.pinned);
+          }}
           onRemove={() => {
             const repository = registry.repositories.find(
               (candidate) => candidate.id === contextMenu.repositoryId,
@@ -594,6 +614,24 @@ function stateLabel(state: RepositoryState) {
       return "Cached";
     case "empty":
       return "Never refreshed";
+  }
+}
+
+function compactStateLabel(state: RepositoryState) {
+  switch (state) {
+    case "ready":
+      return "Ready";
+    case "refreshing":
+      return "Syncing";
+    case "disconnected":
+    case "disconnected-cached":
+      return "Offline";
+    case "stale":
+      return "Stale";
+    case "cached":
+      return "Cached";
+    case "empty":
+      return "New";
   }
 }
 
@@ -926,12 +964,14 @@ function RepositoryMenu({
   repository,
   refreshing,
   onRefresh,
+  onPin,
   onRemove,
 }: {
   menu: RepositoryContextMenu;
   repository: RepositoryRecord | undefined;
   refreshing: boolean;
   onRefresh: () => void;
+  onPin: () => void;
   onRemove: () => void;
 }) {
   if (!repository) return null;
@@ -947,6 +987,10 @@ function RepositoryMenu({
       <button type="button" role="menuitem" onClick={onRefresh} disabled={refreshing}>
         <RefreshCw aria-hidden="true" />
         {refreshing ? "Refreshing…" : "Refresh repository"}
+      </button>
+      <button type="button" role="menuitem" onClick={onPin}>
+        {repository.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
+        {repository.pinned ? "Unpin repository" : "Pin repository"}
       </button>
       <span className="menu-separator" />
       <button type="button" role="menuitem" className="danger" onClick={onRemove} disabled={refreshing}>

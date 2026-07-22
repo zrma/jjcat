@@ -19,6 +19,7 @@ interface Bridge {
     openRepositoryIds: string[],
     selectedRepository: string | null,
   ): Promise<RegistrySnapshot>;
+  setRepositoryPinned(repositoryId: string, pinned: boolean): Promise<RegistrySnapshot>;
   refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
 }
@@ -57,6 +58,12 @@ class TauriBridge implements Bridge {
       openRepositoryIds,
       selectedRepository,
     }).catch(normalizeError);
+  }
+
+  setRepositoryPinned(repositoryId: string, pinned: boolean) {
+    return invoke<RegistrySnapshot>("set_repository_pinned", { repositoryId, pinned }).catch(
+      normalizeError,
+    );
   }
 
   refreshRepository(repositoryId: string, requestId: string) {

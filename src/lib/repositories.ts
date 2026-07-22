@@ -15,3 +15,31 @@ export function filterRepositories(repositories: RepositoryRecord[], query: stri
       .includes(normalized),
   );
 }
+
+export interface RepositoryGroup {
+  label: "Pinned" | "Recent" | "Local" | "SSH";
+  repositories: RepositoryRecord[];
+}
+
+export function groupRepositories(repositories: RepositoryRecord[]): RepositoryGroup[] {
+  const pinned = repositories.filter((repository) => repository.pinned);
+  const recent = repositories
+    .filter((repository) => !repository.pinned && repository.lastOpenedAt)
+    .sort((left, right) => (right.lastOpenedAt ?? "").localeCompare(left.lastOpenedAt ?? ""))
+    .slice(0, 5);
+  const grouped = new Set([...pinned, ...recent].map((repository) => repository.id));
+  const remaining = repositories.filter((repository) => !grouped.has(repository.id));
+  const groups: RepositoryGroup[] = [
+    { label: "Pinned", repositories: pinned },
+    { label: "Recent", repositories: recent },
+    {
+      label: "Local",
+      repositories: remaining.filter((repository) => repository.location.kind === "local"),
+    },
+    {
+      label: "SSH",
+      repositories: remaining.filter((repository) => repository.location.kind === "ssh"),
+    },
+  ];
+  return groups.filter((group) => group.repositories.length > 0);
+}

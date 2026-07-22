@@ -106,7 +106,7 @@ export class DemoBridge {
             id: LOCAL_ID,
             displayName: "jjcat",
             location: { kind: "local", path: "/fixtures/jjcat" },
-            pinned: true,
+            pinned: false,
             lastOpenedAt: now,
           },
           {
@@ -221,6 +221,17 @@ export class DemoBridge {
       );
       if (selected) selected.lastOpenedAt = new Date().toISOString();
     }
+    return this.loadRegistry();
+  }
+
+  async setRepositoryPinned(repositoryId: string, pinned: boolean) {
+    const repository = this.snapshot.registry.repositories.find(
+      (candidate) => candidate.id === repositoryId,
+    );
+    if (!repository) {
+      throw { kind: "notFound", message: "Repository is not registered." } satisfies AppError;
+    }
+    repository.pinned = pinned;
     return this.loadRegistry();
   }
 

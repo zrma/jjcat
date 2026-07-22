@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RepositoryRecord } from "../types";
-import { filterRepositories, repositoryLocationText } from "./repositories";
+import { filterRepositories, groupRepositories, repositoryLocationText } from "./repositories";
 
 const repositories: RepositoryRecord[] = [
   {
@@ -36,5 +36,15 @@ describe("repository search", () => {
   it("formats transport-specific location text", () => {
     expect(repositoryLocationText(repositories[0])).toBe("/fixtures/product-app");
     expect(repositoryLocationText(repositories[1])).toBe("fixture-host:~/fixtures/infra");
+  });
+
+  it("places each repository in exactly one pinned, recent, or transport group", () => {
+    const groups = groupRepositories(repositories);
+
+    expect(groups.map((group) => group.label)).toEqual(["Pinned", "Local"]);
+    expect(groups.flatMap((group) => group.repositories.map((repository) => repository.id))).toEqual([
+      "remote",
+      "local",
+    ]);
   });
 });

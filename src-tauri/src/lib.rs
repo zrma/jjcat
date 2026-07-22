@@ -23,6 +23,7 @@ pub fn run() {
             commands::register_repository,
             commands::select_repository,
             commands::update_open_repositories,
+            commands::set_repository_pinned,
             commands::remove_repository,
             commands::refresh_repository,
             commands::cancel_refresh,

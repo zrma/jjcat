@@ -308,6 +308,20 @@ impl Registry {
         Ok(())
     }
 
+    pub fn set_repository_pinned(
+        &mut self,
+        repository_id: &RepositoryId,
+        pinned: bool,
+    ) -> Result<(), DomainError> {
+        let repository = self
+            .repositories
+            .iter_mut()
+            .find(|repository| &repository.id == repository_id)
+            .ok_or(DomainError::UnknownOpenRepository)?;
+        repository.pinned = pinned;
+        Ok(())
+    }
+
     pub fn remove_repository(&mut self, repository_id: &RepositoryId) -> bool {
         let Some(index) = self
             .repositories
@@ -598,6 +612,27 @@ mod tests {
             registry.open_repository_ids,
             vec![second.id.clone(), registry.repositories[0].id.clone()]
         );
+    }
+
+    #[test]
+    fn pinning_only_changes_registry_metadata() {
+        let repository = RepositoryRecord::new(
+            "fixture",
+            RepositoryLocation::Local {
+                path: "/work/fixture".into(),
+            },
+        )
+        .unwrap();
+        let mut registry = Registry {
+            repositories: vec![repository.clone()],
+            ..Registry::default()
+        };
+
+        registry
+            .set_repository_pinned(&repository.id, true)
+            .unwrap();
+        assert!(registry.repositories[0].pinned);
+        registry.validate().unwrap();
     }
 
     #[test]
