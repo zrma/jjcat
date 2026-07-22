@@ -12,6 +12,7 @@ use crate::domain::{
     RepositoryRecord,
 };
 use crate::driver::{DriverError, JjDriver};
+use crate::handoff::{self, HandoffPreview, HandoffTarget};
 use crate::registry::{RegistryError, RegistryStore};
 use crate::ssh_config::explicit_host_aliases;
 
@@ -118,6 +119,7 @@ enum AppErrorKind {
     Storage,
     Busy,
     Driver,
+    Launch,
 }
 
 #[tauri::command]
@@ -271,6 +273,46 @@ pub async fn remove_repository(
         registry,
         recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
     })
+}
+
+#[tauri::command]
+pub async fn preview_repository_handoff(
+    repository_id: RepositoryId,
+    target: HandoffTarget,
+    state: State<'_, AppState>,
+) -> Result<HandoffPreview, AppError> {
+    let repository = find_repository(&repository_id, &state).await?;
+    Ok(handoff::preview(&repository, target))
+}
+
+#[tauri::command]
+pub async fn launch_repository_handoff(
+    repository_id: RepositoryId,
+    target: HandoffTarget,
+    state: State<'_, AppState>,
+) -> Result<HandoffPreview, AppError> {
+    let repository = find_repository(&repository_id, &state).await?;
+    handoff::launch(&repository, target).map_err(|_| AppError {
+        kind: AppErrorKind::Launch,
+        message: "repository handoff application could not be launched".into(),
+    })
+}
+
+async fn find_repository(
+    repository_id: &RepositoryId,
+    state: &State<'_, AppState>,
+) -> Result<RepositoryRecord, AppError> {
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    loaded
+        .registry
+        .repositories
+        .into_iter()
+        .find(|repository| &repository.id == repository_id)
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::NotFound,
+            message: "repository is not registered".into(),
+        })
 }
 
 #[tauri::command]

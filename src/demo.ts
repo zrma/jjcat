@@ -5,6 +5,7 @@ import type {
   RegistrySnapshot,
   RepositoryDraft,
   RepositoryRecord,
+  HandoffTarget,
 } from "./types";
 
 const LOCAL_ID = "e21c6676-690c-5847-b407-137074516f66";
@@ -259,5 +260,28 @@ export class DemoBridge {
     const active = this.active.get(requestId);
     active?.abort();
     return Boolean(active);
+  }
+
+  async previewRepositoryHandoff(repositoryId: string, target: HandoffTarget) {
+    const repository = this.repository(repositoryId);
+    return {
+      repositoryDisplayName: repository.displayName,
+      target,
+      actionLabel: target === "editor" ? "Open in VS Code" : "Open terminal",
+    } as const;
+  }
+
+  async launchRepositoryHandoff(repositoryId: string, target: HandoffTarget) {
+    return this.previewRepositoryHandoff(repositoryId, target);
+  }
+
+  private repository(repositoryId: string) {
+    const repository = this.snapshot.registry.repositories.find(
+      (candidate) => candidate.id === repositoryId,
+    );
+    if (!repository) {
+      throw { kind: "notFound", message: "Repository is not registered." } satisfies AppError;
+    }
+    return repository;
   }
 }

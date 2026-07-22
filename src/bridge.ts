@@ -6,6 +6,8 @@ import type {
   RegistrySnapshot,
   RemoteDirectoryListing,
   RepositoryDraft,
+  HandoffPreview,
+  HandoffTarget,
 } from "./types";
 
 interface Bridge {
@@ -22,6 +24,8 @@ interface Bridge {
   setRepositoryPinned(repositoryId: string, pinned: boolean): Promise<RegistrySnapshot>;
   refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
+  previewRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
+  launchRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
 }
 
 export const isTauriRuntime = "__TAURI_INTERNALS__" in window;
@@ -72,6 +76,18 @@ class TauriBridge implements Bridge {
 
   cancelRefresh(requestId: string) {
     return invoke<boolean>("cancel_refresh", { requestId }).catch(normalizeError);
+  }
+
+  previewRepositoryHandoff(repositoryId: string, target: HandoffTarget) {
+    return invoke<HandoffPreview>("preview_repository_handoff", { repositoryId, target }).catch(
+      normalizeError,
+    );
+  }
+
+  launchRepositoryHandoff(repositoryId: string, target: HandoffTarget) {
+    return invoke<HandoffPreview>("launch_repository_handoff", { repositoryId, target }).catch(
+      normalizeError,
+    );
   }
 }
 

@@ -4,6 +4,7 @@ import {
   ArrowUp,
   Cable,
   CircleX,
+  Code2,
   Database,
   Folder,
   FolderOpen,
@@ -17,6 +18,7 @@ import {
   RefreshCw,
   Search,
   Server,
+  SquareTerminal,
   Trash2,
   X,
 } from "lucide-react";
@@ -64,6 +66,7 @@ function App() {
   const [contextMenu, setContextMenu] = useState<RepositoryContextMenu | null>(null);
   const [removeTarget, setRemoveTarget] = useState<RepositoryRecord | null>(null);
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
+  const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const refreshingRef = useRef<Record<string, string>>({});
@@ -320,6 +323,17 @@ function App() {
     }
   }
 
+  async function launchHandoff(target: "editor" | "terminal") {
+    if (!selectedRepository) return;
+    try {
+      const preview = await bridge.launchRepositoryHandoff(selectedRepository.id, target);
+      setHandoffNotice(`${preview.actionLabel}: ${preview.repositoryDisplayName}`);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message);
+    }
+  }
+
   async function closeTab(repositoryId: string) {
     if (!registry) return;
     const openIndex = registry.openRepositoryIds.indexOf(repositoryId);
@@ -476,6 +490,11 @@ function App() {
             <AlertTriangle aria-hidden="true" /> {repositoryActionError}
           </div>
         )}
+        {handoffNotice && (
+          <div className="notice handoff-notice" role="status">
+            {handoffNotice}
+          </div>
+        )}
         {recoveryNotice && (
           <div className="notice recovery-notice">
             <AlertTriangle aria-hidden="true" /> {recoveryNotice}
@@ -501,6 +520,24 @@ function App() {
                 <span>{locationLabel(selectedRepository.location.kind)}</span>
               </div>
               <div className="toolbar-controls">
+                <button
+                  type="button"
+                  className="handoff-button"
+                  title={`Open ${selectedRepository.displayName} in VS Code`}
+                  onClick={() => void launchHandoff("editor")}
+                >
+                  <Code2 aria-hidden="true" />
+                  <span className="sr-only">Open in VS Code</span>
+                </button>
+                <button
+                  type="button"
+                  className="handoff-button"
+                  title={`Open terminal for ${selectedRepository.displayName}`}
+                  onClick={() => void launchHandoff("terminal")}
+                >
+                  <SquareTerminal aria-hidden="true" />
+                  <span className="sr-only">Open terminal</span>
+                </button>
                 <label className="history-search">
                   <Search aria-hidden="true" />
                   <span className="sr-only">Filter changes</span>

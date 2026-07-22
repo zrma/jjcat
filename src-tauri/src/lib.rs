@@ -1,6 +1,7 @@
 mod commands;
 pub mod domain;
 pub mod driver;
+mod handoff;
 mod process;
 mod registry;
 mod ssh_config;
@@ -25,6 +26,8 @@ pub fn run() {
             commands::update_open_repositories,
             commands::set_repository_pinned,
             commands::remove_repository,
+            commands::preview_repository_handoff,
+            commands::launch_repository_handoff,
             commands::refresh_repository,
             commands::cancel_refresh,
         ])

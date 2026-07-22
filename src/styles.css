@@ -485,6 +485,33 @@ body[data-runtime="tauri"] .brand-lockup {
   gap: 8px;
 }
 
+.handoff-button {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #34444d;
+  border-radius: 4px;
+  background: #111b21;
+  color: #aab6bc;
+}
+
+.handoff-button:hover,
+.handoff-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.handoff-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.handoff-notice {
+  color: var(--accent);
+}
+
 .history-search {
   display: flex;
   align-items: center;

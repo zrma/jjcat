@@ -82,3 +82,11 @@ export interface AppError {
   kind: string;
   message: string;
 }
+
+export type HandoffTarget = "editor" | "terminal";
+
+export interface HandoffPreview {
+  repositoryDisplayName: string;
+  target: HandoffTarget;
+  actionLabel: string;
+}
