@@ -29,7 +29,8 @@ checks:
 publication:
   content_standard: public-ready
   remote_visibility_policy: private-or-public
-  remote_status: unconfigured
+  remote_status: configured-public
+  remote: https://github.com/zrma/jjcat
   license_status: undecided
   policy: docs/PUBLICATION.md
 

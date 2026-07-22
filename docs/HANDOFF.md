@@ -17,7 +17,7 @@
 - SSH는 OpenSSH stdio와 외부 credential ownership을 기본으로 한다.
 - publication class는 public이며 모든 tracked artifact는 remote visibility와 무관하게
   `public-ready`로 유지한다.
-- remote origin은 아직 없고 license도 선택하지 않았다.
+- GitHub origin은 public으로 구성했으며 license는 아직 선택하지 않았다.
 
 ## Architecture Map
 

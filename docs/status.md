@@ -39,10 +39,10 @@
 
 - 현재 content class는 `public`이며 tracked artifact는 remote visibility와 무관하게
   `public-ready` 기준으로 검사한다.
-- remote repository는 아직 없고 license는 정하지 않았다.
-- remote는 private 또는 public으로 시작할 수 있다. private push도 repository gate를
-  통과해야 하며, public 생성·전환·push 전에는 live identity/visibility 확인과 권한 있는
-  machine-local private-inventory gate가 추가로 필요하다.
+- GitHub remote는 public으로 구성했으며 license는 정하지 않았다.
+- 모든 push는 repository gate를 통과해야 하며, public push 전에는 live
+  identity/visibility 확인과 권한 있는 machine-local private-inventory gate가 추가로
+  필요하다.
 - public contribution과 security report의 경계는 `CONTRIBUTING.md`, `SECURITY.md`,
   `docs/PUBLICATION.md`에 고정했다.
 
