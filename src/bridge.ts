@@ -10,6 +10,7 @@ import type {
   HandoffTarget,
   FileDiffProjection,
   FileDiffRequest,
+  OperationLogProjection,
 } from "./types";
 
 interface Bridge {
@@ -27,6 +28,7 @@ interface Bridge {
   refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
   loadFileDiff(request: FileDiffRequest): Promise<FileDiffProjection>;
+  loadOperationLog(repositoryId: string): Promise<OperationLogProjection>;
   previewRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
   launchRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
 }
@@ -83,6 +85,12 @@ class TauriBridge implements Bridge {
 
   loadFileDiff(request: FileDiffRequest) {
     return invoke<FileDiffProjection>("load_file_diff", { request }).catch(normalizeError);
+  }
+
+  loadOperationLog(repositoryId: string) {
+    return invoke<OperationLogProjection>("load_operation_log", { repositoryId }).catch(
+      normalizeError,
+    );
   }
 
   previewRepositoryHandoff(repositoryId: string, target: HandoffTarget) {

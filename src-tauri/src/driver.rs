@@ -11,8 +11,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
     BookmarkRef, ChangeRow, ChangedFile, DiffHunk, DiffLine, DiffLineKind, FileDiffProjection,
-    JjCapability, RemoteDirectoryListing, RepositoryLocation, RepositoryProjection,
-    RepositoryRecord, SyncStatus, WhitespaceMode,
+    JjCapability, OperationLogProjection, OperationRow, RemoteDirectoryListing, RepositoryLocation,
+    RepositoryProjection, RepositoryRecord, SyncStatus, WhitespaceMode,
 };
 use crate::process::{
     CommandOutput, CommandPlan, ProcessError, ProcessFailureKind, run_command,
@@ -25,6 +25,13 @@ const DIFF_OUTPUT_LIMIT: usize = 512 * 1024;
 const NETWORK_REMOTE_HEADS: &str = r#"remote_bookmarks(remote=~exact:"git")"#;
 const OUTGOING_REVISIONS: &str = r#"remote_bookmarks(remote=~exact:"git")..bookmarks()"#;
 const BEHIND_REVISIONS: &str = r#"bookmarks()..remote_bookmarks(remote=~exact:"git")"#;
+const OPERATION_TEMPLATE: &str = concat!(
+    "\"{\" ++ ",
+    "\"\\\"id\\\":\" ++ id.short(12).escape_json() ++ ",
+    "\",\\\"description\\\":\" ++ description.first_line().escape_json() ++ ",
+    "\",\\\"started_at\\\":\" ++ time.start().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
+    "\",\\\"snapshot\\\":\" ++ if(snapshot, \"true\", \"false\") ++ \"}\\n\"",
+);
 const LOG_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
     "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
@@ -227,6 +234,30 @@ impl JjDriver {
         })
     }
 
+    pub async fn operation_log(
+        &self,
+        repository: &RepositoryRecord,
+        cancellation: CancellationToken,
+    ) -> Result<OperationLogProjection, DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        let output = self
+            .run_query(repository, JjQuery::OperationLog, cancellation)
+            .await?;
+        let operations = parse_operation_log(&output.stdout)?;
+        let undo_target = operations
+            .iter()
+            .find(|operation| operation.undo_eligible)
+            .map(|operation| operation.id.clone());
+        Ok(OperationLogProjection {
+            repository_id: repository.id.clone(),
+            operations,
+            undo_target,
+        })
+    }
+
     async fn run_query(
         &self,
         repository: &RepositoryRecord,
@@ -319,6 +350,9 @@ fn remote_script(path: &str, query: JjQuery) -> String {
             "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --color never --count -r '{}'",
             metric.revset()
         ),
+        JjQuery::OperationLog => format!(
+            "exec \"$jj_bin\" --repository \"$repo\" --at-op=@ --ignore-working-copy op log --no-graph --color never -n 20 -T '{OPERATION_TEMPLATE}'"
+        ),
     };
     format!(
         "set -eu\ndecode_hex() {{\n  encoded=$1\n  decoded=''\n  while [ -n \"$encoded\" ]; do\n    rest=${{encoded#??}}\n    byte=${{encoded%\"$rest\"}}\n    encoded=$rest\n    octal=$(printf '%03o' \"0x$byte\")\n    decoded=\"$decoded$(printf \"\\\\$octal\")\"\n  done\n  printf '%s' \"$decoded\"\n}}\nrepo=$(decode_hex '{encoded_path}')\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{command}\n"
@@ -354,6 +388,7 @@ enum JjQuery {
         whitespace_mode: WhitespaceMode,
     },
     SyncMetric(SyncMetric),
+    OperationLog,
 }
 
 #[derive(Clone, Copy)]
@@ -426,6 +461,22 @@ impl JjQuery {
             .into_iter()
             .map(OsString::from)
             .collect(),
+            Self::OperationLog => [
+                "--at-op=@",
+                "--ignore-working-copy",
+                "op",
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "-n",
+                "20",
+                "-T",
+                OPERATION_TEMPLATE,
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
         }
     }
 }
@@ -453,6 +504,14 @@ struct LogBookmarkRecord {
     remote: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct OperationRecord {
+    id: String,
+    description: String,
+    started_at: String,
+    snapshot: bool,
+}
+
 fn parse_capability(stdout: &[u8]) -> Result<JjCapability, DriverError> {
     let text =
         std::str::from_utf8(stdout).map_err(|_| invalid_output("jj version was not UTF-8"))?;
@@ -466,6 +525,32 @@ fn parse_capability(stdout: &[u8]) -> Result<JjCapability, DriverError> {
         minimum_version: minimum.to_string(),
         supported: version >= minimum,
     })
+}
+
+fn parse_operation_log(stdout: &[u8]) -> Result<Vec<OperationRow>, DriverError> {
+    let text =
+        std::str::from_utf8(stdout).map_err(|_| invalid_output("operation log was not UTF-8"))?;
+    text.lines()
+        .filter(|line| !line.trim().is_empty())
+        .enumerate()
+        .map(|(index, line)| {
+            let record: OperationRecord = serde_json::from_str(line)
+                .map_err(|_| invalid_output("operation log template returned invalid JSONL"))?;
+            let current = index == 0;
+            let undo_eligible = current
+                && !record.snapshot
+                && !record.description.trim().is_empty()
+                && !record.description.starts_with("initialize repo");
+            Ok(OperationRow {
+                id: record.id,
+                description: record.description,
+                started_at: record.started_at,
+                snapshot: record.snapshot,
+                current,
+                undo_eligible,
+            })
+        })
+        .collect()
 }
 
 fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
@@ -933,5 +1018,31 @@ mod tests {
         assert!(!without_remote.available);
         assert_eq!(without_remote.outgoing, 0);
         assert_eq!(without_remote.behind, 0);
+    }
+
+    #[test]
+    fn operation_projection_only_marks_latest_non_snapshot_as_undo_eligible() {
+        let operations = parse_operation_log(
+            br#"{"id":"current","description":"new empty commit","started_at":"2026-01-02T03:04:05Z","snapshot":false}
+{"id":"snapshot","description":"snapshot working copy","started_at":"2026-01-02T03:03:05Z","snapshot":true}
+"#,
+        )
+        .unwrap();
+
+        assert!(operations[0].current);
+        assert!(operations[0].undo_eligible);
+        assert!(!operations[1].current);
+        assert!(!operations[1].undo_eligible);
+    }
+
+    #[test]
+    fn operation_query_is_explicitly_read_only_for_ssh() {
+        let repository = remote_repository();
+        let plan = JjDriver::default().command_plan(&repository, JjQuery::OperationLog);
+        let script = String::from_utf8(plan.stdin.unwrap()).unwrap();
+
+        assert!(script.contains("--at-op=@ --ignore-working-copy op log"));
+        assert!(script.contains("--no-graph"));
+        assert!(!script.contains("~/work/fixture"));
     }
 }

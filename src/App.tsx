@@ -36,6 +36,7 @@ import type {
   CachedProjection,
   DiffViewMode,
   FileDiffProjection,
+  OperationLogProjection,
   Registry,
   RepositoryDraft,
   RepositoryRecord,
@@ -103,6 +104,10 @@ function App() {
   const [diffError, setDiffError] = useState<string | null>(null);
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>("unified");
   const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>("preserve");
+  const [showOperations, setShowOperations] = useState(false);
+  const [operationLog, setOperationLog] = useState<OperationLogProjection | null>(null);
+  const [operationLoading, setOperationLoading] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
   const [historyView, setHistoryView] = useState<HistoryView>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -117,6 +122,7 @@ function App() {
   const failureCountsRef = useRef<Record<string, number>>({});
   const cancelledRefreshesRef = useRef<Set<string>>(new Set());
   const diffRequestRef = useRef(0);
+  const operationRequestRef = useRef(0);
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -171,6 +177,14 @@ function App() {
   }, [selectedRepository?.id, selectedChange?.changeId, selectedChange?.commitId]);
 
   useEffect(() => {
+    operationRequestRef.current += 1;
+    setShowOperations(false);
+    setOperationLog(null);
+    setOperationLoading(false);
+    setOperationError(null);
+  }, [selectedRepository?.id]);
+
+  useEffect(() => {
     if (!selectedRepository || !selectedChange || !selectedFilePath) return;
     const request = ++diffRequestRef.current;
     setFileDiff(null);
@@ -197,6 +211,28 @@ function App() {
       if (request === diffRequestRef.current) diffRequestRef.current += 1;
     };
   }, [selectedChange, selectedFilePath, selectedRepository, whitespaceMode]);
+
+  useEffect(() => {
+    if (!showOperations || !selectedRepository) return;
+    const request = ++operationRequestRef.current;
+    setOperationLog(null);
+    setOperationLoading(true);
+    setOperationError(null);
+    bridge
+      .loadOperationLog(selectedRepository.id)
+      .then((projection) => {
+        if (request === operationRequestRef.current) setOperationLog(projection);
+      })
+      .catch((error: AppError) => {
+        if (request === operationRequestRef.current) setOperationError(error.message);
+      })
+      .finally(() => {
+        if (request === operationRequestRef.current) setOperationLoading(false);
+      });
+    return () => {
+      if (request === operationRequestRef.current) operationRequestRef.current += 1;
+    };
+  }, [selectedRepository, showOperations]);
 
   const selectRepository = useCallback(
     async (repositoryId: string) => {
@@ -640,6 +676,15 @@ function App() {
                 <button
                   type="button"
                   className="handoff-button"
+                  title="Inspect read-only operation log"
+                  aria-label="Inspect operation log"
+                  onClick={() => setShowOperations(true)}
+                >
+                  <History aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="handoff-button"
                   title={`Open ${selectedRepository.displayName} in VS Code`}
                   onClick={() => void launchHandoff("editor")}
                 >
@@ -702,6 +747,11 @@ function App() {
               onSelectFile={setSelectedFilePath}
               onDiffViewModeChange={setDiffViewMode}
               onWhitespaceModeChange={setWhitespaceMode}
+              showOperations={showOperations}
+              operationLog={operationLog}
+              operationLoading={operationLoading}
+              operationError={operationError}
+              onCloseOperations={() => setShowOperations(false)}
             />
           </>
         )}

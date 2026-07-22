@@ -8,8 +8,8 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
-    CachedProjection, FileDiffProjection, Registry, RemoteDirectoryListing, RepositoryId,
-    RepositoryLocation, RepositoryRecord, WhitespaceMode,
+    CachedProjection, FileDiffProjection, OperationLogProjection, Registry, RemoteDirectoryListing,
+    RepositoryId, RepositoryLocation, RepositoryRecord, WhitespaceMode,
 };
 use crate::driver::{DriverError, JjDriver};
 use crate::handoff::{self, HandoffPreview, HandoffTarget};
@@ -223,6 +223,19 @@ pub async fn load_file_diff(
             request.whitespace_mode,
             CancellationToken::new(),
         )
+        .await
+        .map_err(driver_error)
+}
+
+#[tauri::command]
+pub async fn load_operation_log(
+    repository_id: RepositoryId,
+    state: State<'_, AppState>,
+) -> Result<OperationLogProjection, AppError> {
+    let repository = find_repository(&repository_id, &state).await?;
+    state
+        .driver
+        .operation_log(&repository, CancellationToken::new())
         .await
         .map_err(driver_error)
 }

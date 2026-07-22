@@ -34,6 +34,26 @@ fn fixture_repository(path: &Path) {
     jj(&["status"], Some(path));
 }
 
+fn current_operation_id(path: &Path) -> String {
+    let output = Command::new("jj")
+        .args([
+            "--at-op=@",
+            "--ignore-working-copy",
+            "op",
+            "log",
+            "--no-graph",
+            "-n",
+            "1",
+            "-T",
+            "id.short(12) ++ \"\\n\"",
+        ])
+        .current_dir(path)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    String::from_utf8(output.stdout).unwrap().trim().into()
+}
+
 #[tokio::test]
 async fn local_and_simulated_ssh_share_the_projection_contract() {
     let directory = tempdir().unwrap();
@@ -129,6 +149,16 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         )
         .await
         .unwrap();
+    let operation_before = current_operation_id(&repository_path);
+    let local_operations = JjDriver::default()
+        .operation_log(&local, CancellationToken::new())
+        .await
+        .unwrap();
+    let remote_operations = remote_driver
+        .operation_log(&remote, CancellationToken::new())
+        .await
+        .unwrap();
+    let operation_after = current_operation_id(&repository_path);
 
     let local_summaries = local_projection
         .changes
@@ -152,6 +182,9 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     assert_eq!(local_diff.additions, 1);
     assert!(!local_diff.binary);
     assert!(!local_diff.truncated);
+    assert_eq!(remote_operations.operations, local_operations.operations);
+    assert_eq!(operation_after, operation_before);
+    assert_eq!(local_operations.operations[0].id, operation_before);
     assert_eq!(
         remote_directories.directories,
         vec![

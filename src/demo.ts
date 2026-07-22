@@ -8,6 +8,7 @@ import type {
   HandoffTarget,
   FileDiffRequest,
   FileDiffProjection,
+  OperationLogProjection,
 } from "./types";
 
 const LOCAL_ID = "e21c6676-690c-5847-b407-137074516f66";
@@ -188,6 +189,44 @@ export class DemoBridge {
             ...whitespaceLine,
             { kind: "context", oldLine: 3, newLine: 3 + whitespaceLine.length, content: "export { mode };" },
           ],
+        },
+      ],
+    };
+  }
+
+  async loadOperationLog(repositoryId: string): Promise<OperationLogProjection> {
+    if (!this.snapshot.registry.repositories.some((repository) => repository.id === repositoryId)) {
+      throw { kind: "notFound", message: "Repository is not registered." } satisfies AppError;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+    const now = Date.now();
+    return {
+      repositoryId,
+      undoTarget: "f1e2d3c4b5a6",
+      operations: [
+        {
+          id: "f1e2d3c4b5a6",
+          description: "describe commit fixture",
+          startedAt: new Date(now - 60_000).toISOString(),
+          snapshot: false,
+          current: true,
+          undoEligible: true,
+        },
+        {
+          id: "e2d3c4b5a697",
+          description: "snapshot working copy",
+          startedAt: new Date(now - 4 * 60_000).toISOString(),
+          snapshot: true,
+          current: false,
+          undoEligible: false,
+        },
+        {
+          id: "d3c4b5a69788",
+          description: "new empty commit",
+          startedAt: new Date(now - 12 * 60_000).toISOString(),
+          snapshot: false,
+          current: false,
+          undoEligible: false,
         },
       ],
     };

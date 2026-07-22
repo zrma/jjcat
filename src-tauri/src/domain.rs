@@ -218,6 +218,25 @@ pub struct FileDiffProjection {
     pub deletions: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationRow {
+    pub id: String,
+    pub description: String,
+    pub started_at: String,
+    pub snapshot: bool,
+    pub current: bool,
+    pub undo_eligible: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationLogProjection {
+    pub repository_id: RepositoryId,
+    pub operations: Vec<OperationRow>,
+    pub undo_target: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookmarkRef {

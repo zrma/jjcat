@@ -54,6 +54,21 @@ export interface FileDiffProjection {
   deletions: number;
 }
 
+export interface OperationRow {
+  id: string;
+  description: string;
+  startedAt: string;
+  snapshot: boolean;
+  current: boolean;
+  undoEligible: boolean;
+}
+
+export interface OperationLogProjection {
+  repositoryId: RepositoryId;
+  operations: OperationRow[];
+  undoTarget: string | null;
+}
+
 export interface BookmarkRef {
   name: string;
   remote: string | null;

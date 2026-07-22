@@ -15,10 +15,12 @@ import type {
   ChangeRow,
   DiffViewMode,
   FileDiffProjection,
+  OperationLogProjection,
   WhitespaceMode,
 } from "../types";
 import { BookmarkLabels } from "./BookmarkLabels";
 import { DiffViewer } from "./DiffViewer";
+import { OperationLogPanel } from "./OperationLogPanel";
 
 interface ChangeWorkspaceProps {
   changes: ChangeRow[];
@@ -34,6 +36,11 @@ interface ChangeWorkspaceProps {
   onSelectFile: (path: string) => void;
   onDiffViewModeChange: (mode: DiffViewMode) => void;
   onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+  showOperations: boolean;
+  operationLog: OperationLogProjection | null;
+  operationLoading: boolean;
+  operationError: string | null;
+  onCloseOperations: () => void;
 }
 
 const VIRTUALIZATION_THRESHOLD = 40;
@@ -58,6 +65,11 @@ export function ChangeWorkspace({
   onSelectFile,
   onDiffViewModeChange,
   onWhitespaceModeChange,
+  showOperations,
+  operationLog,
+  operationLoading,
+  operationError,
+  onCloseOperations,
 }: ChangeWorkspaceProps) {
   return (
     <div className="content-grid">
@@ -67,18 +79,27 @@ export function ChangeWorkspace({
         onSelect={onSelect}
         refreshing={refreshing}
       />
-      <ChangeDetails
-        change={selectedChange}
-        selectedFilePath={selectedFilePath}
-        diff={diff}
-        diffLoading={diffLoading}
-        diffError={diffError}
-        diffViewMode={diffViewMode}
-        whitespaceMode={whitespaceMode}
-        onSelectFile={onSelectFile}
-        onDiffViewModeChange={onDiffViewModeChange}
-        onWhitespaceModeChange={onWhitespaceModeChange}
-      />
+      {showOperations ? (
+        <OperationLogPanel
+          projection={operationLog}
+          loading={operationLoading}
+          error={operationError}
+          onClose={onCloseOperations}
+        />
+      ) : (
+        <ChangeDetails
+          change={selectedChange}
+          selectedFilePath={selectedFilePath}
+          diff={diff}
+          diffLoading={diffLoading}
+          diffError={diffError}
+          diffViewMode={diffViewMode}
+          whitespaceMode={whitespaceMode}
+          onSelectFile={onSelectFile}
+          onDiffViewModeChange={onDiffViewModeChange}
+          onWhitespaceModeChange={onWhitespaceModeChange}
+        />
+      )}
     </div>
   );
 }
