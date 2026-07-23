@@ -15,7 +15,7 @@ entrypoints:
   publication: docs/PUBLICATION.md
 
 active_work_glob: docs/todo-*/spec.md
-active_work: none
+active_work: docs/todo-p3-safe-shaping/spec.md
 required_todo_files:
   - spec.md
   - open-questions.md

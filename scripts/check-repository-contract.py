@@ -98,8 +98,8 @@ if "All your jj repos, one window." not in readme:
     fail("README product identity is missing")
 if "`P2: Graph and Diff`까지 완료됐다" not in status:
     fail("status does not record P2 completion")
-if "다음 milestone은 P3 safe shaping" not in status:
-    fail("status does not identify the next milestone boundary")
+if "현재 milestone은 P3 safe shaping" not in status:
+    fail("status does not identify the active milestone boundary")
 if "현재 content class는 `public`" not in status:
     fail("status does not declare the public tracked surface")
 if "publication class는 public" not in handoff:

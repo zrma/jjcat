@@ -143,8 +143,24 @@ command를 제공하지 않고 disabled preview로 target과 범위를 설명한
 
 ### Operation Queue
 
-P3에서 repository별 mutation을 직렬화한다. 실행 전 operation ID와 target identity를 확인하고,
-결과 operation 및 undo 경로를 기록한다. P2에는 queue나 mutation 실행 경로가 없다.
+P3 mutation은 read-only preview와 confirmed execute를 분리한다. preview는 repository,
+current operation, exact target identity와 typed effect를 opaque token에 묶는다. execute는
+같은 token을 단 한 번만 받고 repository별 queue 안에서 current operation과 dynamic candidate
+set을 다시 검사한다. stale/duplicate/invalid request는 command를 실행하지 않는다.
+
+성공은 exit status만이 아니라 새 operation과 action별 fresh projection postcondition으로
+확인한다. 실패 뒤 operation이 바뀌었거나 divergent state가 관측되면 recovery-required로
+표시하고 operation log, refresh와 exact undo entrypoint를 제공한다. jjcat 외부 process와의
+operation race를 완전히 잠그는 CLI API는 없으므로 execute 직전 recheck와 postcondition
+detection의 한계를 사용자에게 숨기지 않는다.
+
+empty pruning은 preview에서 `empty() & mutable()` 후보를 exact commit ID로 열거하고 current
+working copy, root, immutable change와 local/remote bookmark target을 보호한다. execute는
+동일 operation과 동일 후보 집합일 때만 그 IDs를 abandon한다.
+
+graph drag-and-drop과 keyboard shaping은 command를 직접 호출하지 않고 같은 rebase preview를
+연다. push는 별도 remote-write risk와 exact bookmark confirmation을 요구하며 force/delete
+option은 제공하지 않는다.
 
 ## CLI Integration Contract
 

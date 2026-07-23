@@ -2,8 +2,8 @@
 
 ## Current Milestone
 
-`P2: Graph and Diff`까지 완료됐다. 다음 milestone은 P3 safe shaping이며 아직 시작하지
-않았다.
+`P2: Graph and Diff`까지 완료됐다. 현재 milestone은 P3 safe shaping이며 preview-first
+mutation contract와 protected empty-change pruning acceptance를 고정했다.
 
 완료된 기반:
 
@@ -47,7 +47,9 @@
 - cache freshness와 분리된 conflict 및 last-fetched outgoing/behind 상태
 - operation identity를 변경하지 않는 recent operation log와 disabled undo eligibility preview
 
-아직 구현되지 않은 항목은 fetch를 포함한 mutation command, 실제 undo와 shaping preview다.
+P3 command와 UI 구현은 아직 진행 중이다. fetch를 포함한 mutation command, 실제 undo,
+protected empty pruning과 shaping preview는 acceptance가 통과하기 전까지 implemented로
+간주하지 않는다.
 
 ## Known Upstream Constraints
 
@@ -70,6 +72,6 @@
 
 ## Next Slice
 
-[P2 spec](todo-p2-graph-and-diff/spec.md)은 완료됐다. 다음 작업은 별도 goal에서 P3 mutation
-precondition과 preview contract를 먼저 고정한 뒤 `new`, `edit`, `describe`, `fetch`의 가장
-작은 vertical slice를 여는 것이다.
+[P3 spec](todo-p3-safe-shaping/spec.md)의 C1부터 진행한다. opaque preview token,
+repository별 serialization과 stale operation precondition을 먼저 구현한 뒤 `new`, `edit`,
+`describe`, `fetch`의 가장 작은 vertical slice를 연다.
