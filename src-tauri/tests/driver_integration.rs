@@ -27,6 +27,20 @@ fn jj(args: &[&str], current_dir: Option<&Path>) {
 fn fixture_repository(path: &Path) {
     fs::create_dir_all(path).unwrap();
     jj(&["git", "init", "--colocate", path.to_str().unwrap()], None);
+    jj(
+        &["config", "set", "--repo", "user.name", "Fixture Bot"],
+        Some(path),
+    );
+    jj(
+        &[
+            "config",
+            "set",
+            "--repo",
+            "user.email",
+            "fixture@example.invalid",
+        ],
+        Some(path),
+    );
     fs::write(path.join("README.md"), "fixture\n").unwrap();
     fs::write(path.join("legacy-name.txt"), "renamed fixture\n").unwrap();
     jj(&["describe", "-m", "chore: initialize fixture"], Some(path));
@@ -143,10 +157,11 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         .expect("rename projection must use the canonical target path")
         .clone();
     assert!(selected.description.contains("Co-authored-by:"));
-    assert!(!selected.author_email.is_empty());
+    assert_eq!(selected.author, "Fixture Bot");
+    assert_eq!(selected.author_email, "fixture@example.invalid");
     assert!(!selected.author_timestamp.is_empty());
-    assert!(!selected.committer.is_empty());
-    assert!(!selected.committer_email.is_empty());
+    assert_eq!(selected.committer, "Fixture Bot");
+    assert_eq!(selected.committer_email, "fixture@example.invalid");
     assert!(!selected.committer_timestamp.is_empty());
     assert_eq!(selected.commit_id.len(), 40);
     assert!(
