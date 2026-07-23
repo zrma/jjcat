@@ -43,6 +43,8 @@ interface ChangeWorkspaceProps {
   selectedChange?: ChangeRow;
   onSelect: (changeId: string) => void;
   refreshing: boolean;
+  changeDetailsLoading: boolean;
+  changeDetailsError: string | null;
   selectedFilePath: string | null;
   diff: FileDiffProjection | null;
   diffLoading: boolean;
@@ -79,6 +81,8 @@ export function ChangeWorkspace({
   selectedChange,
   onSelect,
   refreshing,
+  changeDetailsLoading,
+  changeDetailsError,
   selectedFilePath,
   diff,
   diffLoading,
@@ -260,6 +264,16 @@ export function ChangeWorkspace({
               onClose={() => onInspectorViewChange("overview")}
               onRequestUndo={onRequestUndo}
             />
+          ) : changeDetailsLoading ? (
+            <aside className="details-empty" aria-live="polite">
+              <FolderGit2 aria-hidden="true" />
+              <p>Loading selected change details…</p>
+            </aside>
+          ) : changeDetailsError ? (
+            <aside className="details-empty detail-error" role="alert">
+              <FolderGit2 aria-hidden="true" />
+              <p>{changeDetailsError}</p>
+            </aside>
           ) : inspectorView === "changes" ? (
             <ChangeFiles
               change={selectedChange}

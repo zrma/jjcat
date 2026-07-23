@@ -137,35 +137,56 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     let selected = local_projection
         .changes
         .iter()
-        .find(|change| {
-            change
-                .files
-                .iter()
-                .any(|file| file.path == "projection.txt")
-        })
+        .find(|change| change.summary == "feat: add projection fixture")
         .unwrap();
-    let selected_file = selected
+    assert!(
+        local_projection
+            .changes
+            .iter()
+            .all(|change| change.files.is_empty()),
+        "graph projection must defer changed-file metadata"
+    );
+    let local_details = JjDriver::default()
+        .change_details(
+            &local,
+            selected.change_id.clone(),
+            selected.commit_id.clone(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let remote_details = remote_driver
+        .change_details(
+            &remote,
+            selected.change_id.clone(),
+            selected.commit_id.clone(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let selected_file = local_details
         .files
         .iter()
         .find(|file| file.path == "projection.txt")
         .unwrap()
         .clone();
-    let renamed_file = selected
+    let renamed_file = local_details
         .files
         .iter()
         .find(|file| file.path == "renamed-file.txt")
         .expect("rename projection must use the canonical target path")
         .clone();
-    assert!(selected.description.contains("Co-authored-by:"));
-    assert_eq!(selected.author, "Fixture Bot");
-    assert_eq!(selected.author_email, "fixture@example.invalid");
-    assert!(!selected.author_timestamp.is_empty());
-    assert_eq!(selected.committer, "Fixture Bot");
-    assert_eq!(selected.committer_email, "fixture@example.invalid");
-    assert!(!selected.committer_timestamp.is_empty());
-    assert_eq!(selected.commit_id.len(), 40);
+    assert_eq!(remote_details, local_details);
+    assert!(local_details.description.contains("Co-authored-by:"));
+    assert_eq!(local_details.author, "Fixture Bot");
+    assert_eq!(local_details.author_email, "fixture@example.invalid");
+    assert!(!local_details.author_timestamp.is_empty());
+    assert_eq!(local_details.committer, "Fixture Bot");
+    assert_eq!(local_details.committer_email, "fixture@example.invalid");
+    assert!(!local_details.committer_timestamp.is_empty());
+    assert_eq!(local_details.commit_id.len(), 40);
     assert!(
-        selected
+        local_details
             .parent_commit_ids
             .iter()
             .all(|commit_id| commit_id.len() == 40)
@@ -176,8 +197,8 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     let local_diff = JjDriver::default()
         .file_diff(
             &local,
-            selected.change_id.clone(),
-            selected.commit_id.clone(),
+            local_details.change_id.clone(),
+            local_details.commit_id.clone(),
             selected_file.clone(),
             WhitespaceMode::Preserve,
             CancellationToken::new(),
@@ -187,8 +208,8 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     let local_rename_diff = JjDriver::default()
         .file_diff(
             &local,
-            selected.change_id.clone(),
-            selected.commit_id.clone(),
+            local_details.change_id.clone(),
+            local_details.commit_id.clone(),
             renamed_file.clone(),
             WhitespaceMode::Preserve,
             CancellationToken::new(),
@@ -198,8 +219,8 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     let remote_diff = remote_driver
         .file_diff(
             &remote,
-            selected.change_id.clone(),
-            selected.commit_id.clone(),
+            remote_details.change_id.clone(),
+            remote_details.commit_id.clone(),
             selected_file,
             WhitespaceMode::Preserve,
             CancellationToken::new(),
@@ -209,8 +230,8 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     let remote_rename_diff = remote_driver
         .file_diff(
             &remote,
-            selected.change_id.clone(),
-            selected.commit_id.clone(),
+            remote_details.change_id.clone(),
+            remote_details.commit_id.clone(),
             renamed_file,
             WhitespaceMode::Preserve,
             CancellationToken::new(),

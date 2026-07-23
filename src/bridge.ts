@@ -3,6 +3,7 @@ import { DemoBridge } from "./demo";
 import type {
   AppError,
   CachedProjection,
+  ChangeRow,
   RegistrySnapshot,
   RemoteDirectoryListing,
   RepositoryDraft,
@@ -31,6 +32,11 @@ interface Bridge {
   setRepositoryPinned(repositoryId: string, pinned: boolean): Promise<RegistrySnapshot>;
   refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
+  loadChangeDetails(
+    repositoryId: string,
+    changeId: string,
+    commitId: string,
+  ): Promise<ChangeRow>;
   loadFileDiff(request: FileDiffRequest): Promise<FileDiffProjection>;
   loadOperationLog(repositoryId: string): Promise<OperationLogProjection>;
   previewMutation(repositoryId: string, intent: MutationIntent): Promise<MutationPreview>;
@@ -87,6 +93,14 @@ class TauriBridge implements Bridge {
 
   cancelRefresh(requestId: string) {
     return invoke<boolean>("cancel_refresh", { requestId }).catch(normalizeError);
+  }
+
+  loadChangeDetails(repositoryId: string, changeId: string, commitId: string) {
+    return invoke<ChangeRow>("load_change_details", {
+      repositoryId,
+      changeId,
+      commitId,
+    }).catch(normalizeError);
   }
 
   loadFileDiff(request: FileDiffRequest) {

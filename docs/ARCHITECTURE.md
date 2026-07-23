@@ -76,13 +76,17 @@ plain `jj` CLI만으로 안정적인 projection을 만들 수 없다는 evidence
 
 선택한 저장소의 last-known status, graph와 revision detail을 즉시 표시한다. stale state를
 명확히 표시하고 refresh 결과와 섞어 현재 상태처럼 보이지 않게 한다.
-revision detail은 전체 description, author/committer identity와 timestamp, full commit ID,
-parent commit ID, bookmark와 changed-file metadata를 포함한다. commit trailer는 description의
-일부로 그대로 보존하며 source file content는 포함하지 않는다. 기존 v3 cache에 새 detail
-field가 없으면 빈 optional metadata로 읽고 다음 refresh에서 채운다.
+graph projection은 visible head의 ancestor 중 최근 최대 200개 change만 topology,
+description, identity와 bookmark의 bounded JSONL로 읽고 change별 changed-file 목록은 포함하지
+않는다. 선택한 revision은 별도 bounded query로 동일 identity를 재검증하면서 changed-file
+metadata를 읽는다. commit trailer는 description의 일부로 그대로 보존하며 source file
+content는 포함하지 않는다. 이 row/file 분리는 visible head나 파일 수가 큰 repository가 전체
+graph refresh의 1 MiB capture budget을 소진하지 않게 한다. 선택 detail의 metadata capture도
+4 MiB로 제한하고 diff 직전에는 같은 revision의 canonical file membership을 다시 확인한다.
 active/inactive tab은 서로 다른 bounded interval로 refresh하며 repository별 동시 query는
-하나만 허용한다. 실패는 cache를 보존하고 bounded exponential backoff와 offline state로
-표시한다.
+하나만 허용한다. 실패는 cache를 보존하고 bounded exponential backoff를 적용한다. 일반
+query/parse 실패는 SSH 단절로 단정하지 않고 `Refresh failed`로 표시하며, transport 자체가
+사용 불가능한 상태와 구분한다.
 
 ### Developer Tool Handoff
 

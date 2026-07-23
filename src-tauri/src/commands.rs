@@ -8,8 +8,8 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
-    CachedProjection, FileDiffProjection, OperationLogProjection, Registry, RemoteDirectoryListing,
-    RepositoryId, RepositoryLocation, RepositoryRecord, WhitespaceMode,
+    CachedProjection, ChangeRow, FileDiffProjection, OperationLogProjection, Registry,
+    RemoteDirectoryListing, RepositoryId, RepositoryLocation, RepositoryRecord, WhitespaceMode,
 };
 use crate::driver::{DriverError, DriverErrorKind, JjDriver};
 use crate::handoff::{self, HandoffPreview, HandoffTarget};
@@ -259,11 +259,58 @@ pub async fn list_remote_directories(
 }
 
 #[tauri::command]
+pub async fn load_change_details(
+    repository_id: RepositoryId,
+    change_id: String,
+    commit_id: String,
+    state: State<'_, AppState>,
+) -> Result<ChangeRow, AppError> {
+    let repository = {
+        let store = state.store.lock().await;
+        let loaded = store.load().map_err(storage_error)?;
+        let repository = loaded
+            .registry
+            .repositories
+            .iter()
+            .find(|repository| repository.id == repository_id)
+            .cloned()
+            .ok_or_else(|| AppError {
+                kind: AppErrorKind::NotFound,
+                message: "repository is not registered".into(),
+            })?;
+        let projection = loaded
+            .registry
+            .cached_projections
+            .get(&repository_id)
+            .ok_or_else(|| AppError {
+                kind: AppErrorKind::InvalidInput,
+                message: "refresh the repository before loading change details".into(),
+            })?;
+        projection
+            .projection
+            .changes
+            .iter()
+            .find(|change| change.change_id == change_id && change.commit_id == commit_id)
+            .ok_or_else(|| AppError {
+                kind: AppErrorKind::InvalidInput,
+                message: "the selected revision is no longer in the cached projection".into(),
+            })?;
+        repository
+    };
+
+    state
+        .driver
+        .change_details(&repository, change_id, commit_id, CancellationToken::new())
+        .await
+        .map_err(driver_error)
+}
+
+#[tauri::command]
 pub async fn load_file_diff(
     request: FileDiffRequest,
     state: State<'_, AppState>,
 ) -> Result<FileDiffProjection, AppError> {
-    let (repository, file) = {
+    let repository = {
         let store = state.store.lock().await;
         let loaded = store.load().map_err(storage_error)?;
         let repository = loaded
@@ -284,7 +331,7 @@ pub async fn load_file_diff(
                 kind: AppErrorKind::InvalidInput,
                 message: "refresh the repository before loading a diff".into(),
             })?;
-        let change = projection
+        projection
             .projection
             .changes
             .iter()
@@ -295,17 +342,27 @@ pub async fn load_file_diff(
                 kind: AppErrorKind::InvalidInput,
                 message: "the selected revision is no longer in the cached projection".into(),
             })?;
-        let file = change
-            .files
-            .iter()
-            .find(|file| file.path == request.path)
-            .cloned()
-            .ok_or_else(|| AppError {
-                kind: AppErrorKind::InvalidInput,
-                message: "the selected file is not part of this revision".into(),
-            })?;
-        (repository, file)
+        repository
     };
+    let details = state
+        .driver
+        .change_details(
+            &repository,
+            request.change_id.clone(),
+            request.commit_id.clone(),
+            CancellationToken::new(),
+        )
+        .await
+        .map_err(driver_error)?;
+    let file = details
+        .files
+        .iter()
+        .find(|file| file.path == request.path)
+        .cloned()
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "the selected file is not part of this revision".into(),
+        })?;
 
     state
         .driver

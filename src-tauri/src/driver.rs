@@ -16,13 +16,15 @@ use crate::domain::{
 };
 use crate::mutation::{MutationCandidate, MutationIntent, MutationValidationError};
 use crate::process::{
-    CommandOutput, CommandPlan, ProcessError, ProcessFailureKind, run_command,
-    run_command_with_limit,
+    CommandOutput, CommandPlan, DEFAULT_OUTPUT_LIMIT, ProcessError, ProcessFailureKind,
+    run_command, run_command_with_limit,
 };
 
 pub const MINIMUM_JJ_VERSION: &str = "0.30.0";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(20);
 const DIFF_OUTPUT_LIMIT: usize = 512 * 1024;
+const CHANGE_DETAILS_OUTPUT_LIMIT: usize = 4 * 1024 * 1024;
+const HISTORY_CHANGE_LIMIT: &str = "200";
 const NETWORK_REMOTE_HEADS: &str = r#"remote_bookmarks(remote=~exact:"git")"#;
 const OUTGOING_REVISIONS: &str = r#"remote_bookmarks(remote=~exact:"git")..bookmarks()"#;
 const BEHIND_REVISIONS: &str = r#"bookmarks()..remote_bookmarks(remote=~exact:"git")"#;
@@ -42,6 +44,28 @@ const PRUNE_CANDIDATE_TEMPLATE: &str = concat!(
     "\",\\\"summary\\\":\" ++ description.first_line().escape_json() ++ \"}\\n\"",
 );
 const LOG_TEMPLATE: &str = concat!(
+    "\"{\" ++ ",
+    "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
+    "\",\\\"commit_id\\\":\" ++ stringify(commit_id).escape_json() ++ ",
+    "\",\\\"summary\\\":\" ++ description.first_line().escape_json() ++ ",
+    "\",\\\"description\\\":\" ++ description.escape_json() ++ ",
+    "\",\\\"author\\\":\" ++ author.name().escape_json() ++ ",
+    "\",\\\"author_email\\\":\" ++ stringify(author.email()).escape_json() ++ ",
+    "\",\\\"author_timestamp\\\":\" ++ author.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
+    "\",\\\"committer\\\":\" ++ committer.name().escape_json() ++ ",
+    "\",\\\"committer_email\\\":\" ++ stringify(committer.email()).escape_json() ++ ",
+    "\",\\\"committer_timestamp\\\":\" ++ committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
+    "\",\\\"updated_at\\\":\" ++ committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
+    "\",\\\"local_bookmarks\\\":\" ++ json(self.local_bookmarks()) ++ ",
+    "\",\\\"remote_bookmarks\\\":\" ++ json(self.remote_bookmarks()) ++ ",
+    "\",\\\"parents\\\":\" ++ stringify(parents.map(|p| p.change_id().short(12)).join(\",\")).escape_json() ++ ",
+    "\",\\\"parent_commit_ids\\\":\" ++ stringify(parents.map(|p| p.commit_id()).join(\",\")).escape_json() ++ ",
+    "\",\\\"files\\\":\\\"\\\"\" ++ ",
+    "\",\\\"conflict\\\":\" ++ if(conflict, \"true\", \"false\") ++ ",
+    "\",\\\"working_copy\\\":\" ++ if(current_working_copy, \"true\", \"false\") ++ ",
+    "\",\\\"empty\\\":\" ++ if(empty, \"true\", \"false\") ++ \"}\\n\"",
+);
+const CHANGE_DETAILS_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
     "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
     "\",\\\"commit_id\\\":\" ++ stringify(commit_id).escape_json() ++ ",
@@ -250,6 +274,48 @@ impl JjDriver {
         })
     }
 
+    pub async fn change_details(
+        &self,
+        repository: &RepositoryRecord,
+        change_id: String,
+        commit_id: String,
+        cancellation: CancellationToken,
+    ) -> Result<ChangeRow, DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        if !valid_commit_id(&commit_id) {
+            return Err(DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "change detail revision is invalid".into(),
+            });
+        }
+        let output = self
+            .run_query_with_limit(
+                repository,
+                JjQuery::ChangeDetails {
+                    commit_id: commit_id.clone(),
+                },
+                cancellation,
+                CHANGE_DETAILS_OUTPUT_LIMIT,
+            )
+            .await?;
+        let mut changes = parse_log(&output.stdout)?;
+        if changes.len() != 1 {
+            return Err(invalid_output(
+                "change detail query did not return exactly one revision",
+            ));
+        }
+        let change = changes.remove(0);
+        if change.change_id != change_id || change.commit_id != commit_id {
+            return Err(invalid_output(
+                "change detail query returned a different revision",
+            ));
+        }
+        Ok(change)
+    }
+
     pub async fn operation_log(
         &self,
         repository: &RepositoryRecord,
@@ -410,14 +476,29 @@ impl JjDriver {
         query: JjQuery,
         cancellation: CancellationToken,
     ) -> Result<CommandOutput, DriverError> {
+        self.run_query_with_limit(repository, query, cancellation, DEFAULT_OUTPUT_LIMIT)
+            .await
+    }
+
+    async fn run_query_with_limit(
+        &self,
+        repository: &RepositoryRecord,
+        query: JjQuery,
+        cancellation: CancellationToken,
+        output_limit: usize,
+    ) -> Result<CommandOutput, DriverError> {
+        let output_label = query.output_label();
         let plan = self.command_plan(repository, query);
-        let output = run_command(plan, self.timeout, cancellation)
+        let output = run_command_with_limit(plan, self.timeout, cancellation, output_limit)
             .await
             .map_err(|error| process_error(repository, error))?;
         if output.truncated {
             return Err(DriverError {
                 kind: DriverErrorKind::OutputLimit,
-                message: "jj output exceeded the safe capture limit".into(),
+                message: format!(
+                    "{output_label} exceeded the {} safe capture limit",
+                    format_output_limit(output_limit)
+                ),
             });
         }
         if output.exit_code != Some(0) {
@@ -498,8 +579,14 @@ fn remote_script(path: &str, query: JjQuery) -> String {
     let command = match query {
         JjQuery::Version => "exec \"$jj_bin\" --repository \"$repo\" --version".to_owned(),
         JjQuery::Log => format!(
-            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(visible_heads(), 40)' -T '{LOG_TEMPLATE}'"
+            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(visible_heads())' -n {HISTORY_CHANGE_LIMIT} -T '{LOG_TEMPLATE}'"
         ),
+        JjQuery::ChangeDetails { commit_id } => {
+            let encoded_commit = encode_hex(&commit_id);
+            format!(
+                "commit=$(decode_hex '{encoded_commit}')\ncd \"$repo\"\nexec \"$jj_bin\" --ignore-working-copy log --no-graph --color never -r \"$commit\" -T '{CHANGE_DETAILS_TEMPLATE}'"
+            )
+        }
         JjQuery::Diff {
             commit_id,
             path,
@@ -586,6 +673,9 @@ fn remote_directory_script(path: &str) -> String {
 enum JjQuery {
     Version,
     Log,
+    ChangeDetails {
+        commit_id: String,
+    },
     Diff {
         commit_id: String,
         path: String,
@@ -618,6 +708,22 @@ impl SyncMetric {
 }
 
 impl JjQuery {
+    fn output_label(&self) -> &'static str {
+        match self {
+            Self::Version => "jj version probe",
+            Self::Log => "history projection",
+            Self::ChangeDetails { .. } => "selected change details",
+            Self::Diff { .. } => "file diff",
+            Self::SyncMetric(SyncMetric::RemoteHeads) => "remote bookmark count",
+            Self::SyncMetric(SyncMetric::Outgoing) => "outgoing change count",
+            Self::SyncMetric(SyncMetric::Behind) => "behind change count",
+            Self::OperationLog => "operation history",
+            Self::OperationId => "current operation lookup",
+            Self::InspectCommits { .. } => "mutation target inspection",
+            Self::PruneCandidates => "empty change candidate inspection",
+        }
+    }
+
     fn args(&self) -> Vec<OsString> {
         match self {
             Self::Version => vec!["--version".into()],
@@ -628,9 +734,25 @@ impl JjQuery {
                 "--color",
                 "never",
                 "-r",
-                "ancestors(visible_heads(), 40)",
+                "ancestors(visible_heads())",
+                "-n",
+                HISTORY_CHANGE_LIMIT,
                 "-T",
                 LOG_TEMPLATE,
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+            Self::ChangeDetails { commit_id } => [
+                "--ignore-working-copy",
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "-r",
+                commit_id,
+                "-T",
+                CHANGE_DETAILS_TEMPLATE,
             ]
             .into_iter()
             .map(OsString::from)
@@ -1206,6 +1328,15 @@ fn valid_commit_id(value: &str) -> bool {
     (1..=64).contains(&value.len()) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+fn format_output_limit(output_limit: usize) -> String {
+    const MEBIBYTE: usize = 1024 * 1024;
+    if output_limit.is_multiple_of(MEBIBYTE) {
+        format!("{} MiB", output_limit / MEBIBYTE)
+    } else {
+        format!("{output_limit} byte")
+    }
+}
+
 fn valid_repository_path(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 4096
@@ -1475,9 +1606,22 @@ mod tests {
     }
 
     #[test]
-    fn log_projection_separates_canonical_paths_from_rename_labels() {
-        assert!(LOG_TEMPLATE.contains("f.path()"));
-        assert!(LOG_TEMPLATE.contains("f.display_diff_path()"));
+    fn graph_projection_defers_file_metadata_to_selected_change_details() {
+        assert!(!LOG_TEMPLATE.contains("self.diff().files()"));
+        assert!(CHANGE_DETAILS_TEMPLATE.contains("f.path()"));
+        assert!(CHANGE_DETAILS_TEMPLATE.contains("f.display_diff_path()"));
+        let args = JjQuery::Log
+            .args()
+            .into_iter()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert!(args.windows(2).any(|pair| pair == ["-n", "200"]));
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["-r", "ancestors(visible_heads())"])
+        );
+        assert_eq!(format_output_limit(DEFAULT_OUTPUT_LIMIT), "1 MiB");
+        assert_eq!(format_output_limit(CHANGE_DETAILS_OUTPUT_LIMIT), "4 MiB");
     }
 
     #[test]

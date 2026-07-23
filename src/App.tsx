@@ -42,6 +42,7 @@ import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshSchedule
 import type {
   AppError,
   CachedProjection,
+  ChangeRow,
   DiffViewMode,
   FileDiffProjection,
   InspectorView,
@@ -169,6 +170,9 @@ function App() {
   const [failureCounts, setFailureCounts] = useState<Record<string, number>>({});
   const [retryAt, setRetryAt] = useState<Record<string, number>>({});
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
+  const [selectedChangeDetails, setSelectedChangeDetails] = useState<ChangeRow | null>(null);
+  const [changeDetailsLoading, setChangeDetailsLoading] = useState(false);
+  const [changeDetailsError, setChangeDetailsError] = useState<string | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState<FileDiffProjection | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -195,6 +199,7 @@ function App() {
   const refreshingRef = useRef<Record<string, string>>({});
   const failureCountsRef = useRef<Record<string, number>>({});
   const cancelledRefreshesRef = useRef<Set<string>>(new Set());
+  const changeDetailsRequestRef = useRef(0);
   const diffRequestRef = useRef(0);
   const operationRequestRef = useRef(0);
 
@@ -239,11 +244,26 @@ function App() {
   const visibleChanges = useMemo(() => {
     return filterChanges(selectedProjection?.changes ?? [], historyView, searchQuery);
   }, [historyView, searchQuery, selectedProjection]);
-  const selectedChange = useMemo(() => {
+  const selectedSummaryChange = useMemo(() => {
     return (
       visibleChanges.find((change) => change.changeId === selectedChangeId) ?? visibleChanges[0]
     );
   }, [selectedChangeId, visibleChanges]);
+  const selectedChange = useMemo(() => {
+    if (
+      selectedChangeDetails?.changeId === selectedSummaryChange?.changeId &&
+      selectedChangeDetails?.commitId === selectedSummaryChange?.commitId
+    ) {
+      return selectedChangeDetails;
+    }
+    return selectedSummaryChange;
+  }, [selectedChangeDetails, selectedSummaryChange]);
+  const selectedDetailsAvailable = Boolean(
+    selectedChangeDetails &&
+      selectedSummaryChange &&
+      selectedChangeDetails.changeId === selectedSummaryChange.changeId &&
+      selectedChangeDetails.commitId === selectedSummaryChange.commitId,
+  );
 
   useEffect(() => {
     setSelectedChangeId(null);
@@ -253,6 +273,52 @@ function App() {
     setMutationDialog(null);
     setRebaseSourceCommitId(null);
   }, [selectedRepository?.id]);
+
+  useEffect(() => {
+    const repositoryId = selectedRepository?.id;
+    const changeId = selectedSummaryChange?.changeId;
+    const commitId = selectedSummaryChange?.commitId;
+    changeDetailsRequestRef.current += 1;
+    setSelectedChangeDetails((current) =>
+      current?.changeId === changeId && current?.commitId === commitId
+        ? current
+        : null,
+    );
+    setChangeDetailsError(null);
+    if (!repositoryId || !changeId || !commitId) {
+      setChangeDetailsLoading(false);
+      return;
+    }
+    const request = changeDetailsRequestRef.current;
+    setChangeDetailsLoading(true);
+    bridge
+      .loadChangeDetails(repositoryId, changeId, commitId)
+      .then((details) => {
+        if (request === changeDetailsRequestRef.current) {
+          setSelectedChangeDetails(details);
+        }
+      })
+      .catch((error: AppError) => {
+        if (request === changeDetailsRequestRef.current) {
+          setChangeDetailsError(error.message);
+        }
+      })
+      .finally(() => {
+        if (request === changeDetailsRequestRef.current) {
+          setChangeDetailsLoading(false);
+        }
+      });
+    return () => {
+      if (request === changeDetailsRequestRef.current) {
+        changeDetailsRequestRef.current += 1;
+      }
+    };
+  }, [
+    selectedRepository?.id,
+    selectedSummaryChange?.changeId,
+    selectedSummaryChange?.commitId,
+    selectedProjection?.refreshedAt,
+  ]);
 
   useEffect(() => {
     diffRequestRef.current += 1;
@@ -624,6 +690,7 @@ function App() {
     );
     setFreshIds((current) => new Set(current).add(execution.repositoryId));
     setOperationLog(execution.operationLog);
+    setSelectedChangeDetails(null);
     const workingCopy = execution.projection.changes.find(
       (change) => change.workingCopy,
     );
@@ -1041,6 +1108,8 @@ function App() {
               selectedChange={selectedChange}
               onSelect={setSelectedChangeId}
               refreshing={selectedState === "refreshing"}
+              changeDetailsLoading={changeDetailsLoading && !selectedDetailsAvailable}
+              changeDetailsError={selectedDetailsAvailable ? null : changeDetailsError}
               selectedFilePath={selectedFilePath}
               diff={fileDiff}
               diffLoading={diffLoading}
@@ -1209,9 +1278,9 @@ function stateLabel(state: RepositoryState) {
     case "refreshing":
       return "Refreshing";
     case "disconnected":
-      return "Disconnected";
+      return "Unavailable";
     case "disconnected-cached":
-      return "Disconnected · Cached";
+      return "Refresh failed · Cached";
     case "stale":
       return "Cached · Stale";
     case "cached":
@@ -1228,8 +1297,9 @@ function compactStateLabel(state: RepositoryState) {
     case "refreshing":
       return "Syncing";
     case "disconnected":
+      return "Unavailable";
     case "disconnected-cached":
-      return "Offline";
+      return "Refresh failed";
     case "stale":
       return "Stale";
     case "cached":

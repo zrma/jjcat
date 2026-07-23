@@ -189,6 +189,27 @@ export class DemoBridge {
     return structuredClone(this.snapshot);
   }
 
+  async loadChangeDetails(
+    repositoryId: string,
+    changeId: string,
+    commitId: string,
+  ): Promise<ChangeRow> {
+    const selected = this.snapshot.registry.cachedProjections[
+      repositoryId
+    ]?.projection.changes.find(
+      (candidate) =>
+        candidate.changeId === changeId && candidate.commitId === commitId,
+    );
+    if (!selected) {
+      throw {
+        kind: "notFound",
+        message: "The selected revision is not in the current projection.",
+      } satisfies AppError;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 40));
+    return structuredClone(selected);
+  }
+
   async loadFileDiff(request: FileDiffRequest): Promise<FileDiffProjection> {
     const selected = this.snapshot.registry.cachedProjections[request.repositoryId]?.projection.changes
       .find((candidate) => candidate.changeId === request.changeId && candidate.commitId === request.commitId);
