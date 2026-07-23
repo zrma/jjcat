@@ -160,3 +160,71 @@ export interface HandoffPreview {
   target: HandoffTarget;
   actionLabel: string;
 }
+
+export type MutationIntent =
+  | { kind: "new"; parentCommitIds: string[] }
+  | { kind: "edit"; targetCommitId: string }
+  | { kind: "describe"; targetCommitId: string; message: string }
+  | { kind: "fetch"; remote: string | null }
+  | { kind: "rebase"; sourceCommitId: string; destinationCommitId: string }
+  | { kind: "squash"; sourceCommitId: string; destinationCommitId: string }
+  | { kind: "split"; sourceCommitId: string; paths: string[]; message: string }
+  | { kind: "abandon"; targetCommitIds: string[] }
+  | { kind: "pruneEmpty" }
+  | { kind: "undo"; operationId: string }
+  | { kind: "bookmarkMove"; name: string; targetCommitId: string }
+  | { kind: "push"; name: string; remote: string };
+
+export type MutationKind = MutationIntent["kind"];
+export type MutationRisk =
+  | "workingCopy"
+  | "network"
+  | "rewrite"
+  | "destructive"
+  | "recovery"
+  | "remoteWrite";
+
+export interface MutationCandidate {
+  changeId: string;
+  commitId: string;
+  summary: string;
+}
+
+export interface MutationTarget {
+  label: string;
+  value: string;
+  commitId: string | null;
+}
+
+export interface MutationPreview {
+  token: string;
+  repositoryId: RepositoryId;
+  repositoryDisplayName: string;
+  kind: MutationKind;
+  title: string;
+  effect: string;
+  risk: MutationRisk;
+  expectedOperationId: string;
+  targets: MutationTarget[];
+  candidates: MutationCandidate[];
+  requiresTypedConfirmation: boolean;
+  confirmationPhrase: string;
+}
+
+export interface MutationExecution {
+  previewToken: string;
+  repositoryId: RepositoryId;
+  kind: MutationKind;
+  previousOperationId: string;
+  operationId: string;
+  message: string;
+  recoveryRequired: boolean;
+  projection: RepositoryProjection;
+  operationLog: OperationLogProjection;
+}
+
+export interface ExecuteMutationRequest {
+  token: string;
+  confirmed: boolean;
+  confirmation: string | null;
+}

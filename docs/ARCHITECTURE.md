@@ -138,8 +138,8 @@ outgoing과 behind는 network fetch를 실행하지 않고 local bookmark와 `gi
 ### Operation Inspection
 
 최근 operation은 `--at-op=@ --ignore-working-copy`를 강제한 local/SSH query로 최대 20개만
-읽는다. current non-snapshot operation만 undo eligibility target으로 분류하지만 P2 UI는 실제
-command를 제공하지 않고 disabled preview로 target과 범위를 설명한다.
+읽는다. current non-snapshot operation만 undo eligibility target으로 분류하며 P3 UI는 exact
+current operation의 confirmed undo preview를 제공한다.
 
 ### Operation Queue
 

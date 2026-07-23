@@ -68,7 +68,7 @@ fn current_operation_id(path: &Path) -> String {
             "-n",
             "1",
             "-T",
-            "id.short(12) ++ \"\\n\"",
+            "id ++ \"\\n\"",
         ])
         .current_dir(path)
         .output()

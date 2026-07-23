@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUp,
+  ArrowDownToLine,
   Bookmark,
   Cable,
   CircleX,
@@ -13,6 +14,7 @@ import {
   FolderOpen,
   FolderGit2,
   GitBranch,
+  GitPullRequestArrow,
   History,
   Laptop,
   Pin,
@@ -31,6 +33,7 @@ import { bridge, isTauriRuntime } from "./bridge";
 import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
+import { MutationDialog } from "./components/MutationDialog";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
 import { filterChanges, type HistoryView } from "./lib/changeFilters";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
@@ -43,6 +46,8 @@ import type {
   FileDiffProjection,
   InspectorView,
   OperationLogProjection,
+  MutationExecution,
+  MutationIntent,
   Registry,
   RepositoryDraft,
   RepositoryRecord,
@@ -59,6 +64,7 @@ type RepositoryState =
   | "disconnected-cached"
   | "empty";
 type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
+type MutationDialogState = { initialIntent: MutationIntent | null };
 type ResizeDirection =
   | "East"
   | "North"
@@ -181,6 +187,9 @@ function App() {
   const [removeTarget, setRemoveTarget] = useState<RepositoryRecord | null>(null);
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
   const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
+  const [mutationDialog, setMutationDialog] = useState<MutationDialogState | null>(null);
+  const [rebaseSourceCommitId, setRebaseSourceCommitId] = useState<string | null>(null);
+  const [mutationNotice, setMutationNotice] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const refreshingRef = useRef<Record<string, string>>({});
@@ -241,6 +250,8 @@ function App() {
     setSearchQuery("");
     setHistoryView("all");
     setInspectorView("overview");
+    setMutationDialog(null);
+    setRebaseSourceCommitId(null);
   }, [selectedRepository?.id]);
 
   useEffect(() => {
@@ -440,6 +451,44 @@ function App() {
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
+        event.key.toLowerCase() === "r" &&
+        selectedChange &&
+        !/^0+$/.test(selectedChange.commitId) &&
+        !isTextEntry(event.target) &&
+        !mutationDialog
+      ) {
+        event.preventDefault();
+        setRebaseSourceCommitId(selectedChange.commitId);
+        setMutationNotice(
+          `Rebase source ${selectedChange.changeId}. Select a destination and press Enter.`,
+        );
+      }
+      if (
+        event.key === "Enter" &&
+        rebaseSourceCommitId &&
+        selectedChange &&
+        selectedChange.commitId !== rebaseSourceCommitId &&
+        !isTextEntry(event.target) &&
+        !mutationDialog
+      ) {
+        event.preventDefault();
+        setMutationDialog({
+          initialIntent: {
+            kind: "rebase",
+            sourceCommitId: rebaseSourceCommitId,
+            destinationCommitId: selectedChange.commitId,
+          },
+        });
+        setRebaseSourceCommitId(null);
+      }
+      if (event.key === "Escape" && rebaseSourceCommitId && !mutationDialog) {
+        setRebaseSourceCommitId(null);
+        setMutationNotice(null);
+      }
+      if (
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
         (event.key === "ArrowUp" || event.key === "ArrowDown") &&
         !isTextEntry(event.target)
       ) {
@@ -469,6 +518,8 @@ function App() {
     selectedChange?.changeId,
     selectedRepository,
     visibleChanges,
+    mutationDialog,
+    rebaseSourceCommitId,
   ]);
 
   useEffect(() => {
@@ -553,6 +604,34 @@ function App() {
     } catch (error) {
       setRepositoryActionError((error as AppError).message);
     }
+  }
+
+  function mutationExecuted(execution: MutationExecution) {
+    const cached: CachedProjection = {
+      cachedAt: execution.projection.refreshedAt,
+      projection: execution.projection,
+    };
+    setRegistry((current) =>
+      current
+        ? {
+            ...current,
+            cachedProjections: {
+              ...current.cachedProjections,
+              [execution.repositoryId]: cached,
+            },
+          }
+        : current,
+    );
+    setFreshIds((current) => new Set(current).add(execution.repositoryId));
+    setOperationLog(execution.operationLog);
+    const workingCopy = execution.projection.changes.find(
+      (change) => change.workingCopy,
+    );
+    setSelectedChangeId(workingCopy?.changeId ?? null);
+    setMutationDialog(null);
+    setRebaseSourceCommitId(null);
+    setMutationNotice(execution.message);
+    setRepositoryActionError(null);
   }
 
   async function closeTab(repositoryId: string) {
@@ -824,6 +903,11 @@ function App() {
             {handoffNotice}
           </div>
         )}
+        {mutationNotice && (
+          <div className="notice mutation-notice" role="status">
+            <GitPullRequestArrow aria-hidden="true" /> {mutationNotice}
+          </div>
+        )}
         {recoveryNotice && (
           <div className="notice recovery-notice">
             <AlertTriangle aria-hidden="true" /> {recoveryNotice}
@@ -855,6 +939,43 @@ function App() {
                 />
               )}
               <div className="toolbar-controls">
+                <button
+                  type="button"
+                  className="mutation-button"
+                  title="Create a new change on the selected change"
+                  onClick={() => {
+                    if (!selectedChange) return;
+                    setMutationDialog({
+                      initialIntent: {
+                        kind: "new",
+                        parentCommitIds: [selectedChange.commitId],
+                      },
+                    });
+                  }}
+                  disabled={!selectedChange}
+                >
+                  <Plus aria-hidden="true" /> New
+                </button>
+                <button
+                  type="button"
+                  className="mutation-button"
+                  title="Preview a network fetch"
+                  onClick={() =>
+                    setMutationDialog({
+                      initialIntent: { kind: "fetch", remote: "origin" },
+                    })
+                  }
+                >
+                  <ArrowDownToLine aria-hidden="true" /> Fetch
+                </button>
+                <button
+                  type="button"
+                  className="mutation-button"
+                  title="Open preview-first repository actions"
+                  onClick={() => setMutationDialog({ initialIntent: null })}
+                >
+                  <GitPullRequestArrow aria-hidden="true" /> Actions
+                </button>
                 <button
                   type="button"
                   className="handoff-button"
@@ -933,6 +1054,22 @@ function App() {
               operationLog={operationLog}
               operationLoading={operationLoading}
               operationError={operationError}
+              rebaseSourceCommitId={rebaseSourceCommitId}
+              onRequestRebase={(sourceCommitId, destinationCommitId) => {
+                setMutationDialog({
+                  initialIntent: {
+                    kind: "rebase",
+                    sourceCommitId,
+                    destinationCommitId,
+                  },
+                });
+                setRebaseSourceCommitId(null);
+              }}
+              onRequestUndo={(operationId) =>
+                setMutationDialog({
+                  initialIntent: { kind: "undo", operationId },
+                })
+              }
               onSelectFile={(path) => {
                 setSelectedFilePath(path);
                 setInspectorView("changes");
@@ -1028,6 +1165,18 @@ function App() {
           repository={removeTarget}
           onClose={() => setRemoveTarget(null)}
           onConfirm={() => void removeRepository(removeTarget)}
+        />
+      )}
+      {mutationDialog && selectedRepository && (
+        <MutationDialog
+          repositoryId={selectedRepository.id}
+          repositoryName={selectedRepository.displayName}
+          changes={selectedProjection?.changes ?? []}
+          selectedChange={selectedChange}
+          undoTarget={operationLog?.undoTarget ?? null}
+          initialIntent={mutationDialog.initialIntent}
+          onClose={() => setMutationDialog(null)}
+          onExecuted={mutationExecuted}
         />
       )}
     </main>

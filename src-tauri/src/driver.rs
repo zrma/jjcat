@@ -14,6 +14,7 @@ use crate::domain::{
     JjCapability, OperationLogProjection, OperationRow, RemoteDirectoryListing, RepositoryLocation,
     RepositoryProjection, RepositoryRecord, SyncStatus, WhitespaceMode,
 };
+use crate::mutation::{MutationCandidate, MutationIntent, MutationValidationError};
 use crate::process::{
     CommandOutput, CommandPlan, ProcessError, ProcessFailureKind, run_command,
     run_command_with_limit,
@@ -27,10 +28,18 @@ const OUTGOING_REVISIONS: &str = r#"remote_bookmarks(remote=~exact:"git")..bookm
 const BEHIND_REVISIONS: &str = r#"bookmarks()..remote_bookmarks(remote=~exact:"git")"#;
 const OPERATION_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
-    "\"\\\"id\\\":\" ++ id.short(12).escape_json() ++ ",
+    "\"\\\"id\\\":\" ++ stringify(id).escape_json() ++ ",
     "\",\\\"description\\\":\" ++ description.first_line().escape_json() ++ ",
     "\",\\\"started_at\\\":\" ++ time.start().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
     "\",\\\"snapshot\\\":\" ++ if(snapshot, \"true\", \"false\") ++ \"}\\n\"",
+);
+const PRUNE_CANDIDATE_REVSET: &str =
+    "empty() & mutable() & ~@ & ~root() & ~bookmarks() & ~remote_bookmarks()";
+const PRUNE_CANDIDATE_TEMPLATE: &str = concat!(
+    "\"{\" ++ ",
+    "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
+    "\",\\\"commit_id\\\":\" ++ stringify(commit_id).escape_json() ++ ",
+    "\",\\\"summary\\\":\" ++ description.first_line().escape_json() ++ \"}\\n\"",
 );
 const LOG_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
@@ -265,6 +274,136 @@ impl JjDriver {
         })
     }
 
+    pub async fn mutation_context(
+        &self,
+        repository: &RepositoryRecord,
+        intent: &MutationIntent,
+        cancellation: CancellationToken,
+    ) -> Result<MutationContext, DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        intent.validate().map_err(mutation_validation_error)?;
+
+        let operation_id = self
+            .current_operation_id(repository, cancellation.child_token())
+            .await?;
+        if let MutationIntent::Undo {
+            operation_id: requested,
+        } = intent
+            && requested != &operation_id
+        {
+            return Err(DriverError {
+                kind: DriverErrorKind::StaleOperation,
+                message: "the selected undo target is no longer the current operation".into(),
+            });
+        }
+
+        let commit_ids = intent.commit_ids();
+        if !commit_ids.is_empty() {
+            let inspection = self
+                .run_query(
+                    repository,
+                    JjQuery::InspectCommits {
+                        commit_ids: commit_ids.iter().map(|value| (*value).to_owned()).collect(),
+                    },
+                    cancellation.child_token(),
+                )
+                .await?;
+            let found = parse_lines(&inspection.stdout);
+            let expected = commit_ids
+                .into_iter()
+                .collect::<std::collections::BTreeSet<_>>();
+            let actual = found
+                .iter()
+                .map(String::as_str)
+                .collect::<std::collections::BTreeSet<_>>();
+            if expected != actual {
+                return Err(DriverError {
+                    kind: DriverErrorKind::InvalidRepository,
+                    message: "one or more mutation targets are no longer present".into(),
+                });
+            }
+        }
+
+        let candidates = if matches!(intent, MutationIntent::PruneEmpty) {
+            let output = self
+                .run_query(repository, JjQuery::PruneCandidates, cancellation)
+                .await?;
+            parse_prune_candidates(&output.stdout)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(MutationContext {
+            operation_id,
+            candidates,
+        })
+    }
+
+    pub async fn current_operation_id(
+        &self,
+        repository: &RepositoryRecord,
+        cancellation: CancellationToken,
+    ) -> Result<String, DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        let operation = self
+            .run_query(repository, JjQuery::OperationId, cancellation)
+            .await?;
+        parse_single_line(&operation.stdout, "current operation ID")
+    }
+
+    pub async fn execute_mutation(
+        &self,
+        repository: &RepositoryRecord,
+        intent: &MutationIntent,
+        candidates: &[MutationCandidate],
+        cancellation: CancellationToken,
+    ) -> Result<(), DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        intent.validate().map_err(mutation_validation_error)?;
+        if !matches!(intent, MutationIntent::PruneEmpty) && !candidates.is_empty() {
+            return Err(DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "mutation candidates are only valid for empty pruning".into(),
+            });
+        }
+        let args = mutation_args(intent, candidates)?;
+        let plan = self.mutation_plan(repository, args);
+        let timeout = if matches!(
+            intent,
+            MutationIntent::Fetch { .. } | MutationIntent::Push { .. }
+        ) {
+            self.timeout.max(Duration::from_secs(60))
+        } else {
+            self.timeout
+        };
+        let output = run_command(plan, timeout, cancellation)
+            .await
+            .map_err(|error| process_error(repository, error))?;
+        if output.truncated {
+            return Err(DriverError {
+                kind: DriverErrorKind::OutputLimit,
+                message: "mutation output exceeded the safe capture limit".into(),
+            });
+        }
+        if output.exit_code != Some(0) {
+            let raw = String::from_utf8_lossy(&output.stderr);
+            return Err(DriverError {
+                kind: DriverErrorKind::CommandFailed,
+                message: redact_error(raw.trim(), &repository.location),
+            });
+        }
+        Ok(())
+    }
+
     async fn run_query(
         &self,
         repository: &RepositoryRecord,
@@ -308,6 +447,29 @@ impl JjDriver {
             },
         }
     }
+
+    fn mutation_plan(&self, repository: &RepositoryRecord, args: Vec<OsString>) -> CommandPlan {
+        match &repository.location {
+            RepositoryLocation::Local { path } => CommandPlan {
+                program: self.jj_program.clone(),
+                args,
+                current_dir: Some(path.into()),
+                stdin: None,
+            },
+            RepositoryLocation::Ssh { host, path } => CommandPlan {
+                program: self.ssh_program.clone(),
+                args: ssh_arguments(host),
+                current_dir: None,
+                stdin: Some(remote_mutation_script(path, &args).into_bytes()),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MutationContext {
+    pub operation_id: String,
+    pub candidates: Vec<MutationCandidate>,
 }
 
 fn ssh_arguments(host: &str) -> Vec<OsString> {
@@ -336,7 +498,7 @@ fn remote_script(path: &str, query: JjQuery) -> String {
     let command = match query {
         JjQuery::Version => "exec \"$jj_bin\" --repository \"$repo\" --version".to_owned(),
         JjQuery::Log => format!(
-            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(@, 40)' -T '{LOG_TEMPLATE}'"
+            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(visible_heads(), 40)' -T '{LOG_TEMPLATE}'"
         ),
         JjQuery::Diff {
             commit_id,
@@ -360,9 +522,44 @@ fn remote_script(path: &str, query: JjQuery) -> String {
         JjQuery::OperationLog => format!(
             "exec \"$jj_bin\" --repository \"$repo\" --at-op=@ --ignore-working-copy op log --no-graph --color never -n 20 -T '{OPERATION_TEMPLATE}'"
         ),
+        JjQuery::OperationId => {
+            "exec \"$jj_bin\" --repository \"$repo\" --at-op=@ --ignore-working-copy op log --no-graph --color never -n 1 -T 'id ++ \"\\n\"'".into()
+        }
+        JjQuery::InspectCommits { commit_ids } => {
+            let revset = commit_ids.join("|");
+            let encoded_revset = encode_hex(&revset);
+            format!(
+                "revset=$(decode_hex '{encoded_revset}')\nexec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r \"$revset\" -T 'commit_id ++ \"\\n\"'"
+            )
+        }
+        JjQuery::PruneCandidates => format!(
+            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r '{PRUNE_CANDIDATE_REVSET}' -T '{PRUNE_CANDIDATE_TEMPLATE}'"
+        ),
     };
     format!(
         "set -eu\ndecode_hex() {{\n  encoded=$1\n  decoded=''\n  while [ -n \"$encoded\" ]; do\n    rest=${{encoded#??}}\n    byte=${{encoded%\"$rest\"}}\n    encoded=$rest\n    octal=$(printf '%03o' \"0x$byte\")\n    decoded=\"$decoded$(printf \"\\\\$octal\")\"\n  done\n  printf '%s' \"$decoded\"\n}}\nrepo=$(decode_hex '{encoded_path}')\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{command}\n"
+    )
+}
+
+fn remote_mutation_script(path: &str, args: &[OsString]) -> String {
+    let encoded_path = encode_hex(path);
+    let assignments = args
+        .iter()
+        .enumerate()
+        .map(|(index, argument)| {
+            let argument = argument
+                .to_str()
+                .expect("jjcat mutation arguments must be valid UTF-8");
+            format!("arg_{index}=$(decode_hex '{}')", encode_hex(argument))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let invocation = (0..args.len())
+        .map(|index| format!("\"$arg_{index}\""))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(
+        "set -eu\ndecode_hex() {{\n  encoded=$1\n  decoded=''\n  while [ -n \"$encoded\" ]; do\n    rest=${{encoded#??}}\n    byte=${{encoded%\"$rest\"}}\n    encoded=$rest\n    octal=$(printf '%03o' \"0x$byte\")\n    decoded=\"$decoded$(printf \"\\\\$octal\")\"\n  done\n  printf '%s' \"$decoded\"\n}}\nrepo=$(decode_hex '{encoded_path}')\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{assignments}\nexec \"$jj_bin\" --repository \"$repo\" {invocation}\n"
     )
 }
 
@@ -396,6 +593,11 @@ enum JjQuery {
     },
     SyncMetric(SyncMetric),
     OperationLog,
+    OperationId,
+    InspectCommits {
+        commit_ids: Vec<String>,
+    },
+    PruneCandidates,
 }
 
 #[derive(Clone, Copy)]
@@ -426,7 +628,7 @@ impl JjQuery {
                 "--color",
                 "never",
                 "-r",
-                "ancestors(@, 40)",
+                "ancestors(visible_heads(), 40)",
                 "-T",
                 LOG_TEMPLATE,
             ]
@@ -485,8 +687,168 @@ impl JjQuery {
             .into_iter()
             .map(OsString::from)
             .collect(),
+            Self::OperationId => [
+                "--at-op=@",
+                "--ignore-working-copy",
+                "op",
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "-n",
+                "1",
+                "-T",
+                "id ++ \"\\n\"",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+            Self::InspectCommits { commit_ids } => {
+                let revset = commit_ids.join("|");
+                [
+                    "--ignore-working-copy",
+                    "log",
+                    "--no-graph",
+                    "--color",
+                    "never",
+                    "-r",
+                    &revset,
+                    "-T",
+                    "commit_id ++ \"\\n\"",
+                ]
+                .into_iter()
+                .map(OsString::from)
+                .collect()
+            }
+            Self::PruneCandidates => [
+                "--ignore-working-copy",
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "-r",
+                PRUNE_CANDIDATE_REVSET,
+                "-T",
+                PRUNE_CANDIDATE_TEMPLATE,
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
         }
     }
+}
+
+fn mutation_args(
+    intent: &MutationIntent,
+    candidates: &[MutationCandidate],
+) -> Result<Vec<OsString>, DriverError> {
+    intent.validate().map_err(mutation_validation_error)?;
+    let values = match intent {
+        MutationIntent::New { parent_commit_ids } => std::iter::once("new".to_owned())
+            .chain(std::iter::once("--".to_owned()))
+            .chain(parent_commit_ids.iter().cloned())
+            .collect(),
+        MutationIntent::Edit { target_commit_id } => {
+            vec!["edit".into(), target_commit_id.clone()]
+        }
+        MutationIntent::Describe {
+            target_commit_id,
+            message,
+        } => vec![
+            "describe".into(),
+            target_commit_id.clone(),
+            "--message".into(),
+            message.clone(),
+        ],
+        MutationIntent::Fetch { remote } => {
+            let mut values = vec!["git".into(), "fetch".into()];
+            if let Some(remote) = remote {
+                values.extend(["--remote".into(), format!("exact:{remote}")]);
+            } else {
+                values.push("--all-remotes".into());
+            }
+            values
+        }
+        MutationIntent::Rebase {
+            source_commit_id,
+            destination_commit_id,
+        } => vec![
+            "rebase".into(),
+            "--revisions".into(),
+            source_commit_id.clone(),
+            "--onto".into(),
+            destination_commit_id.clone(),
+        ],
+        MutationIntent::Squash {
+            source_commit_id,
+            destination_commit_id,
+        } => vec![
+            "squash".into(),
+            "--from".into(),
+            source_commit_id.clone(),
+            "--into".into(),
+            destination_commit_id.clone(),
+            "--use-destination-message".into(),
+        ],
+        MutationIntent::Split {
+            source_commit_id,
+            paths,
+            message,
+        } => {
+            let mut values = vec![
+                "split".into(),
+                "--revision".into(),
+                source_commit_id.clone(),
+                "--message".into(),
+                message.clone(),
+                "--".into(),
+            ];
+            values.extend(paths.iter().map(|path| exact_file_fileset(path)));
+            values
+        }
+        MutationIntent::Abandon { target_commit_ids } => std::iter::once("abandon".to_owned())
+            .chain(std::iter::once("--".to_owned()))
+            .chain(target_commit_ids.iter().cloned())
+            .collect(),
+        MutationIntent::PruneEmpty => {
+            if candidates.is_empty() {
+                return Err(DriverError {
+                    kind: DriverErrorKind::InvalidRepository,
+                    message: "there are no unreferenced empty changes to prune".into(),
+                });
+            }
+            std::iter::once("abandon".to_owned())
+                .chain(std::iter::once("--".to_owned()))
+                .chain(
+                    candidates
+                        .iter()
+                        .map(|candidate| candidate.commit_id.clone()),
+                )
+                .collect()
+        }
+        MutationIntent::Undo { .. } => vec!["undo".into()],
+        MutationIntent::BookmarkMove {
+            name,
+            target_commit_id,
+        } => vec![
+            "bookmark".into(),
+            "set".into(),
+            "--allow-backwards".into(),
+            "--revision".into(),
+            target_commit_id.clone(),
+            "--".into(),
+            name.clone(),
+        ],
+        MutationIntent::Push { name, remote } => vec![
+            "git".into(),
+            "push".into(),
+            "--remote".into(),
+            remote.clone(),
+            "--bookmark".into(),
+            format!("exact:{name}"),
+        ],
+    };
+    Ok(values.into_iter().map(OsString::from).collect())
 }
 
 #[derive(Debug, Deserialize)]
@@ -525,6 +887,50 @@ struct OperationRecord {
     description: String,
     started_at: String,
     snapshot: bool,
+}
+
+fn parse_single_line(stdout: &[u8], label: &str) -> Result<String, DriverError> {
+    let lines = parse_lines(stdout);
+    if lines.len() != 1 {
+        return Err(invalid_output(&format!("jj returned an invalid {label}")));
+    }
+    let value = lines.into_iter().next().expect("one line was checked");
+    if !(12..=128).contains(&value.len()) || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(invalid_output(&format!("jj returned an invalid {label}")));
+    }
+    Ok(value)
+}
+
+fn parse_lines(stdout: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn parse_prune_candidates(stdout: &[u8]) -> Result<Vec<MutationCandidate>, DriverError> {
+    let mut candidates = stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            serde_json::from_slice::<MutationCandidate>(line).map_err(|error| {
+                invalid_output(&format!(
+                    "jj returned invalid empty-change candidates: {error}"
+                ))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    candidates.sort_by(|left, right| left.commit_id.cmp(&right.commit_id));
+    Ok(candidates)
+}
+
+fn mutation_validation_error(error: MutationValidationError) -> DriverError {
+    DriverError {
+        kind: DriverErrorKind::InvalidRepository,
+        message: error.to_string(),
+    }
 }
 
 fn parse_capability(stdout: &[u8]) -> Result<JjCapability, DriverError> {
@@ -870,6 +1276,7 @@ pub enum DriverErrorKind {
     CommandFailed,
     OutputLimit,
     InvalidOutput,
+    StaleOperation,
 }
 
 #[derive(Debug, Eq, PartialEq, serde::Serialize)]
@@ -1122,5 +1529,98 @@ mod tests {
         assert!(script.contains("--at-op=@ --ignore-working-copy op log"));
         assert!(script.contains("--no-graph"));
         assert!(!script.contains("~/work/fixture"));
+    }
+
+    #[test]
+    fn mutation_arguments_are_structured_and_exact() {
+        let source = "0123456789abcdef0123456789abcdef01234567";
+        let destination = "89abcdef0123456789abcdef0123456789abcdef";
+        let rebase = mutation_args(
+            &MutationIntent::Rebase {
+                source_commit_id: source.into(),
+                destination_commit_id: destination.into(),
+            },
+            &[],
+        )
+        .unwrap()
+        .into_iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+        let split = mutation_args(
+            &MutationIntent::Split {
+                source_commit_id: source.into(),
+                paths: vec!["docs/file with spaces.md".into()],
+                message: "docs: split fixture".into(),
+            },
+            &[],
+        )
+        .unwrap()
+        .into_iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+        let push = mutation_args(
+            &MutationIntent::Push {
+                name: "feature/safe-shaping".into(),
+                remote: "origin".into(),
+            },
+            &[],
+        )
+        .unwrap()
+        .into_iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+
+        assert_eq!(
+            rebase,
+            vec!["rebase", "--revisions", source, "--onto", destination]
+        );
+        assert_eq!(
+            split.last().map(String::as_str),
+            Some(r#"root-file:"docs/file with spaces.md""#)
+        );
+        assert_eq!(
+            push,
+            vec![
+                "git",
+                "push",
+                "--remote",
+                "origin",
+                "--bookmark",
+                "exact:feature/safe-shaping",
+            ]
+        );
+    }
+
+    #[test]
+    fn ssh_mutation_script_contains_only_encoded_untrusted_values() {
+        let repository = remote_repository();
+        let target = "0123456789abcdef0123456789abcdef01234567";
+        let message = "feat: describe remote fixture\n\nprivate-looking text stays data";
+        let args = mutation_args(
+            &MutationIntent::Describe {
+                target_commit_id: target.into(),
+                message: message.into(),
+            },
+            &[],
+        )
+        .unwrap();
+        let plan = JjDriver::default().mutation_plan(&repository, args);
+        let script = String::from_utf8(plan.stdin.unwrap()).unwrap();
+
+        assert!(!script.contains("~/work/fixture"));
+        assert!(!script.contains(target));
+        assert!(!script.contains(message));
+        assert!(script.contains(&encode_hex(target)));
+        assert!(script.contains(&encode_hex(message)));
+        assert!(script.contains("exec \"$jj_bin\" --repository \"$repo\""));
+    }
+
+    #[test]
+    fn empty_pruning_query_protects_current_and_referenced_changes() {
+        assert!(PRUNE_CANDIDATE_REVSET.contains("~@"));
+        assert!(PRUNE_CANDIDATE_REVSET.contains("~root()"));
+        assert!(PRUNE_CANDIDATE_REVSET.contains("mutable()"));
+        assert!(PRUNE_CANDIDATE_REVSET.contains("~bookmarks()"));
+        assert!(PRUNE_CANDIDATE_REVSET.contains("~remote_bookmarks()"));
     }
 }

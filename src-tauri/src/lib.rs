@@ -2,6 +2,7 @@ mod commands;
 pub mod domain;
 pub mod driver;
 mod handoff;
+pub mod mutation;
 mod process;
 mod registry;
 mod ssh_config;
@@ -23,6 +24,8 @@ pub fn run() {
             commands::list_remote_directories,
             commands::load_file_diff,
             commands::load_operation_log,
+            commands::preview_mutation,
+            commands::execute_mutation,
             commands::register_repository,
             commands::select_repository,
             commands::update_open_repositories,

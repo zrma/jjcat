@@ -8,6 +8,7 @@ interface OperationLogPanelProps {
   loading: boolean;
   error: string | null;
   onClose: () => void;
+  onRequestUndo: (operationId: string) => void;
 }
 
 export function OperationLogPanel({
@@ -15,6 +16,7 @@ export function OperationLogPanel({
   loading,
   error,
   onClose,
+  onRequestUndo,
 }: OperationLogPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   useEffect(() => setSelectedId(projection?.operations[0]?.id ?? null), [projection]);
@@ -53,7 +55,8 @@ export function OperationLogPanel({
                   <span>
                     <strong>{operation.description || "(no description)"}</strong>
                     <small>
-                      <code>{operation.id}</code> · {relativeTime(operation.startedAt)}
+                      <code title={operation.id}>{operation.id.slice(0, 12)}</code> ·{" "}
+                      {relativeTime(operation.startedAt)}
                     </small>
                   </span>
                   <span className="operation-badges">
@@ -70,7 +73,7 @@ export function OperationLogPanel({
                 <div>
                   <span>Selected operation</span>
                   <strong>{selected.description || "(no description)"}</strong>
-                  <code>{selected.id}</code>
+                  <code title={selected.id}>{selected.id.slice(0, 12)}</code>
                 </div>
                 <div className={`undo-preview ${selected.undoEligible ? "eligible" : ""}`}>
                   <RotateCcw aria-hidden="true" />
@@ -80,13 +83,17 @@ export function OperationLogPanel({
                     </strong>
                     <small>
                       {selected.undoEligible
-                        ? `Target ${projection.undoTarget}. P2 never executes the mutation.`
+                        ? `Target ${selected.id.slice(0, 12)}. Execution still requires an exact preview.`
                         : "Only the current non-snapshot operation is eligible."}
                     </small>
                   </span>
                 </div>
-                <button type="button" disabled title="Undo execution is intentionally deferred to P3">
-                  <RotateCcw aria-hidden="true" /> Undo unavailable in P2
+                <button
+                  type="button"
+                  disabled={!selected.undoEligible}
+                  onClick={() => onRequestUndo(selected.id)}
+                >
+                  <RotateCcw aria-hidden="true" /> Preview undo
                 </button>
               </>
             )}

@@ -1,6 +1,6 @@
 # Spec: P3 Safe Shaping
 
-Status: active
+Status: complete
 
 ## Goal
 
@@ -99,16 +99,16 @@ execute 직전 operation ID와 후보 집합이 모두 같아야 한다. 새 후
 
 | ID | Status | Verify | Work item |
 | --- | --- | --- | --- |
-| C1 | pending | Rust domain/command tests | opaque preview token, validation과 stale precondition |
-| C2 | pending | concurrent command test | repository별 serialization과 cross-repository independence |
-| C3 | pending | local/simulated SSH fixture | new, edit, describe와 fetch parity |
-| C4 | pending | isolated shaping fixture | rebase, squash, split와 abandon postconditions |
-| C5 | pending | protected candidate fixture | empty pruning exact candidates와 protection |
-| C6 | pending | operation fixture | undo success, stale rejection과 failure recovery |
-| C7 | pending | local bare remote fixture | bookmark move와 push confirmation/postcondition |
-| C8 | pending | rendered interaction smoke | pointer drop와 keyboard가 같은 rebase preview를 연다 |
-| C9 | pending | native desktop smoke | preview, progress, success/error/recovery surface |
-| C10 | pending | `scripts/check.sh` | canonical local gate와 current public-ready docs |
+| C1 | done | Rust domain/command tests | opaque single-use token, validation, exact operation/candidate recheck와 stale rejection |
+| C2 | done | command concurrency tests | 같은 repository는 busy로 거절하고 서로 다른 repository는 독립적으로 진행 |
+| C3 | done | local/simulated SSH fixture | new, edit, describe와 fetch가 같은 typed request/result contract를 사용 |
+| C4 | done | isolated shaping fixture | rebase, squash, file-level split와 abandon 뒤 fresh projection 검증 |
+| C5 | done | protected candidate fixture | `@`와 bookmark target을 보존하고 exact unreferenced empty candidate만 제거 |
+| C6 | done | operation/domain fixture | undo, stale/duplicate execute rejection과 divergent failure recovery 분류 |
+| C7 | done | local bare remote fixture | bookmark move와 confirmed push 뒤 local/remote target 정렬 |
+| C8 | done | rendered interaction smoke | real mouse path drag와 `R`/방향키/`Enter`가 같은 rebase preview를 열고 직접 실행하지 않음 |
+| C9 | done | packaged desktop smoke | native repository load, action preview, window move/resize와 deterministic progress/result surface |
+| C10 | done | `scripts/check.sh` | canonical gate와 public-ready tracked documentation |
 
 ## Required Evidence
 
@@ -137,6 +137,6 @@ execute 직전 operation ID와 후보 집합이 모두 같아야 한다. 새 후
 
 ## Completion Rule
 
-모든 acceptance가 evidence와 함께 done이고 local/simulated SSH mutation matrix, native
+모든 acceptance가 evidence와 함께 done이며 local/simulated SSH mutation matrix, native
 interaction smoke와 canonical local gate가 통과해야 한다. status, roadmap, handoff와
 architecture는 실제 runtime과 일치해야 하며 external publication은 별도 승인 경계다.

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -11,8 +11,12 @@ use crate::domain::{
     CachedProjection, FileDiffProjection, OperationLogProjection, Registry, RemoteDirectoryListing,
     RepositoryId, RepositoryLocation, RepositoryRecord, WhitespaceMode,
 };
-use crate::driver::{DriverError, JjDriver};
+use crate::driver::{DriverError, DriverErrorKind, JjDriver};
 use crate::handoff::{self, HandoffPreview, HandoffTarget};
+use crate::mutation::{
+    ExecuteMutationRequest, MutationExecution, MutationIntent, MutationPreview,
+    MutationValidationError, verify_postcondition,
+};
 use crate::registry::{RegistryError, RegistryStore};
 use crate::ssh_config::explicit_host_aliases;
 
@@ -20,6 +24,8 @@ pub struct AppState {
     store: Mutex<RegistryStore>,
     driver: JjDriver,
     active_refreshes: Mutex<ActiveRefreshes>,
+    active_mutations: Mutex<ActiveMutations>,
+    mutation_previews: Mutex<MutationPreviews>,
 }
 
 #[derive(Default)]
@@ -30,6 +36,89 @@ struct ActiveRefreshes {
 struct ActiveRefresh {
     request_id: String,
     cancellation: CancellationToken,
+}
+
+#[derive(Default)]
+struct ActiveMutations {
+    repositories: HashSet<RepositoryId>,
+}
+
+impl ActiveMutations {
+    fn start(&mut self, repository_id: RepositoryId) -> Result<(), ()> {
+        if !self.repositories.insert(repository_id) {
+            return Err(());
+        }
+        Ok(())
+    }
+
+    fn finish(&mut self, repository_id: &RepositoryId) {
+        self.repositories.remove(repository_id);
+    }
+
+    fn contains(&self, repository_id: &RepositoryId) -> bool {
+        self.repositories.contains(repository_id)
+    }
+}
+
+#[derive(Clone)]
+struct StoredMutationPreview {
+    preview: MutationPreview,
+    intent: MutationIntent,
+}
+
+#[derive(Default)]
+struct MutationPreviews {
+    by_token: HashMap<String, StoredMutationPreview>,
+    by_repository: HashMap<RepositoryId, String>,
+}
+
+impl MutationPreviews {
+    fn insert(&mut self, stored: StoredMutationPreview) {
+        if let Some(previous) = self.by_repository.insert(
+            stored.preview.repository_id.clone(),
+            stored.preview.token.clone(),
+        ) {
+            self.by_token.remove(&previous);
+        }
+        self.by_token.insert(stored.preview.token.clone(), stored);
+    }
+
+    fn repository_id(&self, token: &str) -> Option<RepositoryId> {
+        self.by_token
+            .get(token)
+            .map(|stored| stored.preview.repository_id.clone())
+    }
+
+    fn take_confirmed(
+        &mut self,
+        request: &ExecuteMutationRequest,
+    ) -> Result<StoredMutationPreview, AppError> {
+        let stored = self.by_token.get(&request.token).ok_or_else(|| AppError {
+            kind: AppErrorKind::Stale,
+            message: "mutation preview is missing, expired, or already used".into(),
+        })?;
+        if !request.confirmed {
+            return Err(AppError {
+                kind: AppErrorKind::Confirmation,
+                message: "mutation execution requires explicit confirmation".into(),
+            });
+        }
+        if stored.preview.requires_typed_confirmation
+            && request.confirmation.as_deref() != Some(stored.preview.confirmation_phrase.as_str())
+        {
+            return Err(AppError {
+                kind: AppErrorKind::Confirmation,
+                message: "typed confirmation does not match the mutation preview".into(),
+            });
+        }
+
+        let stored = self
+            .by_token
+            .remove(&request.token)
+            .expect("preview existence was checked");
+        self.by_repository.remove(&stored.preview.repository_id);
+        Ok(stored)
+    }
 }
 
 impl ActiveRefreshes {
@@ -86,6 +175,8 @@ impl AppState {
             store: Mutex::new(RegistryStore::new(registry_path)),
             driver: JjDriver::default(),
             active_refreshes: Mutex::new(ActiveRefreshes::default()),
+            active_mutations: Mutex::new(ActiveMutations::default()),
+            mutation_previews: Mutex::new(MutationPreviews::default()),
         }
     }
 }
@@ -129,6 +220,9 @@ enum AppErrorKind {
     NotFound,
     Storage,
     Busy,
+    Stale,
+    Confirmation,
+    Recovery,
     Driver,
     Launch,
 }
@@ -238,6 +332,215 @@ pub async fn load_operation_log(
         .operation_log(&repository, CancellationToken::new())
         .await
         .map_err(driver_error)
+}
+
+#[tauri::command]
+pub async fn preview_mutation(
+    repository_id: RepositoryId,
+    intent: MutationIntent,
+    state: State<'_, AppState>,
+) -> Result<MutationPreview, AppError> {
+    intent.validate().map_err(mutation_validation_error)?;
+    let repository = find_repository(&repository_id, &state).await?;
+    let context = state
+        .driver
+        .mutation_context(&repository, &intent, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    let preview = MutationPreview::build(
+        uuid::Uuid::new_v4().to_string(),
+        &repository,
+        &intent,
+        context.operation_id,
+        context.candidates,
+    )
+    .map_err(mutation_validation_error)?;
+    state
+        .mutation_previews
+        .lock()
+        .await
+        .insert(StoredMutationPreview {
+            preview: preview.clone(),
+            intent,
+        });
+    Ok(preview)
+}
+
+#[tauri::command]
+pub async fn execute_mutation(
+    request: ExecuteMutationRequest,
+    state: State<'_, AppState>,
+) -> Result<MutationExecution, AppError> {
+    if request.token.trim() != request.token || request.token.len() > 80 {
+        return Err(AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "mutation preview token is invalid".into(),
+        });
+    }
+    let repository_id = state
+        .mutation_previews
+        .lock()
+        .await
+        .repository_id(&request.token)
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::Stale,
+            message: "mutation preview is missing, expired, or already used".into(),
+        })?;
+
+    {
+        let mut mutations = state.active_mutations.lock().await;
+        let refreshes = state.active_refreshes.lock().await;
+        if refreshes.by_repository.contains_key(&repository_id) {
+            return Err(AppError {
+                kind: AppErrorKind::Busy,
+                message: "wait for the active repository refresh before changing history".into(),
+            });
+        }
+        mutations
+            .start(repository_id.clone())
+            .map_err(|_| AppError {
+                kind: AppErrorKind::Busy,
+                message: "another repository mutation is already active".into(),
+            })?;
+    }
+
+    let result = execute_mutation_inner(request, repository_id.clone(), &state).await;
+    state.active_mutations.lock().await.finish(&repository_id);
+    result
+}
+
+async fn execute_mutation_inner(
+    request: ExecuteMutationRequest,
+    repository_id: RepositoryId,
+    state: &State<'_, AppState>,
+) -> Result<MutationExecution, AppError> {
+    let stored = state
+        .mutation_previews
+        .lock()
+        .await
+        .take_confirmed(&request)?;
+    if stored.preview.repository_id != repository_id {
+        return Err(AppError {
+            kind: AppErrorKind::Stale,
+            message: "mutation preview repository identity changed".into(),
+        });
+    }
+    if matches!(stored.intent, MutationIntent::PruneEmpty) && stored.preview.candidates.is_empty() {
+        return Err(AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "there are no unreferenced empty changes to prune".into(),
+        });
+    }
+    let repository = find_repository(&repository_id, state).await?;
+    let current = state
+        .driver
+        .mutation_context(&repository, &stored.intent, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    if !stored
+        .preview
+        .matches_context(&current.operation_id, &current.candidates)
+    {
+        return Err(AppError {
+            kind: AppErrorKind::Stale,
+            message: "repository changed after preview; review the mutation again".into(),
+        });
+    }
+
+    if let Err(error) = state
+        .driver
+        .execute_mutation(
+            &repository,
+            &stored.intent,
+            &stored.preview.candidates,
+            CancellationToken::new(),
+        )
+        .await
+    {
+        let operation_changed = state
+            .driver
+            .current_operation_id(&repository, CancellationToken::new())
+            .await
+            .is_ok_and(|operation_id| operation_id != current.operation_id);
+        if operation_changed {
+            return Err(AppError {
+                kind: AppErrorKind::Recovery,
+                message:
+                    "the mutation failed after repository state changed; refresh and inspect Operations before continuing"
+                        .into(),
+            });
+        }
+        return Err(driver_error(error));
+    }
+
+    let operation_id = state
+        .driver
+        .current_operation_id(&repository, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    let projection = state
+        .driver
+        .project(&repository, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    let operation_log = state
+        .driver
+        .operation_log(&repository, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    let cached = CachedProjection {
+        cached_at: projection.refreshed_at.clone(),
+        projection: projection.clone(),
+    };
+    {
+        let store = state.store.lock().await;
+        let loaded = store.load().map_err(storage_error)?;
+        let mut registry = loaded.registry;
+        if !registry
+            .repositories
+            .iter()
+            .any(|registered| registered.id == repository.id)
+        {
+            return Err(AppError {
+                kind: AppErrorKind::NotFound,
+                message: "repository was removed while mutation was running".into(),
+            });
+        }
+        registry
+            .cached_projections
+            .insert(repository.id.clone(), cached);
+        store.save(&registry).map_err(storage_error)?;
+    }
+    verify_postcondition(
+        &stored.intent,
+        &stored.preview.candidates,
+        &projection,
+    )
+    .map_err(|detail| AppError {
+        kind: AppErrorKind::Recovery,
+        message: format!(
+            "the mutation completed but its postcondition was not verified ({detail}); inspect Operations before continuing"
+        ),
+    })?;
+
+    Ok(MutationExecution {
+        preview_token: stored.preview.token,
+        repository_id,
+        kind: stored.preview.kind,
+        previous_operation_id: current.operation_id,
+        operation_id: operation_id.clone(),
+        message: if operation_id == stored.preview.expected_operation_id {
+            format!(
+                "{} completed without a repository state change",
+                stored.preview.title
+            )
+        } else {
+            format!("{} completed", stored.preview.title)
+        },
+        recovery_required: false,
+        projection,
+        operation_log,
+    })
 }
 
 #[tauri::command]
@@ -429,7 +732,14 @@ pub async fn refresh_repository(
     };
 
     let cancellation = {
+        let mutations = state.active_mutations.lock().await;
         let mut active = state.active_refreshes.lock().await;
+        if mutations.contains(&repository.id) {
+            return Err(AppError {
+                kind: AppErrorKind::Busy,
+                message: "repository mutation is active".into(),
+            });
+        }
         active
             .start(repository.id.clone(), request_id.clone())
             .map_err(|_| AppError {
@@ -519,8 +829,19 @@ fn current_timestamp() -> String {
 
 fn driver_error(error: DriverError) -> AppError {
     AppError {
-        kind: AppErrorKind::Driver,
+        kind: if error.kind == DriverErrorKind::StaleOperation {
+            AppErrorKind::Stale
+        } else {
+            AppErrorKind::Driver
+        },
         message: error.message,
+    }
+}
+
+fn mutation_validation_error(error: MutationValidationError) -> AppError {
+    AppError {
+        kind: AppErrorKind::InvalidInput,
+        message: error.to_string(),
     }
 }
 
@@ -544,5 +865,100 @@ mod tests {
         assert!(active.by_repository.contains_key(&first));
         active.finish(&first, "request-one");
         assert!(!active.by_repository.contains_key(&first));
+    }
+
+    #[test]
+    fn mutation_previews_are_latest_per_repository_and_single_use() {
+        let repository = RepositoryRecord::new(
+            "fixture",
+            RepositoryLocation::Local {
+                path: "/fixtures/repository".into(),
+            },
+        )
+        .unwrap();
+        let intent = MutationIntent::Edit {
+            target_commit_id: "0123456789abcdef0123456789abcdef01234567".into(),
+        };
+        let first = MutationPreview::build(
+            "first-token".into(),
+            &repository,
+            &intent,
+            "abcdef0123456789".into(),
+            Vec::new(),
+        )
+        .unwrap();
+        let second = MutationPreview::build(
+            "second-token".into(),
+            &repository,
+            &intent,
+            "abcdef0123456789".into(),
+            Vec::new(),
+        )
+        .unwrap();
+        let mut previews = MutationPreviews::default();
+        previews.insert(StoredMutationPreview {
+            preview: first,
+            intent: intent.clone(),
+        });
+        previews.insert(StoredMutationPreview {
+            preview: second,
+            intent,
+        });
+
+        assert!(previews.repository_id("first-token").is_none());
+        let request = ExecuteMutationRequest {
+            token: "second-token".into(),
+            confirmed: true,
+            confirmation: None,
+        };
+        previews.take_confirmed(&request).unwrap();
+        assert!(previews.take_confirmed(&request).is_err());
+    }
+
+    #[test]
+    fn typed_confirmation_mismatch_keeps_preview_available() {
+        let repository = RepositoryRecord::new(
+            "fixture",
+            RepositoryLocation::Local {
+                path: "/fixtures/repository".into(),
+            },
+        )
+        .unwrap();
+        let intent = MutationIntent::Push {
+            name: "main".into(),
+            remote: "origin".into(),
+        };
+        let preview = MutationPreview::build(
+            "push-token".into(),
+            &repository,
+            &intent,
+            "abcdef0123456789".into(),
+            Vec::new(),
+        )
+        .unwrap();
+        let mut previews = MutationPreviews::default();
+        previews.insert(StoredMutationPreview { preview, intent });
+        let request = ExecuteMutationRequest {
+            token: "push-token".into(),
+            confirmed: true,
+            confirmation: Some("wrong".into()),
+        };
+
+        assert!(previews.take_confirmed(&request).is_err());
+        assert!(previews.repository_id("push-token").is_some());
+    }
+
+    #[test]
+    fn active_mutations_are_repository_scoped() {
+        let first = RepositoryId("first".into());
+        let second = RepositoryId("second".into());
+        let mut active = ActiveMutations::default();
+
+        active.start(first.clone()).unwrap();
+        assert!(active.start(first.clone()).is_err());
+        assert!(active.start(second.clone()).is_ok());
+        active.finish(&first);
+        assert!(!active.contains(&first));
+        assert!(active.contains(&second));
     }
 }

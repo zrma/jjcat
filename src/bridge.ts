@@ -11,6 +11,10 @@ import type {
   FileDiffProjection,
   FileDiffRequest,
   OperationLogProjection,
+  ExecuteMutationRequest,
+  MutationExecution,
+  MutationIntent,
+  MutationPreview,
 } from "./types";
 
 interface Bridge {
@@ -29,6 +33,8 @@ interface Bridge {
   cancelRefresh(requestId: string): Promise<boolean>;
   loadFileDiff(request: FileDiffRequest): Promise<FileDiffProjection>;
   loadOperationLog(repositoryId: string): Promise<OperationLogProjection>;
+  previewMutation(repositoryId: string, intent: MutationIntent): Promise<MutationPreview>;
+  executeMutation(request: ExecuteMutationRequest): Promise<MutationExecution>;
   previewRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
   launchRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
 }
@@ -91,6 +97,16 @@ class TauriBridge implements Bridge {
     return invoke<OperationLogProjection>("load_operation_log", { repositoryId }).catch(
       normalizeError,
     );
+  }
+
+  previewMutation(repositoryId: string, intent: MutationIntent) {
+    return invoke<MutationPreview>("preview_mutation", { repositoryId, intent }).catch(
+      normalizeError,
+    );
+  }
+
+  executeMutation(request: ExecuteMutationRequest) {
+    return invoke<MutationExecution>("execute_mutation", { request }).catch(normalizeError);
   }
 
   previewRepositoryHandoff(repositoryId: string, target: HandoffTarget) {

@@ -30,11 +30,11 @@
 
 ## P3: Safe Shaping
 
-- [ ] new, edit, describe와 fetch
-- [ ] rebase, squash, split와 abandon
-- [ ] bookmark move와 push
-- [ ] operation precondition, preview와 recovery acceptance
-- [ ] pointer drag/drop과 keyboard-equivalent shaping preview
+- [x] new, edit, describe와 fetch
+- [x] rebase, squash, split와 abandon
+- [x] bookmark move와 push
+- [x] operation precondition, preview와 recovery acceptance
+- [x] pointer drag/drop과 keyboard-equivalent shaping preview
 
 ## P4: Distribution
 

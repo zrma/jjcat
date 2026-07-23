@@ -57,6 +57,9 @@ interface ChangeWorkspaceProps {
   operationLog: OperationLogProjection | null;
   operationLoading: boolean;
   operationError: string | null;
+  rebaseSourceCommitId: string | null;
+  onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
+  onRequestUndo: (operationId: string) => void;
 }
 
 const VIRTUALIZATION_THRESHOLD = 40;
@@ -90,6 +93,9 @@ export function ChangeWorkspace({
   operationLog,
   operationLoading,
   operationError,
+  rebaseSourceCommitId,
+  onRequestRebase,
+  onRequestUndo,
 }: ChangeWorkspaceProps) {
   const contentGridRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
@@ -157,6 +163,8 @@ export function ChangeWorkspace({
         selected={selectedChange?.changeId}
         onSelect={onSelect}
         refreshing={refreshing}
+        rebaseSourceCommitId={rebaseSourceCommitId}
+        onRequestRebase={onRequestRebase}
       />
       <div
         className="workspace-splitter"
@@ -250,6 +258,7 @@ export function ChangeWorkspace({
               loading={operationLoading}
               error={operationError}
               onClose={() => onInspectorViewChange("overview")}
+              onRequestUndo={onRequestUndo}
             />
           ) : inspectorView === "changes" ? (
             <ChangeFiles
@@ -278,11 +287,15 @@ function ChangeLog({
   selected,
   onSelect,
   refreshing,
+  rebaseSourceCommitId,
+  onRequestRebase,
 }: {
   changes: ChangeRow[];
   selected?: string;
   onSelect: (changeId: string) => void;
   refreshing: boolean;
+  rebaseSourceCommitId: string | null;
+  onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
 }) {
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
@@ -368,6 +381,8 @@ function ChangeLog({
         virtualized={virtualized}
         viewportHeight={viewport.height}
         scrollTop={viewport.scrollTop}
+        rebaseSourceCommitId={rebaseSourceCommitId}
+        onRequestRebase={onRequestRebase}
       />
     </section>
   );
@@ -382,6 +397,8 @@ function ChangeRows({
   virtualized,
   viewportHeight,
   scrollTop,
+  rebaseSourceCommitId,
+  onRequestRebase,
 }: {
   changes: ChangeRow[];
   dagRows: DagRowLayout[];
@@ -391,7 +408,85 @@ function ChangeRows({
   virtualized: boolean;
   viewportHeight: number;
   scrollTop: number;
+  rebaseSourceCommitId: string | null;
+  onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
 }) {
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [draggedCommitId, setDraggedCommitId] = useState<string | null>(null);
+  const pointerDragRef = useRef<{
+    sourceCommitId: string;
+    startX: number;
+    startY: number;
+    active: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  const commitAtPoint = (clientX: number, clientY: number) =>
+    document
+      .elementFromPoint(clientX, clientY)
+      ?.closest<HTMLButtonElement>(".change-row")
+      ?.dataset.commitId ?? null;
+
+  const beginPointerDrag = (
+    sourceCommitId: string,
+    clientX: number,
+    clientY: number,
+  ) => {
+    if (pointerDragRef.current) return;
+    pointerDragRef.current = {
+      sourceCommitId,
+      startX: clientX,
+      startY: clientY,
+      active: false,
+    };
+  };
+
+  const updatePointerDrag = (clientX: number, clientY: number) => {
+    const drag = pointerDragRef.current;
+    if (!drag) return false;
+    if (
+      !drag.active &&
+      Math.hypot(clientX - drag.startX, clientY - drag.startY) < 5
+    ) {
+      return false;
+    }
+    drag.active = true;
+    setDraggedCommitId(drag.sourceCommitId);
+    const destinationCommitId = commitAtPoint(clientX, clientY);
+    setDropTarget(
+      destinationCommitId && destinationCommitId !== drag.sourceCommitId
+        ? destinationCommitId
+        : null,
+    );
+    return true;
+  };
+
+  const finishPointerDrag = (
+    clientX: number,
+    clientY: number,
+    cancelled = false,
+  ) => {
+    const drag = pointerDragRef.current;
+    if (!drag) return false;
+
+    const destinationCommitId = cancelled
+      ? null
+      : commitAtPoint(clientX, clientY);
+    pointerDragRef.current = null;
+    setDropTarget(null);
+    setDraggedCommitId(null);
+
+    if (drag.active) suppressClickRef.current = true;
+    if (
+      drag.active &&
+      destinationCommitId &&
+      destinationCommitId !== drag.sourceCommitId
+    ) {
+      onRequestRebase(drag.sourceCommitId, destinationCommitId);
+    }
+    return drag.active;
+  };
+
   const range = virtualized
     ? virtualRange(
         changes.length,
@@ -419,11 +514,66 @@ function ChangeRows({
         return (
           <button
             type="button"
-            className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""}`}
+            className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""} ${change.commitId === rebaseSourceCommitId ? "rebase-source" : ""} ${change.commitId === dropTarget ? "rebase-drop-target" : ""}`}
             style={virtualized ? { top: index * HISTORY_ROW_HEIGHT } : undefined}
             aria-posinset={index + 1}
             aria-setsize={changes.length}
-            onClick={() => onSelect(change.changeId)}
+            onClick={() => {
+              if (suppressClickRef.current) {
+                suppressClickRef.current = false;
+                return;
+              }
+              onSelect(change.changeId);
+            }}
+            data-commit-id={change.commitId}
+            aria-grabbed={
+              change.commitId === rebaseSourceCommitId ||
+              change.commitId === draggedCommitId
+            }
+            title="Drag this change onto another change to preview a rebase"
+            onPointerDown={(event) => {
+              if (
+                event.button !== 0 ||
+                /^0+$/.test(change.commitId) ||
+                event.pointerType === "touch"
+              ) {
+                return;
+              }
+              beginPointerDrag(change.commitId, event.clientX, event.clientY);
+            }}
+            onPointerMove={(event) => {
+              if (updatePointerDrag(event.clientX, event.clientY)) {
+                event.preventDefault();
+              }
+            }}
+            onPointerUp={(event) => {
+              if (finishPointerDrag(event.clientX, event.clientY)) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
+            onPointerCancel={(event) => {
+              if (finishPointerDrag(event.clientX, event.clientY, true)) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
+            onMouseDown={(event) => {
+              if (event.button !== 0 || /^0+$/.test(change.commitId)) return;
+              beginPointerDrag(change.commitId, event.clientX, event.clientY);
+            }}
+            onMouseMove={(event) => {
+              if (event.buttons !== 1) return;
+              if (updatePointerDrag(event.clientX, event.clientY)) {
+                event.preventDefault();
+              }
+            }}
+            onMouseUp={(event) => {
+              if (finishPointerDrag(event.clientX, event.clientY)) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
             key={`${change.changeId}-${change.commitId}`}
           >
             <DagCell change={change} layout={dagRows[index]} width={dagWidth} />
@@ -457,7 +607,7 @@ function DagCell({
   layout: DagRowLayout;
   width: number;
 }) {
-  const isRoot = change.changeId === "000000000000";
+  const isRoot = /^0+$/.test(change.commitId);
   const nodeX = laneX(layout.lane);
   return (
     <span

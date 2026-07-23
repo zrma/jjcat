@@ -74,3 +74,19 @@ implementation은 다음 P0 milestone로 넘겼다.
   proportional scrollbar thumb를 항상 표시하고 track click, drag와 keyboard 조작을 지원한다.
 - deterministic fixtures, simulated 및 owner-controlled SSH, browser/native smoke와 canonical
   local gate를 통과했다. private identity, source content와 raw evidence는 기록하지 않았다.
+
+## 2026-07-24: P3 Safe Shaping
+
+- 모든 mutation을 opaque single-use preview와 confirmed execute로 분리하고 repository별
+  serialization, exact operation/candidate stale recheck와 recovery-required 분류를 추가했다.
+- local과 simulated SSH에서 new, edit, full-message describe와 fetch가 같은 typed
+  request/result contract를 사용한다.
+- isolated fixture에서 rebase, squash, exact file-level split, abandon과 undo를 실행하고 fresh
+  projection 및 operation postcondition을 확인했다.
+- working copy, root, immutable change와 local/remote bookmark target을 보호하고 preview에
+  열거된 unreferenced empty changes만 제거하는 pruning을 구현했다.
+- local bookmark move와 explicit typed-confirmation push를 local bare remote fixture로
+  검증했으며 force/delete option은 제공하지 않는다.
+- graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path를 같은 rebase preview에 연결하고
+  packaged desktop shell, deterministic interaction smoke와 canonical local gate를 통과했다.
+  private repository identity, path, remote와 raw output은 tracked evidence에 남기지 않았다.

@@ -22,13 +22,15 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 
 ## Current Status
 
-jjcat은 현재 **pre-alpha P2**다. local/SSH 저장소 등록, persistent tab과 quick switcher,
-cached background refresh, multi-lane history, bounded file diff, editor/terminal handoff와
-read-only operation recovery preview가 동작한다.
+jjcat은 현재 **pre-alpha P3**다. local/SSH 저장소 등록, persistent tab과 quick switcher,
+cached background refresh, multi-lane history, bounded file diff와 editor/terminal handoff가
+동작한다.
 
-아직 실제 repository mutation은 제공하지 않는다. fetch, new, edit, describe와 history
-shaping은 [P3 Safe Shaping](docs/roadmap.md#p3-safe-shaping)에서 precondition, preview와
-recovery contract를 갖춘 뒤 단계적으로 추가한다.
+모든 repository mutation은 실행 전에 repository, exact target, expected operation과 risk를
+고정한 preview를 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
+protected empty-change pruning, undo, bookmark move와 explicit push를 제공하며 graph drag/drop과
+keyboard rebase도 같은 preview를 연다. package signing, updater와 release artifact는
+[P4 Distribution](docs/roadmap.md#p4-distribution)의 범위다.
 
 ## Quick Start
 
@@ -50,6 +52,7 @@ SSH integration까지 확인하려면 `pnpm tauri dev`를 사용한다.
 2. **SSH**에서 OpenSSH host alias를 선택하고 remote folder browser로 저장소를 고른다.
 3. tab 또는 quick switcher로 저장소를 전환한다.
 4. change와 file을 선택해 graph, metadata와 diff를 살펴본다.
+5. `Actions`에서 mutation을 고르거나 change를 다른 change 위에 끌어 rebase preview를 연다.
 
 SSH key와 agent는 jjcat이 저장하지 않고 사용자의 OpenSSH 설정을 그대로 사용한다.
 
@@ -61,8 +64,8 @@ SSH key와 agent는 jjcat이 저장하지 않고 사용자의 OpenSSH 설정을 
   배치한다.
 - **Safe shaping:** mutation은 대상 revision, 예상 operation, 실행 범위와 recovery 경로를
   확인할 수 있어야 한다.
-- **Keyboard and pointer:** tab, quick switcher, graph navigation과 향후 drag-and-drop
-  shaping에 동등한 keyboard 흐름을 제공한다.
+- **Keyboard and pointer:** tab, quick switcher, graph navigation과 drag-and-drop shaping에
+  동등한 keyboard 흐름을 제공한다.
 
 자세한 제품 범위와 non-goal은 [Product Contract](docs/PRODUCT.md), runtime과 transport
 경계는 [Architecture](docs/ARCHITECTURE.md)에서 관리한다.

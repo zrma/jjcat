@@ -11,8 +11,8 @@
 
 ## Current Baseline
 
-- repository는 실행 가능한 pre-alpha P2 graph/diff cockpit과 active P3 safe-shaping
-  acceptance packet을 가진다.
+- repository는 실행 가능한 pre-alpha P3 graph/diff 및 preview-first safe-shaping cockpit을
+  가진다.
 - runtime은 Tauri 2, Rust 2024 core와 React/TypeScript/Vite frontend다.
 - local과 SSH transport는 같은 Repository Driver contract를 사용한다.
 - SSH는 OpenSSH stdio와 외부 credential ownership을 기본으로 한다.
@@ -31,16 +31,18 @@
 - `docs/roadmap.md`: milestone 순서.
 - `docs/PUBLICATION.md`: 공개 가능 기록과 최초 publish gate.
 - `docs/todo-p2-graph-and-diff/`: 완료된 P2 acceptance와 결정.
-- `docs/todo-p3-safe-shaping/`: active P3 safety, mutation과 interaction acceptance.
+- `docs/todo-p3-safe-shaping/`: 완료된 P3 safety, mutation과 interaction acceptance.
 - `scripts/check.sh`: canonical local gate.
 
 ## Current Work
 
-`P3: Safe Shaping` active
+`P3: Safe Shaping` complete
 
-P2의 multi-lane graph navigation, bounded local/SSH diff, last-fetched divergence와 read-only
-operation preview가 구현됐다. P3는 preview-first contract, stale operation recheck,
-repository별 queue와 protected empty-pruning 규칙을 고정했고 C1 safety kernel부터 구현한다.
+local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
+candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
+rebase/squash/file-level split/abandon, protected empty pruning, undo, bookmark move와 confirmed
+push가 구현됐다. graph drag/drop과 keyboard shaping은 execute를 우회하지 않고 같은 rebase
+preview를 연다. active todo는 없으며 다음 repo-owned milestone은 P4 distribution이다.
 remote helper는 계속 범위 밖이다.
 
 ## Completion Rule

@@ -28,7 +28,7 @@ change graph, diff와 안전한 history shaping을 하나의 지속적인 sessio
 - **Fast switching:** cached view를 즉시 표시하고 refresh는 비동기로 수행한다.
 - **Dense by default:** graph, change ID, description과 핵심 metadata를 compact row에서 함께
   읽고 선택한 change의 file/metadata는 하단 inspector에서 확인한다.
-- **Safe shaping:** mutation은 대상 revision, 예상 operation, 실행 명령과 undo 경로를 보여준다.
+- **Safe shaping:** mutation은 대상 revision, 예상 operation, 실행 효과와 undo 경로를 보여준다.
 - **Local first:** credential, source content와 private inventory는 사용자 환경을 벗어나지 않는다.
 - **Keyboard and pointer:** tab, quick switcher, graph navigation과 drag/drop을 모두 지원한다.
 
@@ -39,10 +39,9 @@ change graph, diff와 안전한 history shaping을 하나의 지속적인 sessio
 - read-only change DAG와 revision details
 - unified 및 side-by-side diff
 - local terminal/editor 및 Remote SSH editor open action
-- focused mutation: new, edit, describe, fetch
-
-rebase, squash, split, abandon, bookmark move와 push는 read-only surface와 operation safety가
-검증된 뒤 단계적으로 추가한다.
+- preview-first mutation: new, edit, describe, fetch
+- safe shaping: rebase, squash, file-level split, abandon과 protected empty pruning
+- operation undo, bookmark move와 explicit push
 
 ## Non-goals
 

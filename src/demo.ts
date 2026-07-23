@@ -9,6 +9,11 @@ import type {
   FileDiffRequest,
   FileDiffProjection,
   OperationLogProjection,
+  ExecuteMutationRequest,
+  MutationExecution,
+  MutationIntent,
+  MutationPreview,
+  ChangeRow,
 } from "./types";
 
 const LOCAL_ID = "e21c6676-690c-5847-b407-137074516f66";
@@ -142,6 +147,10 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
 export class DemoBridge {
   private snapshot: RegistrySnapshot;
   private active = new Map<string, AbortController>();
+  private mutationPreviews = new Map<
+    string,
+    { repositoryId: string; intent: MutationIntent; preview: MutationPreview }
+  >();
 
   constructor() {
     const now = new Date().toISOString();
@@ -259,6 +268,93 @@ export class DemoBridge {
           undoEligible: false,
         },
       ],
+    };
+  }
+
+  async previewMutation(
+    repositoryId: string,
+    intent: MutationIntent,
+  ): Promise<MutationPreview> {
+    const projection =
+      this.snapshot.registry.cachedProjections[repositoryId]?.projection;
+    const repository = this.snapshot.registry.repositories.find(
+      (candidate) => candidate.id === repositoryId,
+    );
+    if (!projection || !repository) {
+      throw {
+        kind: "notFound",
+        message: "Repository is not registered.",
+      } satisfies AppError;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    const candidates =
+      intent.kind === "pruneEmpty"
+        ? projection.changes
+            .filter(
+              (change) =>
+                change.empty &&
+                !change.workingCopy &&
+                !/^0+$/.test(change.commitId) &&
+                change.bookmarks.length === 0,
+            )
+            .map((change) => ({
+              changeId: change.changeId,
+              commitId: change.commitId,
+              summary: change.summary,
+            }))
+        : [];
+    const content = mutationPreviewContent(intent, projection.changes);
+    const token = crypto.randomUUID();
+    const preview: MutationPreview = {
+      token,
+      repositoryId,
+      repositoryDisplayName: repository.displayName,
+      kind: intent.kind,
+      expectedOperationId: "f1e2d3c4b5a697887766554433221100",
+      candidates,
+      ...content,
+    };
+    this.mutationPreviews.set(token, { repositoryId, intent, preview });
+    return structuredClone(preview);
+  }
+
+  async executeMutation(
+    request: ExecuteMutationRequest,
+  ): Promise<MutationExecution> {
+    const stored = this.mutationPreviews.get(request.token);
+    if (!stored) {
+      throw {
+        kind: "stale",
+        message: "Mutation preview is missing, expired, or already used.",
+      } satisfies AppError;
+    }
+    if (
+      !request.confirmed ||
+      (stored.preview.requiresTypedConfirmation &&
+        request.confirmation !== stored.preview.confirmationPhrase)
+    ) {
+      throw {
+        kind: "confirmation",
+        message: "Confirm the exact mutation preview before execution.",
+      } satisfies AppError;
+    }
+    this.mutationPreviews.delete(request.token);
+    const cached = this.snapshot.registry.cachedProjections[stored.repositoryId];
+    applyDemoMutation(cached.projection.changes, stored.intent, stored.preview.candidates);
+    const now = new Date().toISOString();
+    cached.cachedAt = now;
+    cached.projection.refreshedAt = now;
+    const operationLog = await this.loadOperationLog(stored.repositoryId);
+    return {
+      previewToken: request.token,
+      repositoryId: stored.repositoryId,
+      kind: stored.intent.kind,
+      previousOperationId: stored.preview.expectedOperationId,
+      operationId: "a1b2c3d4e5f607182736455463728190",
+      message: `${stored.preview.title} completed`,
+      recoveryRequired: false,
+      projection: structuredClone(cached.projection),
+      operationLog,
     };
   }
 
@@ -415,5 +511,242 @@ export class DemoBridge {
       throw { kind: "notFound", message: "Repository is not registered." } satisfies AppError;
     }
     return repository;
+  }
+}
+
+function mutationPreviewContent(
+  intent: MutationIntent,
+  changes: ChangeRow[],
+): Omit<
+  MutationPreview,
+  | "token"
+  | "repositoryId"
+  | "repositoryDisplayName"
+  | "kind"
+  | "expectedOperationId"
+  | "candidates"
+> {
+  const target = (label: string, commitId: string) => ({
+    label,
+    value: commitId,
+    commitId,
+  });
+  const details: Record<
+    MutationIntent["kind"],
+    { title: string; effect: string; risk: MutationPreview["risk"] }
+  > = {
+    new: {
+      title: "Create change",
+      effect: "Create a new working-copy change on the selected parent.",
+      risk: "workingCopy",
+    },
+    edit: {
+      title: "Edit change",
+      effect: "Move the working copy to the selected change.",
+      risk: "workingCopy",
+    },
+    describe: {
+      title: "Describe change",
+      effect: "Replace the full description of the selected change.",
+      risk: "workingCopy",
+    },
+    fetch: {
+      title: "Fetch remote",
+      effect: "Contact the Git remote and refresh stored remote bookmarks.",
+      risk: "network",
+    },
+    rebase: {
+      title: "Rebase change",
+      effect: "Rewrite the source change onto the exact destination.",
+      risk: "rewrite",
+    },
+    squash: {
+      title: "Squash change",
+      effect: "Move the source diff into the selected destination.",
+      risk: "rewrite",
+    },
+    split: {
+      title: "Split change",
+      effect: "Move the selected paths into a new change.",
+      risk: "rewrite",
+    },
+    abandon: {
+      title: "Abandon change",
+      effect: "Remove the selected change while preserving descendants.",
+      risk: "destructive",
+    },
+    pruneEmpty: {
+      title: "Prune empty changes",
+      effect:
+        "Abandon only mutable, unreferenced empty changes; current, root, and bookmarked changes stay protected.",
+      risk: "destructive",
+    },
+    undo: {
+      title: "Undo operation",
+      effect: "Undo the exact current repository operation.",
+      risk: "recovery",
+    },
+    bookmarkMove: {
+      title: "Move bookmark",
+      effect: "Move the local bookmark to the exact selected change.",
+      risk: "rewrite",
+    },
+    push: {
+      title: "Push bookmark",
+      effect: "Update the remote bookmark using Jujutsu safety checks.",
+      risk: "remoteWrite",
+    },
+  };
+  let targets: MutationPreview["targets"] = [];
+  switch (intent.kind) {
+    case "new":
+      targets = intent.parentCommitIds.map((id) => target("Parent", id));
+      break;
+    case "edit":
+    case "describe":
+      targets = [target("Change", intent.targetCommitId)];
+      break;
+    case "fetch":
+      targets = [{ label: "Remote", value: intent.remote ?? "Configured default", commitId: null }];
+      break;
+    case "rebase":
+    case "squash":
+      targets = [
+        target("Source", intent.sourceCommitId),
+        target("Destination", intent.destinationCommitId),
+      ];
+      break;
+    case "split":
+      targets = [
+        target("Source", intent.sourceCommitId),
+        ...intent.paths.map((path) => ({ label: "Path", value: path, commitId: null })),
+      ];
+      break;
+    case "abandon":
+      targets = intent.targetCommitIds.map((id) => target("Change", id));
+      break;
+    case "pruneEmpty":
+      targets = [];
+      break;
+    case "undo":
+      targets = [{ label: "Operation", value: intent.operationId, commitId: null }];
+      break;
+    case "bookmarkMove":
+      targets = [
+        { label: "Bookmark", value: intent.name, commitId: null },
+        target("Destination", intent.targetCommitId),
+      ];
+      break;
+    case "push":
+      targets = [
+        { label: "Bookmark", value: intent.name, commitId: null },
+        { label: "Remote", value: intent.remote, commitId: null },
+      ];
+      break;
+  }
+  const candidateCount = changes.filter(
+    (item) =>
+      item.empty &&
+      !item.workingCopy &&
+      !/^0+$/.test(item.commitId) &&
+      item.bookmarks.length === 0,
+  ).length;
+  const confirmationPhrase =
+    intent.kind === "abandon"
+      ? `Abandon ${intent.targetCommitIds.length} changes`
+      : intent.kind === "pruneEmpty"
+        ? `Prune ${candidateCount} empty changes`
+        : intent.kind === "undo"
+          ? "Undo current operation"
+          : intent.kind === "push"
+            ? `Push ${intent.name}`
+            : "Confirm";
+  return {
+    ...details[intent.kind],
+    targets,
+    requiresTypedConfirmation: ["abandon", "pruneEmpty", "undo", "push"].includes(intent.kind),
+    confirmationPhrase,
+  };
+}
+
+function applyDemoMutation(
+  changes: ChangeRow[],
+  intent: MutationIntent,
+  candidates: MutationPreview["candidates"],
+) {
+  const find = (commitId: string) =>
+    changes.find((candidate) => candidate.commitId === commitId);
+  switch (intent.kind) {
+    case "edit":
+      changes.forEach((item) => {
+        item.workingCopy = item.commitId === intent.targetCommitId;
+      });
+      break;
+    case "describe": {
+      const selected = find(intent.targetCommitId);
+      if (selected) {
+        selected.description = intent.message;
+        selected.summary = intent.message.split("\n")[0] || "(no description)";
+      }
+      break;
+    }
+    case "rebase": {
+      const source = find(intent.sourceCommitId);
+      const destination = find(intent.destinationCommitId);
+      if (source && destination) {
+        source.parents = [destination.changeId];
+        source.parentCommitIds = [destination.commitId];
+      }
+      break;
+    }
+    case "squash":
+    case "abandon": {
+      const removed =
+        intent.kind === "squash"
+          ? new Set([intent.sourceCommitId])
+          : new Set(intent.targetCommitIds);
+      for (let index = changes.length - 1; index >= 0; index -= 1) {
+        if (removed.has(changes[index].commitId)) changes.splice(index, 1);
+      }
+      break;
+    }
+    case "pruneEmpty": {
+      const removed = new Set(candidates.map((candidate) => candidate.commitId));
+      for (let index = changes.length - 1; index >= 0; index -= 1) {
+        if (removed.has(changes[index].commitId)) changes.splice(index, 1);
+      }
+      break;
+    }
+    case "bookmarkMove": {
+      changes.forEach((item) => {
+        item.bookmarks = item.bookmarks.filter(
+          (bookmark) => bookmark.remote !== null || bookmark.name !== intent.name,
+        );
+      });
+      find(intent.targetCommitId)?.bookmarks.push({ name: intent.name, remote: null });
+      break;
+    }
+    case "push": {
+      const local = changes.find((item) =>
+        item.bookmarks.some(
+          (bookmark) => bookmark.name === intent.name && bookmark.remote === null,
+        ),
+      );
+      if (
+        local &&
+        !local.bookmarks.some(
+          (bookmark) =>
+            bookmark.name === intent.name && bookmark.remote === intent.remote,
+        )
+      ) {
+        local.bookmarks.push({ name: intent.name, remote: intent.remote });
+      }
+      break;
+    }
+    case "new":
+    case "fetch":
+    case "split":
+    case "undo":
+      break;
   }
 }
