@@ -20,22 +20,30 @@
 - `jj` capability, machine-readable status/log/file projection
 - bounded timeout/cancellation과 redacted error를 갖춘 OpenSSH stdio driver
 - repository rail, tabs, DAG, change inspector와 cached/stale/disconnected UI
-- 34px compact graph/history row, 하단 file/metadata inspector와 change search/filter
+- 20px dense graph/history row, readable system typography와 high-contrast visual hierarchy
+- flat native-style tabs와 separators, selected-row hierarchy, draggable/resizable desktop shell
+- 전체 commit message/trailer, author/committer, full commit/parent identity를 보여주는 overview
+- 하단 overview/file-tree/diff/operation inspector와 change metadata search/filter
+- pointer/keyboard로 높이를 조절하고 double-click으로 초기화하는 history/inspector splitter
 - 통합 Add dialog의 native local picker, OpenSSH alias/dropdown 및 bounded remote folder browser
 - VisualJJ 방식의 local/remote inline bookmark label, source identity와 overflow
 - filesystem을 건드리지 않는 registry/cache/tab 전용 repository remove
 - local absolute path 및 `~/...` 입력의 canonical identity normalization
 - cat outline과 change DAG를 결합한 header/application identity asset
 - local, simulated SSH, local-only actual SSH 2-repository matrix와 native bundle smoke
-- v1→v2 migration을 포함한 persistent tab ordering과 selected tab restart recovery
+- v1→v2 persistent tab recovery와 legacy diff cache만 무효화하는 v2→v3 migration
 - keyboard/pointer quick switcher search, close와 reopen
-- pinned/recent repository grouping과 compact freshness/error state
+- stable pinned/local/SSH repository grouping과 compact freshness/error state
+- working copy, local/remote bookmark, conflict, operation과 last-fetched repository navigation
 - repository별 refresh dedup/cancel, active/inactive interval과 bounded failure backoff
 - structured argv를 사용하는 local/SSH VS Code 및 platform terminal handoff
 - 40개 이상 history의 bounded row virtualization과 representative interaction fixture
 - stable multi-lane change topology와 pointer/keyboard revision navigation
 - selected revision/file만 읽는 512 KiB bounded local/SSH structured diff
-- unified/side-by-side renderer, whitespace mode와 binary/truncated fallback
+- rename display path와 target canonical path를 분리하고 escaped exact fileset을 사용하는
+  local/SSH diff selection
+- 긴 줄에서도 같은 폭과 항상 보이는 독립 가로 scrollbar를 유지하는
+  unified/side-by-side renderer, whitespace mode와 binary/truncated fallback
 - cache freshness와 분리된 conflict 및 last-fetched outgoing/behind 상태
 - operation identity를 변경하지 않는 recent operation log와 disabled undo eligibility preview
 

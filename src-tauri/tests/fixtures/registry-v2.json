@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "selectedRepository": "8ddcd31a-add6-5c22-a517-cc357d2cba7c",
+  "openRepositoryIds": [
+    "8ddcd31a-add6-5c22-a517-cc357d2cba7c"
+  ],
+  "repositories": [
+    {
+      "id": "8ddcd31a-add6-5c22-a517-cc357d2cba7c",
+      "displayName": "local-fixture",
+      "location": {
+        "kind": "local",
+        "path": "/fixtures/local-repository"
+      },
+      "pinned": true,
+      "lastOpenedAt": "2026-01-02T03:04:05Z"
+    }
+  ],
+  "cachedProjections": {
+    "8ddcd31a-add6-5c22-a517-cc357d2cba7c": {
+      "cachedAt": "2026-01-02T03:04:05Z",
+      "projection": {
+        "repositoryId": "8ddcd31a-add6-5c22-a517-cc357d2cba7c",
+        "refreshedAt": "2026-01-02T03:04:05Z",
+        "capability": {
+          "detectedVersion": "0.43.0",
+          "minimumVersion": "0.30.0",
+          "supported": true
+        },
+        "changes": [
+          {
+            "changeId": "abcdefghijkl",
+            "commitId": "012345abcdef",
+            "summary": "rename fixture",
+            "author": "Fixture",
+            "updatedAt": "2026-01-02T03:04:05Z",
+            "bookmarks": [],
+            "parents": [],
+            "files": [
+              {
+                "status": "R",
+                "path": "docs/{old.md => new.md}"
+              }
+            ],
+            "conflict": false,
+            "workingCopy": false,
+            "empty": false
+          }
+        ],
+        "conflicts": 0,
+        "workingCopyHasChanges": false,
+        "syncStatus": {
+          "available": false,
+          "remoteHeads": 0,
+          "outgoing": 0,
+          "behind": 0,
+          "basis": "lastFetched"
+        }
+      }
+    }
+  }
+}

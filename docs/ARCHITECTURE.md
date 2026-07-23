@@ -22,7 +22,8 @@ Desktop Shell
 
 ### Desktop Shell
 
-window, tabs, quick switcher, graph/diff surface와 editor/terminal handoff를 소유한다.
+window, tabs, quick switcher, stable repository/reference navigation, graph/diff surface와
+editor/terminal handoff를 소유한다.
 repository semantics와 SSH process 조립은 소유하지 않는다.
 Add repository dialog는 local과 SSH transport를 같은 form에서 선택한다. local path action은
 Tauri native directory picker로 경로 하나만 선택한다. SSH path action은 machine-local
@@ -33,11 +34,14 @@ remote folder를 탐색한다. 선택된 경로는 기존 registry validation과
 
 ### Repository Registry
 
-host reference, repository path, display name, pinned/recent state를 local application data로
+host reference, repository path, display name, pinning과 last-opened metadata를 local application data로
 저장한다. private host inventory와 실제 path는 tracked repository artifact에 넣지 않는다.
-현재 schema v2 JSON은 repository, selected/open repository ordering, pinned/recent metadata와
+현재 schema v3 JSON은 repository, selected/open repository ordering, pinning/last-opened metadata와
 cached projection을 저장하며 credential과 source content는 저장하지 않는다. invalid JSON은
 별도 corrupt copy로 보존하고 빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
+v2→v3 migration은 repository, selected/open ordering, pinning과 last-opened metadata를
+보존하고 display-formatted rename path를 포함할 수 있는 legacy projection cache만
+무효화한다.
 repository remove는 registry entry, cached projection과 shell의 open tab만 제거하며 local
 directory, remote directory와 Jujutsu metadata에는 delete command를 실행하지 않는다.
 
@@ -72,6 +76,10 @@ plain `jj` CLI만으로 안정적인 projection을 만들 수 없다는 evidence
 
 선택한 저장소의 last-known status, graph와 revision detail을 즉시 표시한다. stale state를
 명확히 표시하고 refresh 결과와 섞어 현재 상태처럼 보이지 않게 한다.
+revision detail은 전체 description, author/committer identity와 timestamp, full commit ID,
+parent commit ID, bookmark와 changed-file metadata를 포함한다. commit trailer는 description의
+일부로 그대로 보존하며 source file content는 포함하지 않는다. 기존 v3 cache에 새 detail
+field가 없으면 빈 optional metadata로 읽고 다음 refresh에서 채운다.
 active/inactive tab은 서로 다른 bounded interval로 refresh하며 repository별 동시 query는
 하나만 허용한다. 실패는 cache를 보존하고 bounded exponential backoff와 offline state로
 표시한다.
@@ -91,6 +99,17 @@ template와 remote terminal working-directory bootstrap은 이후 configuration 
 먼저 deterministic lane model로 계산하므로 virtual window 밖에서도 edge가 안정적이다.
 pointer와 위/아래 방향키 selection은 같은 revision state를 사용하며 화면 밖 선택은 scroll
 window가 따라간다.
+repository rail은 선택할 때 바뀌는 recent ordering을 만들지 않고 pinned/local/SSH grouping의
+registry order를 보존한다. selected projection의 working copy, local/remote bookmark와
+conflict metadata는 stable history filter와 count로 노출한다.
+desktop density는 20px history row와 압축된 titlebar/toolbar를 사용해 기본 창 크기에서
+20개 이상의 change를 노출한다. system UI font, 10-12px의 readable text floor, 높은
+foreground contrast와 의미가 있는 state/graph에 한정된 accent color를 유지한다. repository와
+inspector tab은 flat segmented surface와 명시적 separator/selected state를 사용한다.
+native shell은 blank titlebar drag와 8방향 edge/corner resize hit area를 제공한다.
+overview는 author/committer, refs와 identity, 전체 commit message와 changed files를 같은
+고정 inspector에서 읽게 한다. graph/history와 inspector 사이의 separator는 pointer drag,
+위/아래 방향키, Home/End와 double-click reset을 지원하며 양쪽 작업면의 최소 높이를 보존한다.
 
 ### Diff Inspection
 
@@ -99,7 +118,16 @@ commit identity와 cached file membership을 다시 확인한 뒤 읽는다. loc
 structured hunk contract를 반환하며 capture는 512 KiB로 제한한다. binary와 truncated output은
 명시적 metadata state로 표시하고 content를 registry/cache에 저장하지 않는다. frontend는 같은
 projection을 unified 또는 side-by-side로 렌더링하고 whitespace mode 변경 시 선택 file만 다시
-조회한다.
+조회한다. side-by-side의 Before/After는 같은 폭의 독립 pane과 개별 가로 스크롤을 사용해
+한쪽의 긴 source line이 반대쪽 pane을 밀어내지 않는다. macOS의 overlay scrollbar 설정과
+무관하게 overflow를 발견할 수 있도록 각 pane은 실제 scroll position과 동기화된 proportional
+thumb를 항상 표시하고 track click, drag와 keyboard range navigation을 제공한다.
+rename/copy의 display-formatted summary는 command selector로 사용하지 않는다. projection에는
+target의 canonical repository path와 별도의 display path를 저장하고 local/SSH driver 모두 escaped
+`root-file:"<path>"` exact fileset으로 diff 범위를 제한한다.
+하단 inspector는 overview, hierarchical changed-file tree/diff와 operation history를 고정
+tab으로 제공한다. overview의 file 선택은 같은 selected revision을 유지한 채 diff tab으로
+전환한다.
 
 ### Remote Divergence
 
@@ -144,8 +172,8 @@ P3에서 repository별 mutation을 직렬화한다. 실행 전 operation ID와 t
   disconnected states와 keyboard switch를 구현하고 desktop/narrow viewport에서 검증했다.
 - **Projection:** supported floor는 `jj 0.30.0`이며 machine-readable JSONL template를 쓴다.
   P0 local, simulated SSH와 local-only actual SSH matrix가 helper 없이 통과했다.
-- **Registry:** application data의 schema-versioned JSON을 사용한다. schema v0/v1 migration,
-  v2 round trip, invalid data recovery와 future-schema fail-closed를 test한다.
+- **Registry:** application data의 schema-versioned JSON을 사용한다. schema v0/v1/v2 migration,
+  v3 round trip, invalid data recovery와 future-schema fail-closed를 test한다.
 - **Packaging cost:** macOS는 Xcode, Linux는 WebKitGTK 계열 system dependency를 요구한다.
   signing, notarization, updater와 cross-platform package acceptance는 P4에서 다룬다.
 

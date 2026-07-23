@@ -97,6 +97,7 @@ fn parse_registry(source: &str) -> Result<Registry, RegistryError> {
     let envelope: Envelope = serde_json::from_str(source)?;
     let registry = match envelope.schema_version {
         REGISTRY_SCHEMA_VERSION => serde_json::from_str(source)?,
+        2 => migrate_v2(serde_json::from_str(source)?)?,
         1 => migrate_v1(serde_json::from_str(source)?)?,
         0 => migrate_v0(serde_json::from_str(source)?)?,
         version => return Err(RegistryError::UnsupportedSchema(version)),
@@ -120,10 +121,32 @@ struct RepositoryV0 {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RegistryV2 {
+    selected_repository: Option<crate::domain::RepositoryId>,
+    open_repository_ids: Vec<crate::domain::RepositoryId>,
+    repositories: Vec<RepositoryRecord>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RegistryV1 {
     selected_repository: Option<crate::domain::RepositoryId>,
     repositories: Vec<RepositoryRecord>,
     cached_projections: BTreeMap<crate::domain::RepositoryId, crate::domain::CachedProjection>,
+}
+
+fn migrate_v2(legacy: RegistryV2) -> Result<Registry, DomainError> {
+    let registry = Registry {
+        selected_repository: legacy.selected_repository,
+        open_repository_ids: legacy.open_repository_ids,
+        repositories: legacy.repositories,
+        // Schema v2 stored display-formatted rename paths in projections. They are
+        // not valid exact fileset selectors, so refresh them under the v3 contract.
+        cached_projections: BTreeMap::new(),
+        ..Registry::default()
+    };
+    registry.validate()?;
+    Ok(registry)
 }
 
 fn migrate_v1(legacy: RegistryV1) -> Result<Registry, DomainError> {
@@ -242,6 +265,24 @@ mod tests {
             vec![migrated.repositories[1].id.clone()]
         );
         assert_eq!(migrated.repositories[1].last_opened_at, None);
+    }
+
+    #[test]
+    fn version_two_fixture_preserves_shell_state_and_invalidates_projection_cache() {
+        let migrated = parse_registry(include_str!("../tests/fixtures/registry-v2.json")).unwrap();
+
+        assert_eq!(migrated.schema_version, REGISTRY_SCHEMA_VERSION);
+        assert_eq!(migrated.repositories.len(), 1);
+        assert_eq!(
+            migrated.selected_repository,
+            Some(migrated.repositories[0].id.clone())
+        );
+        assert_eq!(
+            migrated.open_repository_ids,
+            vec![migrated.repositories[0].id.clone()]
+        );
+        assert!(migrated.repositories[0].pinned);
+        assert!(migrated.cached_projections.is_empty());
     }
 
     #[test]

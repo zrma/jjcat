@@ -21,21 +21,31 @@ function change(
   ageMinutes: number,
   options: Partial<{
     parents: string[];
+    parentCommitIds: string[];
     bookmarks: BookmarkRef[];
     workingCopy: boolean;
     empty: boolean;
-    files: { status: string; path: string }[];
+    files: { status: string; path: string; displayPath?: string }[];
     conflict: boolean;
+    description: string;
   }> = {},
 ) {
+  const updatedAt = new Date(Date.now() - ageMinutes * 60_000).toISOString();
   return {
     changeId,
     commitId,
     summary,
+    description: options.description ?? summary,
     author: "Avery Clark",
-    updatedAt: new Date(Date.now() - ageMinutes * 60_000).toISOString(),
+    authorEmail: "avery@example.invalid",
+    authorTimestamp: new Date(Date.parse(updatedAt) - 45_000).toISOString(),
+    committer: "Jordan Lee",
+    committerEmail: "jordan@example.invalid",
+    committerTimestamp: updatedAt,
+    updatedAt,
     bookmarks: options.bookmarks ?? [],
     parents: options.parents ?? [],
+    parentCommitIds: options.parentCommitIds ?? [],
     files: options.files ?? [],
     conflict: options.conflict ?? false,
     workingCopy: options.workingCopy ?? false,
@@ -57,8 +67,14 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
     });
   });
   const rows = [
-    change("7f3a2b1c9d8e", "8b1c2d3e4f5a", "feat: add repository identity", 0, {
+    change(
+      "7f3a2b1c9d8e",
+      "8b1c2d3e4f5a60718293a4b5c6d7e8f901234567",
+      "feat: add repository identity",
+      0,
+      {
       parents: ["6a7b8c9d0e1f"],
+      parentCommitIds: ["6b7c8d9e0f1a2031425364758697a8b9c0d1e2f3"],
       bookmarks: [
         { name: "main", remote: null },
         { name: "main", remote: "git" },
@@ -66,12 +82,20 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
         { name: "review-ready", remote: null },
       ],
       workingCopy: true,
+      description:
+        "feat: add repository identity\n\nKeep local and SSH repository identity stable across restarts.\n\nCo-authored-by: Fixture Bot <fixture@example.invalid>",
       files: [
         { status: "A", path: "src-tauri/src/domain.rs" },
         { status: "M", path: "src/App.tsx" },
-        { status: "A", path: "src-tauri/tests/driver_integration.rs" },
+        {
+          status: "R",
+          path: "src-tauri/tests/driver_integration.rs",
+          displayPath:
+            "src-tauri/tests/{legacy_driver.rs => driver_integration.rs}",
+        },
       ],
-    }),
+      },
+    ),
     change("6a7b8c9d0e1f", "6b7c8d9e0f1a", "test: cover SSH timeout", 18, {
       parents: ["5e6f7a8b9c0d"],
     }),
@@ -125,7 +149,7 @@ export class DemoBridge {
     this.snapshot = {
       recoveryNotice: null,
       registry: {
-        schemaVersion: 2,
+        schemaVersion: 3,
         selectedRepository: LOCAL_ID,
         openRepositoryIds: [LOCAL_ID, SSH_ID],
         repositories: [
@@ -182,7 +206,13 @@ export class DemoBridge {
         {
           header: `@@ -1,3 +1,${3 + whitespaceLine.length} @@ ${fileName}`,
           lines: [
-            { kind: "context", oldLine: 1, newLine: 1, content: `// ${fileName}` },
+            {
+              kind: "context",
+              oldLine: 1,
+              newLine: 1,
+              content:
+                `// ${fileName}: long context remains independently scrollable in both comparison panes`,
+            },
             { kind: "deletion", oldLine: 2, newLine: null, content: "const mode = \"legacy\";" },
             { kind: "addition", oldLine: null, newLine: 2, content: "const mode = \"jjcat\";" },
             { kind: "addition", oldLine: null, newLine: 3, content: "const remoteReady = true;" },

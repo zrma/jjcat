@@ -28,9 +28,18 @@ fn fixture_repository(path: &Path) {
     fs::create_dir_all(path).unwrap();
     jj(&["git", "init", "--colocate", path.to_str().unwrap()], None);
     fs::write(path.join("README.md"), "fixture\n").unwrap();
+    fs::write(path.join("legacy-name.txt"), "renamed fixture\n").unwrap();
     jj(&["describe", "-m", "chore: initialize fixture"], Some(path));
-    jj(&["new", "-m", "feat: add projection fixture"], Some(path));
+    jj(
+        &[
+            "new",
+            "-m",
+            "feat: add projection fixture\n\nCo-authored-by: Fixture Bot <fixture@example.invalid>",
+        ],
+        Some(path),
+    );
     fs::write(path.join("projection.txt"), "projection\n").unwrap();
+    fs::rename(path.join("legacy-name.txt"), path.join("renamed-file.txt")).unwrap();
     jj(&["status"], Some(path));
 }
 
@@ -127,6 +136,28 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         .find(|file| file.path == "projection.txt")
         .unwrap()
         .clone();
+    let renamed_file = selected
+        .files
+        .iter()
+        .find(|file| file.path == "renamed-file.txt")
+        .expect("rename projection must use the canonical target path")
+        .clone();
+    assert!(selected.description.contains("Co-authored-by:"));
+    assert!(!selected.author_email.is_empty());
+    assert!(!selected.author_timestamp.is_empty());
+    assert!(!selected.committer.is_empty());
+    assert!(!selected.committer_email.is_empty());
+    assert!(!selected.committer_timestamp.is_empty());
+    assert_eq!(selected.commit_id.len(), 40);
+    assert!(
+        selected
+            .parent_commit_ids
+            .iter()
+            .all(|commit_id| commit_id.len() == 40)
+    );
+    assert!(renamed_file.display_path.contains("legacy-name.txt"));
+    assert!(renamed_file.display_path.contains("renamed-file.txt"));
+    assert!(renamed_file.display_path.contains("=>"));
     let local_diff = JjDriver::default()
         .file_diff(
             &local,
@@ -138,12 +169,34 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         )
         .await
         .unwrap();
+    let local_rename_diff = JjDriver::default()
+        .file_diff(
+            &local,
+            selected.change_id.clone(),
+            selected.commit_id.clone(),
+            renamed_file.clone(),
+            WhitespaceMode::Preserve,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
     let remote_diff = remote_driver
         .file_diff(
             &remote,
             selected.change_id.clone(),
             selected.commit_id.clone(),
             selected_file,
+            WhitespaceMode::Preserve,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let remote_rename_diff = remote_driver
+        .file_diff(
+            &remote,
+            selected.change_id.clone(),
+            selected.commit_id.clone(),
+            renamed_file,
             WhitespaceMode::Preserve,
             CancellationToken::new(),
         )
@@ -179,6 +232,12 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     assert_eq!(remote_projection.sync_status, local_projection.sync_status);
     assert!(!local_projection.sync_status.available);
     assert_eq!(remote_diff.hunks, local_diff.hunks);
+    assert_eq!(local_rename_diff.file.status, "R");
+    assert_eq!(local_rename_diff.file.path, "renamed-file.txt");
+    assert_eq!(remote_rename_diff.hunks, local_rename_diff.hunks);
+    assert_eq!(remote_rename_diff.file, local_rename_diff.file);
+    assert_eq!(remote_rename_diff.additions, local_rename_diff.additions);
+    assert_eq!(remote_rename_diff.deletions, local_rename_diff.deletions);
     assert_eq!(local_diff.additions, 1);
     assert!(!local_diff.binary);
     assert!(!local_diff.truncated);

@@ -10,6 +10,20 @@ export function relativeTime(value: string, now = Date.now()): string {
   return `${days}d ago`;
 }
 
+export function absoluteTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "Unknown time";
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(timestamp);
+}
+
 export function isStale(value: string, now = Date.now()): boolean {
   const timestamp = Date.parse(value);
   return !Number.isFinite(timestamp) || now - timestamp > 5 * 60_000;

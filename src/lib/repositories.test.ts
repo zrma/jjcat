@@ -38,7 +38,7 @@ describe("repository search", () => {
     expect(repositoryLocationText(repositories[1])).toBe("fixture-host:~/fixtures/infra");
   });
 
-  it("places each repository in exactly one pinned, recent, or transport group", () => {
+  it("keeps the rail stable by grouping only pinned and transport repositories", () => {
     const groups = groupRepositories(repositories);
 
     expect(groups.map((group) => group.label)).toEqual(["Pinned", "Local"]);
@@ -46,5 +46,21 @@ describe("repository search", () => {
       "remote",
       "local",
     ]);
+  });
+
+  it("does not reorder unpinned repositories when last-opened metadata changes", () => {
+    const first = { ...repositories[0], lastOpenedAt: "2026-01-03T00:00:00Z" };
+    const second = {
+      ...repositories[0],
+      id: "second-local",
+      displayName: "Second Local",
+      lastOpenedAt: "2026-01-04T00:00:00Z",
+    };
+
+    expect(
+      groupRepositories([first, second])
+        .flatMap((group) => group.repositories)
+        .map((repository) => repository.id),
+    ).toEqual(["local", "second-local"]);
   });
 });

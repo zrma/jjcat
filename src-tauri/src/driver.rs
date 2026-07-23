@@ -35,14 +35,21 @@ const OPERATION_TEMPLATE: &str = concat!(
 const LOG_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
     "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
-    "\",\\\"commit_id\\\":\" ++ commit_id.short(12).escape_json() ++ ",
+    "\",\\\"commit_id\\\":\" ++ stringify(commit_id).escape_json() ++ ",
     "\",\\\"summary\\\":\" ++ description.first_line().escape_json() ++ ",
+    "\",\\\"description\\\":\" ++ description.escape_json() ++ ",
     "\",\\\"author\\\":\" ++ author.name().escape_json() ++ ",
+    "\",\\\"author_email\\\":\" ++ stringify(author.email()).escape_json() ++ ",
+    "\",\\\"author_timestamp\\\":\" ++ author.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
+    "\",\\\"committer\\\":\" ++ committer.name().escape_json() ++ ",
+    "\",\\\"committer_email\\\":\" ++ stringify(committer.email()).escape_json() ++ ",
+    "\",\\\"committer_timestamp\\\":\" ++ committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
     "\",\\\"updated_at\\\":\" ++ committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
     "\",\\\"local_bookmarks\\\":\" ++ json(self.local_bookmarks()) ++ ",
     "\",\\\"remote_bookmarks\\\":\" ++ json(self.remote_bookmarks()) ++ ",
     "\",\\\"parents\\\":\" ++ stringify(parents.map(|p| p.change_id().short(12)).join(\",\")).escape_json() ++ ",
-    "\",\\\"files\\\":\" ++ stringify(self.diff().files().map(|f| f.status_char() ++ \"\\t\" ++ f.display_diff_path()).join(\"\\n\")).escape_json() ++ ",
+    "\",\\\"parent_commit_ids\\\":\" ++ stringify(parents.map(|p| p.commit_id()).join(\",\")).escape_json() ++ ",
+    "\",\\\"files\\\":\" ++ stringify(self.diff().files().map(|f| f.status_char() ++ \"\\t\" ++ f.path() ++ \"\\t\" ++ f.display_diff_path()).join(\"\\n\")).escape_json() ++ ",
     "\",\\\"conflict\\\":\" ++ if(conflict, \"true\", \"false\") ++ ",
     "\",\\\"working_copy\\\":\" ++ if(current_working_copy, \"true\", \"false\") ++ ",
     "\",\\\"empty\\\":\" ++ if(empty, \"true\", \"false\") ++ \"}\\n\"",
@@ -337,13 +344,13 @@ fn remote_script(path: &str, query: JjQuery) -> String {
             whitespace_mode,
         } => {
             let encoded_commit = encode_hex(&commit_id);
-            let encoded_file = encode_hex(&path);
+            let encoded_fileset = encode_hex(&exact_file_fileset(&path));
             let whitespace = match whitespace_mode {
                 WhitespaceMode::Preserve => "",
                 WhitespaceMode::IgnoreAll => " --ignore-all-space",
             };
             format!(
-                "commit=$(decode_hex '{encoded_commit}')\nfile=$(decode_hex '{encoded_file}')\ncd \"$repo\"\nexec \"$jj_bin\" --ignore-working-copy diff --color never -r \"$commit\" --git --context 3{whitespace} -- \"$file\""
+                "commit=$(decode_hex '{encoded_commit}')\nfileset=$(decode_hex '{encoded_fileset}')\ncd \"$repo\"\nexec \"$jj_bin\" --ignore-working-copy diff --color never -r \"$commit\" --git --context 3{whitespace} -- \"$fileset\""
             )
         }
         JjQuery::SyncMetric(metric) => format!(
@@ -431,6 +438,7 @@ impl JjQuery {
                 path,
                 whitespace_mode,
             } => {
+                let fileset = exact_file_fileset(path);
                 let mut args = vec![
                     "--ignore-working-copy".into(),
                     "diff".into(),
@@ -446,7 +454,7 @@ impl JjQuery {
                     args.push("--ignore-all-space".into());
                 }
                 args.push("--".into());
-                args.push(path.into());
+                args.push(fileset.into());
                 args
             }
             Self::SyncMetric(metric) => [
@@ -486,11 +494,18 @@ struct LogRecord {
     change_id: String,
     commit_id: String,
     summary: String,
+    description: String,
     author: String,
+    author_email: String,
+    author_timestamp: String,
+    committer: String,
+    committer_email: String,
+    committer_timestamp: String,
     updated_at: String,
     local_bookmarks: Vec<LogBookmarkRecord>,
     remote_bookmarks: Vec<LogBookmarkRecord>,
     parents: String,
+    parent_commit_ids: String,
     files: String,
     conflict: bool,
     working_copy: bool,
@@ -564,7 +579,13 @@ fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
                 change_id: record.change_id,
                 commit_id: record.commit_id,
                 summary: record.summary,
+                description: record.description,
                 author: record.author,
+                author_email: record.author_email,
+                author_timestamp: record.author_timestamp,
+                committer: record.committer,
+                committer_email: record.committer_email,
+                committer_timestamp: record.committer_timestamp,
                 updated_at: record.updated_at,
                 bookmarks: record
                     .local_bookmarks
@@ -584,6 +605,7 @@ fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
                     )
                     .collect(),
                 parents: split_non_empty(&record.parents, ','),
+                parent_commit_ids: split_non_empty(&record.parent_commit_ids, ','),
                 files: parse_files(&record.files),
                 conflict: record.conflict,
                 working_copy: record.working_copy,
@@ -652,10 +674,14 @@ fn parse_files(value: &str) -> Vec<ChangedFile> {
     value
         .lines()
         .filter_map(|line| {
-            let (status, path) = line.split_once('\t')?;
+            let mut fields = line.splitn(3, '\t');
+            let status = fields.next()?;
+            let path = fields.next()?;
+            let display_path = fields.next().unwrap_or(path);
             Some(ChangedFile {
                 status: status.into(),
                 path: path.into(),
+                display_path: display_path.into(),
             })
         })
         .collect()
@@ -784,6 +810,11 @@ fn valid_repository_path(value: &str) -> bool {
             .all(|component| !component.is_empty() && component != "." && component != "..")
 }
 
+fn exact_file_fileset(path: &str) -> String {
+    let escaped = path.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("root-file:\"{escaped}\"")
+}
+
 fn invalid_output(message: &str) -> DriverError {
     DriverError {
         kind: DriverErrorKind::InvalidOutput,
@@ -872,12 +903,20 @@ mod tests {
     #[test]
     fn jsonl_projection_preserves_machine_readable_fields() {
         let rows = parse_log(
-            br#"{"change_id":"abc","commit_id":"def","summary":"feat: fixture","author":"Agent","updated_at":"2026-01-01T00:00:00Z","local_bookmarks":[{"name":"main","target":[]}],"remote_bookmarks":[{"name":"main","remote":"origin","target":[]}],"parents":"parent","files":"M\tsrc/main.rs\nA\tREADME.md","conflict":false,"working_copy":true,"empty":false}
+            br#"{"change_id":"abc","commit_id":"def0123456789abcdef0123456789abcdef012345","summary":"feat: fixture","description":"feat: fixture\n\nCo-authored-by: Fixture Bot <fixture@example.invalid>\n","author":"Agent","author_email":"agent@example.invalid","author_timestamp":"2026-01-01T00:00:00Z","committer":"Integrator","committer_email":"integrator@example.invalid","committer_timestamp":"2026-01-01T00:01:00Z","updated_at":"2026-01-01T00:01:00Z","local_bookmarks":[{"name":"main","target":[]}],"remote_bookmarks":[{"name":"main","remote":"origin","target":[]}],"parents":"parent","parent_commit_ids":"abc0123456789abcdef0123456789abcdef012345","files":"R\tsrc/main.rs\tsrc/{legacy.rs => main.rs}\nA\tREADME.md\tREADME.md","conflict":false,"working_copy":true,"empty":false}
 "#,
         )
         .unwrap();
 
         assert_eq!(rows.len(), 1);
+        assert!(rows[0].description.contains("Co-authored-by:"));
+        assert_eq!(rows[0].author_email, "agent@example.invalid");
+        assert_eq!(rows[0].committer, "Integrator");
+        assert_eq!(rows[0].committer_email, "integrator@example.invalid");
+        assert_eq!(
+            rows[0].parent_commit_ids,
+            vec!["abc0123456789abcdef0123456789abcdef012345"]
+        );
         assert_eq!(
             rows[0].bookmarks,
             vec![
@@ -892,7 +931,17 @@ mod tests {
             ]
         );
         assert_eq!(rows[0].files.len(), 2);
+        assert_eq!(rows[0].files[0].path, "src/main.rs");
+        assert_eq!(rows[0].files[0].display_path, "src/{legacy.rs => main.rs}");
         assert!(rows[0].working_copy);
+    }
+
+    #[test]
+    fn file_projection_keeps_legacy_paths_readable() {
+        let files = parse_files("A\tREADME.md");
+
+        assert_eq!(files[0].path, "README.md");
+        assert_eq!(files[0].display_path, "README.md");
     }
 
     #[test]
@@ -978,21 +1027,50 @@ mod tests {
     fn diff_plan_keeps_revision_and_path_out_of_the_ssh_script_source() {
         let repository = remote_repository();
         let driver = JjDriver::default();
+        let path = "folder/file with spaces.txt";
         let plan = driver.command_plan(
             &repository,
             JjQuery::Diff {
                 commit_id: "012345abcdef".into(),
-                path: "folder/file with spaces.txt".into(),
+                path: path.into(),
                 whitespace_mode: WhitespaceMode::IgnoreAll,
             },
         );
         let script = String::from_utf8(plan.stdin.unwrap()).unwrap();
+        let encoded_fileset = encode_hex(&exact_file_fileset(path));
 
-        assert!(!script.contains("folder/file with spaces.txt"));
+        assert!(!script.contains(path));
         assert!(!script.contains("012345abcdef"));
-        assert!(script.contains("666f6c6465722f66696c652077697468207370616365732e747874"));
+        assert!(script.contains(&encoded_fileset));
         assert!(script.contains("--ignore-all-space"));
-        assert!(script.contains("\"$file\""));
+        assert!(script.contains("\"$fileset\""));
+    }
+
+    #[test]
+    fn diff_plan_uses_an_exact_escaped_fileset_for_repository_paths() {
+        let path = r#"docs/file => "quoted"\name.md"#;
+        let query = JjQuery::Diff {
+            commit_id: "012345abcdef".into(),
+            path: path.into(),
+            whitespace_mode: WhitespaceMode::Preserve,
+        };
+        let args = query
+            .args()
+            .into_iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args.last().map(String::as_str),
+            Some(r#"root-file:"docs/file => \"quoted\"\\name.md""#)
+        );
+        assert!(!args.iter().any(|arg| arg == path));
+    }
+
+    #[test]
+    fn log_projection_separates_canonical_paths_from_rename_labels() {
+        assert!(LOG_TEMPLATE.contains("f.path()"));
+        assert!(LOG_TEMPLATE.contains("f.display_diff_path()"));
     }
 
     #[test]

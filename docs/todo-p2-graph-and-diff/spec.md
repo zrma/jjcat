@@ -38,12 +38,16 @@ lane projection이고 file inspector는 path/status metadata만 표시한다. da
 | C4 | done | projection fixture | conflict, outgoing와 behind state |
 | C5 | done | operation fixture | operation log와 undo eligibility preview |
 | C6 | done | `scripts/check.sh` | full local gate와 current docs |
+| C7 | done | rename local/SSH integration fixture | canonical target path와 exact fileset selector |
+| C8 | done | long-line native smoke | side-by-side의 Before/After pane이 긴 줄에서도 같은 폭을 유지하고 항상 보이는 독립 가로 scrollbar를 제공한다. |
 
 ## Required Evidence
 
 - merge와 divergent parent fixture가 stable lane layout을 만들고 virtual scroll 뒤에도 연결된다.
 - keyboard와 pointer로 revision/file을 선택하고 동일한 inspector state를 얻는다.
 - local과 SSH driver가 같은 bounded diff contract를 사용하며 binary/large output을 제한한다.
+- rename은 display path와 canonical target path를 분리해 projection하고 command는 canonical
+  target의 quoted `root-file:` exact fileset으로 선택한다.
 - conflict, outgoing와 behind가 refresh/cache freshness와 혼동되지 않는다.
 - operation surface는 실행 가능 여부와 target을 보여주되 P2에서 mutation을 실행하지 않는다.
 
@@ -56,6 +60,9 @@ lane projection이고 file inspector는 path/status metadata만 표시한다. da
   상태를 content 대신 표시한다.
 - unified/side-by-side와 preserve/ignore-all whitespace matrix를 browser에서 전환했으며
   conflict와 last-fetched outgoing/behind가 cache freshness와 분리되어 표시된다.
+- side-by-side의 Before/After를 독립 pane으로 렌더링해 긴 한쪽 줄이 반대쪽 pane을 화면 밖으로
+  밀어내지 않으며, 각 pane이 platform overlay 정책에 의존하지 않는 항상 보이는 가로
+  scrollbar와 명시적 heading을 제공함을 native smoke에서 확인했다.
 - operation query 전후 operation identity가 유지되고 undo action은 target preview만 제공하는
   disabled control이다.
 - canonical local gate와 native desktop smoke가 통과했다. private runtime identity와 raw

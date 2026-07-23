@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUp,
+  Bookmark,
   Cable,
   CircleX,
+  Cloud,
   Code2,
   Database,
+  FileDiff,
   Folder,
   FolderOpen,
   FolderGit2,
@@ -23,11 +26,13 @@ import {
   X,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { bridge, isTauriRuntime } from "./bridge";
 import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
+import { filterChanges, type HistoryView } from "./lib/changeFilters";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import { groupRepositories } from "./lib/repositories";
 import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
@@ -36,6 +41,7 @@ import type {
   CachedProjection,
   DiffViewMode,
   FileDiffProjection,
+  InspectorView,
   OperationLogProjection,
   Registry,
   RepositoryDraft,
@@ -52,8 +58,26 @@ type RepositoryState =
   | "disconnected"
   | "disconnected-cached"
   | "empty";
-type HistoryView = "all" | "working-copy";
 type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
+type ResizeDirection =
+  | "East"
+  | "North"
+  | "NorthEast"
+  | "NorthWest"
+  | "South"
+  | "SouthEast"
+  | "SouthWest"
+  | "West";
+const RESIZE_DIRECTIONS: ResizeDirection[] = [
+  "North",
+  "NorthEast",
+  "East",
+  "SouthEast",
+  "South",
+  "SouthWest",
+  "West",
+  "NorthWest",
+];
 
 function isTextEntry(target: EventTarget | null) {
   return (
@@ -61,6 +85,40 @@ function isTextEntry(target: EventTarget | null) {
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
+
+function startWindowDrag(event: React.PointerEvent<HTMLElement>) {
+  if (!isTauriRuntime || event.button !== 0 || event.detail > 1) return;
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    target.closest("button, input, select, textarea, a, [role='button']")
+  ) {
+    return;
+  }
+  event.preventDefault();
+  void getCurrentWindow().startDragging().catch(() => undefined);
+}
+
+function WindowResizeHandles() {
+  if (!isTauriRuntime) return null;
+  return (
+    <div className="window-resize-handles" aria-hidden="true">
+      {RESIZE_DIRECTIONS.map((direction) => (
+        <span
+          className={`window-resize-handle resize-${direction.toLowerCase()}`}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            void getCurrentWindow()
+              .startResizeDragging(direction)
+              .catch(() => undefined);
+          }}
+          key={direction}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -111,7 +169,7 @@ function App() {
   const [diffError, setDiffError] = useState<string | null>(null);
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>("unified");
   const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>("preserve");
-  const [showOperations, setShowOperations] = useState(false);
+  const [inspectorView, setInspectorView] = useState<InspectorView>("overview");
   const [operationLog, setOperationLog] = useState<OperationLogProjection | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -149,19 +207,28 @@ function App() {
     ? registry?.cachedProjections[selectedRepository.id]
     : undefined;
   const selectedProjection = selectedCache?.projection;
+  const repositoryNavigation = useMemo(() => {
+    const bookmarks = new Set<string>();
+    const remoteBookmarks = new Set<string>();
+    for (const change of selectedProjection?.changes ?? []) {
+      for (const bookmark of change.bookmarks) {
+        if (bookmark.remote) {
+          remoteBookmarks.add(`${bookmark.name}@${bookmark.remote}`);
+        } else {
+          bookmarks.add(bookmark.name);
+        }
+      }
+    }
+    return {
+      changes: selectedProjection?.changes.length ?? 0,
+      workingCopy: selectedProjection?.changes.filter((change) => change.workingCopy).length ?? 0,
+      bookmarks: bookmarks.size,
+      remoteBookmarks: remoteBookmarks.size,
+      conflicts: selectedProjection?.conflicts ?? 0,
+    };
+  }, [selectedProjection]);
   const visibleChanges = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
-    return (selectedProjection?.changes ?? []).filter((change) => {
-      if (historyView === "working-copy" && !change.workingCopy) return false;
-      if (!query) return true;
-      return [
-        change.summary,
-        change.author,
-        change.changeId,
-        change.commitId,
-        ...change.bookmarks.flatMap((bookmark) => [bookmark.name, bookmark.remote ?? ""]),
-      ].some((value) => value.toLocaleLowerCase().includes(query));
-    });
+    return filterChanges(selectedProjection?.changes ?? [], historyView, searchQuery);
   }, [historyView, searchQuery, selectedProjection]);
   const selectedChange = useMemo(() => {
     return (
@@ -173,6 +240,7 @@ function App() {
     setSelectedChangeId(null);
     setSearchQuery("");
     setHistoryView("all");
+    setInspectorView("overview");
   }, [selectedRepository?.id]);
 
   useEffect(() => {
@@ -185,7 +253,6 @@ function App() {
 
   useEffect(() => {
     operationRequestRef.current += 1;
-    setShowOperations(false);
     setOperationLog(null);
     setOperationLoading(false);
     setOperationError(null);
@@ -220,7 +287,7 @@ function App() {
   }, [selectedChange, selectedFilePath, selectedRepository, whitespaceMode]);
 
   useEffect(() => {
-    if (!showOperations || !selectedRepository) return;
+    if (inspectorView !== "operations" || !selectedRepository) return;
     const request = ++operationRequestRef.current;
     setOperationLog(null);
     setOperationLoading(true);
@@ -239,7 +306,7 @@ function App() {
     return () => {
       if (request === operationRequestRef.current) operationRequestRef.current += 1;
     };
-  }, [selectedRepository, showOperations]);
+  }, [inspectorView, selectedRepository]);
 
   const selectRepository = useCallback(
     async (repositoryId: string) => {
@@ -508,19 +575,37 @@ function App() {
 
   if (fatalError) {
     return (
-      <main className="fatal-state">
-        <CircleX aria-hidden="true" />
-        <h1>jjcat could not start</h1>
-        <p>{fatalError}</p>
-        <button type="button" onClick={() => window.location.reload()}>
-          Reload
-        </button>
-      </main>
+      <>
+        <WindowResizeHandles />
+        <div
+          className="fallback-drag-strip"
+          data-tauri-drag-region
+          onPointerDown={startWindowDrag}
+        />
+        <main className="fatal-state">
+          <CircleX aria-hidden="true" />
+          <h1>jjcat could not start</h1>
+          <p>{fatalError}</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </main>
+      </>
     );
   }
 
   if (!registry) {
-    return <main className="loading-state">Loading repositories…</main>;
+    return (
+      <>
+        <WindowResizeHandles />
+        <div
+          className="fallback-drag-strip"
+          data-tauri-drag-region
+          onPointerDown={startWindowDrag}
+        />
+        <main className="loading-state">Loading repositories…</main>
+      </>
+    );
   }
 
   const openRepositories = registry.openRepositoryIds
@@ -532,14 +617,23 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="titlebar" data-tauri-drag-region>
+      <WindowResizeHandles />
+      <header
+        className="titlebar"
+        data-tauri-drag-region
+        onPointerDown={startWindowDrag}
+      >
         <div className="traffic-lights" aria-hidden="true">
           <span />
           <span />
           <span />
         </div>
         <Brand />
-        <nav className="tabs" aria-label="Open repositories">
+        <nav
+          className="tabs"
+          aria-label="Open repositories"
+          data-tauri-drag-region
+        >
           {openRepositories.map((repository) => {
             const state = repositoryState(
               repository.id,
@@ -581,25 +675,106 @@ function App() {
             </button>
           </div>
         </div>
-        <nav className="history-navigation" aria-label="History views">
-          <button
-            type="button"
-            className={historyView === "working-copy" ? "selected" : ""}
-            onClick={() => setHistoryView("working-copy")}
-            disabled={!selectedRepository}
-          >
-            <FolderGit2 aria-hidden="true" />
-            <span>Working Copy</span>
-          </button>
-          <button
-            type="button"
-            className={historyView === "all" ? "selected" : ""}
-            onClick={() => setHistoryView("all")}
-            disabled={!selectedRepository}
-          >
-            <History aria-hidden="true" />
-            <span>All Changes</span>
-          </button>
+        <nav className="repository-navigation" aria-label="Repository views">
+          <section className="navigation-section">
+            <h3>Workspace</h3>
+            <button
+              type="button"
+              className={historyView === "working-copy" ? "selected" : ""}
+              onClick={() => {
+                setHistoryView("working-copy");
+                setInspectorView("overview");
+              }}
+              disabled={!selectedRepository}
+            >
+              <FolderGit2 aria-hidden="true" />
+              <span>Working Copy</span>
+              <strong>{repositoryNavigation.workingCopy}</strong>
+            </button>
+            <button
+              type="button"
+              className={historyView === "all" ? "selected" : ""}
+              onClick={() => {
+                setHistoryView("all");
+                setInspectorView("overview");
+              }}
+              disabled={!selectedRepository}
+            >
+              <FileDiff aria-hidden="true" />
+              <span>All Changes</span>
+              <strong>{repositoryNavigation.changes}</strong>
+            </button>
+          </section>
+          <section className="navigation-section">
+            <h3>References</h3>
+            <button
+              type="button"
+              className={historyView === "bookmarks" ? "selected" : ""}
+              onClick={() => {
+                setHistoryView("bookmarks");
+                setInspectorView("overview");
+              }}
+              disabled={!selectedRepository}
+            >
+              <Bookmark aria-hidden="true" />
+              <span>Bookmarks</span>
+              <strong>{repositoryNavigation.bookmarks}</strong>
+            </button>
+            <button
+              type="button"
+              className={historyView === "remote-bookmarks" ? "selected" : ""}
+              onClick={() => {
+                setHistoryView("remote-bookmarks");
+                setInspectorView("overview");
+              }}
+              disabled={!selectedRepository}
+            >
+              <Cloud aria-hidden="true" />
+              <span>Remote Bookmarks</span>
+              <strong>{repositoryNavigation.remoteBookmarks}</strong>
+            </button>
+          </section>
+          <section className="navigation-section">
+            <h3>Repository</h3>
+            <button
+              type="button"
+              className={historyView === "conflicts" ? "selected" : ""}
+              onClick={() => {
+                setHistoryView("conflicts");
+                setInspectorView("overview");
+              }}
+              disabled={!selectedRepository}
+            >
+              <AlertTriangle aria-hidden="true" />
+              <span>Conflicts</span>
+              <strong className={repositoryNavigation.conflicts > 0 ? "warning-count" : ""}>
+                {repositoryNavigation.conflicts}
+              </strong>
+            </button>
+            <button
+              type="button"
+              className={inspectorView === "operations" ? "selected" : ""}
+              onClick={() => setInspectorView("operations")}
+              disabled={!selectedRepository}
+            >
+              <History aria-hidden="true" />
+              <span>Operations</span>
+            </button>
+          </section>
+          {selectedProjection && (
+            <section className="navigation-section navigation-sync" aria-label="Last fetched state">
+              <h3>Last Fetched</h3>
+              {selectedProjection.syncStatus.available ? (
+                <p>
+                  <span className="sync-outgoing">↑ {selectedProjection.syncStatus.outgoing}</span>
+                  <span className="sync-behind">↓ {selectedProjection.syncStatus.behind}</span>
+                  <small>{selectedProjection.syncStatus.remoteHeads} remote heads</small>
+                </p>
+              ) : (
+                <p><small>No fetched remote state</small></p>
+              )}
+            </section>
+          )}
         </nav>
         {groupRepositories(registry.repositories).map((group) => (
           <section className="repository-group" key={group.label}>
@@ -685,7 +860,7 @@ function App() {
                   className="handoff-button"
                   title="Inspect read-only operation log"
                   aria-label="Inspect operation log"
-                  onClick={() => setShowOperations(true)}
+                  onClick={() => setInspectorView("operations")}
                 >
                   <History aria-hidden="true" />
                 </button>
@@ -751,14 +926,17 @@ function App() {
               diffError={diffError}
               diffViewMode={diffViewMode}
               whitespaceMode={whitespaceMode}
-              onSelectFile={setSelectedFilePath}
               onDiffViewModeChange={setDiffViewMode}
               onWhitespaceModeChange={setWhitespaceMode}
-              showOperations={showOperations}
+              inspectorView={inspectorView}
+              onInspectorViewChange={setInspectorView}
               operationLog={operationLog}
               operationLoading={operationLoading}
               operationError={operationError}
-              onCloseOperations={() => setShowOperations(false)}
+              onSelectFile={(path) => {
+                setSelectedFilePath(path);
+                setInspectorView("changes");
+              }}
             />
           </>
         )}

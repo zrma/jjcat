@@ -14,7 +14,7 @@
 ## P1: Multi-repository Cockpit
 
 - [x] compact graph/history baseline, bottom inspector와 local `~/...` registration
-- [x] host별 repository sidebar와 recent/pinned state
+- [x] stable pinned/local/SSH repository sidebar와 last-opened metadata
 - [x] persistent repository tabs와 quick switcher
 - [x] cached status badge와 asynchronous refresh
 - [x] local/remote editor 및 terminal open action
@@ -23,9 +23,10 @@
 ## P2: Graph And Diff
 
 - [x] multi-lane change DAG와 revision navigation
-- [x] file list, unified와 side-by-side diff
+- [x] file list, 긴 줄을 격리하는 unified와 side-by-side diff
 - [x] conflict, outgoing와 behind projection
 - [x] operation log와 read-only undo eligibility surface
+- [x] reference/conflict navigation과 resizable overview/changes/operations inspector
 
 ## P3: Safe Shaping
 

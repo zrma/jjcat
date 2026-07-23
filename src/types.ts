@@ -15,10 +15,12 @@ export interface RepositoryRecord {
 export interface ChangedFile {
   status: string;
   path: string;
+  displayPath?: string;
 }
 
 export type WhitespaceMode = "preserve" | "ignoreAll";
 export type DiffViewMode = "unified" | "sideBySide";
+export type InspectorView = "overview" | "changes" | "operations";
 export type DiffLineKind = "context" | "addition" | "deletion" | "metadata";
 
 export interface DiffLine {
@@ -78,10 +80,17 @@ export interface ChangeRow {
   changeId: string;
   commitId: string;
   summary: string;
+  description?: string;
   author: string;
+  authorEmail?: string;
+  authorTimestamp?: string;
+  committer?: string;
+  committerEmail?: string;
+  committerTimestamp?: string;
   updatedAt: string;
   bookmarks: BookmarkRef[];
   parents: string[];
+  parentCommitIds?: string[];
   files: ChangedFile[];
   conflict: boolean;
   workingCopy: boolean;

@@ -168,6 +168,8 @@ pub struct JjCapability {
 pub struct ChangedFile {
     pub status: String,
     pub path: String,
+    #[serde(default)]
+    pub display_path: String,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -288,10 +290,24 @@ pub struct ChangeRow {
     pub change_id: String,
     pub commit_id: String,
     pub summary: String,
+    #[serde(default)]
+    pub description: String,
     pub author: String,
+    #[serde(default)]
+    pub author_email: String,
+    #[serde(default)]
+    pub author_timestamp: String,
+    #[serde(default)]
+    pub committer: String,
+    #[serde(default)]
+    pub committer_email: String,
+    #[serde(default)]
+    pub committer_timestamp: String,
     pub updated_at: String,
     pub bookmarks: Vec<BookmarkRef>,
     pub parents: Vec<String>,
+    #[serde(default)]
+    pub parent_commit_ids: Vec<String>,
     pub files: Vec<ChangedFile>,
     pub conflict: bool,
     pub working_copy: bool,
@@ -345,7 +361,7 @@ pub struct CachedProjection {
     pub projection: RepositoryProjection,
 }
 
-pub const REGISTRY_SCHEMA_VERSION: u32 = 2;
+pub const REGISTRY_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -17,10 +17,15 @@
         "height": 900,
         "minWidth": 760,
         "minHeight": 520,
+        "decorations": true,
         "resizable": true,
+        "maximizable": true,
+        "minimizable": true,
+        "closable": true,
         "fullscreen": false,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "shadow": true
       }
     ],
     "security": {

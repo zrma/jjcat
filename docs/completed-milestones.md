@@ -49,9 +49,28 @@ implementation은 다음 P0 milestone로 넘겼다.
   pointer/keyboard revision navigation을 통합했다.
 - selected revision/file만 읽는 512 KiB bounded structured diff를 local과 SSH에 동일하게
   적용하고 unified/side-by-side, whitespace mode와 binary/truncated state를 구현했다.
+- rename display label과 command selector를 분리하고 canonical target path를 exact fileset으로
+  전달한다. registry v3 migration은 v2 shell state를 보존하고 legacy projection cache만
+  무효화한다.
 - conflict와 locally stored remote refs 기준 outgoing/behind를 cache freshness와 분리해
   `Last fetched` 상태로 표시했다.
 - `--at-op=@ --ignore-working-copy` 기반 recent operation log와 disabled undo eligibility
   preview를 추가하고 query 전후 operation identity가 유지됨을 검증했다.
+- 선택할 때마다 움직이던 recent repository grouping을 stable pinned/local/SSH rail로
+  대체하고 working copy, local/remote bookmark, conflict와 operation navigation을 추가했다.
+- 하단 작업면을 overview, hierarchical changed-file tree/diff와 operation history tab으로
+  정리해 dense change review 흐름을 유지했다.
+- overview projection과 화면에 전체 commit message/trailer, author/committer identity와 시각,
+  full commit/parent identity를 추가했다. rename은 사람이 읽는 display path를 보이되 diff
+  selector에는 canonical target path만 사용한다.
+- 20px history row와 압축된 native chrome으로 기본 창 크기에서 20개 이상의 change를
+  노출하고, system UI font, 10-12px text floor, stronger foreground contrast와 state 중심
+  accent로 rail, history, inspector와 diff의 가독성을 높였다.
+- flat repository/inspector tabs, stronger separator/selected hierarchy와 native titlebar
+  drag/8방향 resize hit area를 추가했다.
+- graph/history와 inspector 경계에 pointer/keyboard splitter를 추가하고 double-click reset과
+  양쪽 작업면의 최소 높이를 보존했다. side-by-side diff는 Before/After 독립 pane과 개별 가로
+  스크롤을 사용해 긴 줄이 반대쪽 pane을 가리지 않는다. platform overlay 정책과 무관하게
+  proportional scrollbar thumb를 항상 표시하고 track click, drag와 keyboard 조작을 지원한다.
 - deterministic fixtures, simulated 및 owner-controlled SSH, browser/native smoke와 canonical
   local gate를 통과했다. private identity, source content와 raw evidence는 기록하지 않았다.
