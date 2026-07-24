@@ -4,6 +4,7 @@ export interface DagEdge {
   fromLane: number;
   toLane: number;
   kind: "continuation" | "parent";
+  changeId: string;
   parentIndex?: number;
 }
 
@@ -17,6 +18,29 @@ export interface DagRowLayout {
 export interface DagLayout {
   rows: DagRowLayout[];
   maxLaneCount: number;
+}
+
+export function dagRowLayoutEquals(
+  left: DagRowLayout,
+  right: DagRowLayout,
+) {
+  return (
+    left.lane === right.lane &&
+    left.laneCount === right.laneCount &&
+    left.hasIncoming === right.hasIncoming &&
+    left.edges.length === right.edges.length &&
+    left.edges.every((edge, index) => {
+      const candidate = right.edges[index];
+      return (
+        candidate !== undefined &&
+        edge.fromLane === candidate.fromLane &&
+        edge.toLane === candidate.toLane &&
+        edge.kind === candidate.kind &&
+        edge.changeId === candidate.changeId &&
+        edge.parentIndex === candidate.parentIndex
+      );
+    })
+  );
 }
 
 function unique(values: string[]) {
@@ -48,11 +72,26 @@ export function layoutDag(changes: ChangeRow[]): DagLayout {
     before.forEach((candidate, fromLane) => {
       if (candidate === change.changeId) return;
       const toLane = after.indexOf(candidate);
-      if (toLane >= 0) edges.push({ fromLane, toLane, kind: "continuation" });
+      if (toLane >= 0) {
+        edges.push({
+          fromLane,
+          toLane,
+          kind: "continuation",
+          changeId: candidate,
+        });
+      }
     });
     parents.forEach((parent, parentIndex) => {
       const toLane = after.indexOf(parent);
-      if (toLane >= 0) edges.push({ fromLane: lane, toLane, kind: "parent", parentIndex });
+      if (toLane >= 0) {
+        edges.push({
+          fromLane: lane,
+          toLane,
+          kind: "parent",
+          changeId: parent,
+          parentIndex,
+        });
+      }
     });
 
     const laneCount = Math.max(before.length, after.length, lane + 1, 1);

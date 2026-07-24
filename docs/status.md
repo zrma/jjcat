@@ -55,6 +55,8 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
   enumerated empty-change pruning
 - exact current operation `undo`, local bookmark move와 typed-confirmation remote push
 - graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path가 공유하는 rebase preview
+- pointer drag 중 cycle-safe 예상 DAG, source/new-parent label과 drop 뒤 inline
+  Cancel/Review rebase checkpoint
 - fresh projection/operation log 기반 action postcondition과 cache refresh
 - selected change 가까이의 `Change` 메뉴와 graph row context menu로 제공하는
   edit/describe/history shaping/bookmark 작업

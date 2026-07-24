@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChangeRow } from "../types";
-import { layoutDag } from "./dag";
+import { dagRowLayoutEquals, layoutDag } from "./dag";
 
 function row(changeId: string, parents: string[]): ChangeRow {
   return {
@@ -40,13 +40,26 @@ describe("layoutDag", () => {
     expect(first).toEqual(second);
     expect(first.maxLaneCount).toBe(2);
     expect(first.rows[0].edges).toEqual([
-      { fromLane: 0, toLane: 0, kind: "parent", parentIndex: 0 },
-      { fromLane: 0, toLane: 1, kind: "parent", parentIndex: 1 },
+      {
+        fromLane: 0,
+        toLane: 0,
+        kind: "parent",
+        changeId: "left",
+        parentIndex: 0,
+      },
+      {
+        fromLane: 0,
+        toLane: 1,
+        kind: "parent",
+        changeId: "base",
+        parentIndex: 1,
+      },
     ]);
     expect(first.rows[1].edges).toContainEqual({
       fromLane: 1,
       toLane: 0,
       kind: "continuation",
+      changeId: "base",
     });
   });
 
@@ -64,6 +77,22 @@ describe("layoutDag", () => {
       fromLane: 0,
       toLane: 0,
       kind: "continuation",
+      changeId: "base-a",
     });
+  });
+
+  it("compares complete row topology for current and proposed layering", () => {
+    const layout = layoutDag([row("c", ["b"]), row("b", ["a"]), row("a", [])]);
+
+    expect(dagRowLayoutEquals(layout.rows[0], layout.rows[0])).toBe(true);
+    expect(
+      dagRowLayoutEquals(layout.rows[0], {
+        ...layout.rows[0],
+        edges: layout.rows[0].edges.map((edge) => ({
+          ...edge,
+          changeId: "new-parent",
+        })),
+      }),
+    ).toBe(false);
   });
 });

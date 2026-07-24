@@ -105,3 +105,14 @@ implementation은 다음 P0 milestone로 넘겼다.
   round trip을 검사해 rebase를 포함한 frontend/native IPC 계약을 고정했다.
 - desktop/narrow rendered interaction, focused frontend tests와 canonical repository gate를
   통과했다. private repository identity, path, remote와 raw output은 기록하지 않았다.
+
+## 2026-07-24: Rebase Topology Preview
+
+- pointer drag hover 중 source parent를 current destination으로 바꾼 client-side 예상 DAG를
+  계산해 실제 mutation 전에 graph 연결 변화를 보여준다.
+- source descendant를 destination으로 선택하는 cycle을 거부하고 viewport edge drag의
+  bounded auto-scroll을 추가했다.
+- drop은 실행하지 않고 `Moving`, `New parent`, `Cancel`, `Review rebase`가 있는 inline
+  checkpoint에 머문다. review 뒤에만 기존 backend exact-target preview로 전환한다.
+- deterministic topology tests, rendered Cancel/Review interaction과 canonical repository
+  gate를 통과했다. 실제 repository mutation과 private context는 evidence에 포함하지 않았다.

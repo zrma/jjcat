@@ -34,7 +34,7 @@
 - [x] rebase, squash, split와 abandon
 - [x] bookmark move와 push
 - [x] operation precondition, preview와 recovery acceptance
-- [x] pointer drag/drop과 keyboard-equivalent shaping preview
+- [x] pointer drag/drop, cycle-safe 예상 topology와 keyboard-equivalent shaping preview
 
 ## P4: Distribution
 

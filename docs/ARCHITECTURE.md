@@ -170,6 +170,14 @@ working copy, root, immutable change와 local/remote bookmark target을 보호�
 graph drag-and-drop과 keyboard shaping은 command를 직접 호출하지 않고 같은 rebase preview를
 연다. push는 별도 remote-write risk와 exact bookmark confirmation을 요구하며 force/delete
 option은 제공하지 않는다.
+pointer rebase는 hover 중 source의 parent relation만 client-side로 바꿔 deterministic DAG를
+다시 계산한다. 이 예상 topology는 command output이 아니며 cycle target을 거부한다. drop
+뒤에도 graph 위의 inline checkpoint를 유지하고, `Review rebase`에서만 backend-issued
+opaque token을 사용하는 exact mutation preview로 전환한다. topology가 달라지는 row에서는
+current layout 전체를 neutral ghost로 낮추고 proposed layout 전체를 deep-blue dashed
+style로 다시 그려 두 상태를 분리한다. lane 번호는 bookmark 의미로 사용하지 않으며,
+실제 bookmark metadata가 있는 target node만 amber로 표시한다. moving bookmark target은
+blue fill과 amber outline을 함께 사용한다. normal-state mint geometry는 비교 구간에 섞지 않는다.
 mutation dialog는 action catalog를 다시 선택하게 하지 않고 entrypoint에서 전달된 단일
 intent의 parameter와 exact targets만 보여준다. 따라서 change, repository, network와 recovery
 범위가 한 native select에 섞이지 않는다.

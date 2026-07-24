@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from "react";
 import {
   ChevronDown,
@@ -14,12 +15,23 @@ import {
   Folder,
   FolderGit2,
   GitCommitHorizontal,
+  GitFork,
   History,
   Info,
+  Minus,
   UserRound,
+  X,
 } from "lucide-react";
 import { absoluteTime, relativeTime } from "../lib/format";
-import { layoutDag, type DagRowLayout } from "../lib/dag";
+import {
+  dagRowLayoutEquals,
+  layoutDag,
+  type DagRowLayout,
+} from "../lib/dag";
+import {
+  canPreviewRebase,
+  estimateRebaseTopology,
+} from "../lib/rebaseTopology";
 import {
   clampSplitterSize,
   splitterBounds,
@@ -121,6 +133,10 @@ export function ChangeWorkspace({
     x: number;
     y: number;
   } | null>(null);
+  const [stagedRebase, setStagedRebase] = useState<{
+    sourceCommitId: string;
+    destinationCommitId: string;
+  } | null>(null);
   const bounds = splitterBounds(
     contentHeight,
     MIN_HISTORY_HEIGHT,
@@ -178,6 +194,19 @@ export function ChangeWorkspace({
     };
   }, [changeActionMenu]);
 
+  useEffect(() => {
+    if (!stagedRebase) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setStagedRebase(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [stagedRebase]);
+
+  useEffect(() => {
+    setStagedRebase(null);
+  }, [changes]);
+
   const menuChange =
     selectedChange?.changeId === changeActionMenu?.changeId
       ? selectedChange
@@ -200,7 +229,19 @@ export function ChangeWorkspace({
         onSelect={onSelect}
         refreshing={refreshing}
         rebaseSourceCommitId={rebaseSourceCommitId}
-        onRequestRebase={onRequestRebase}
+        stagedRebase={stagedRebase}
+        onStageRebase={(sourceCommitId, destinationCommitId) =>
+          setStagedRebase({ sourceCommitId, destinationCommitId })
+        }
+        onCancelStagedRebase={() => setStagedRebase(null)}
+        onReviewStagedRebase={() => {
+          if (!stagedRebase) return;
+          onRequestRebase(
+            stagedRebase.sourceCommitId,
+            stagedRebase.destinationCommitId,
+          );
+          setStagedRebase(null);
+        }}
         onOpenActionMenu={(change, x, y) => {
           onSelect(change.changeId);
           setChangeActionMenu({
@@ -381,7 +422,10 @@ function ChangeLog({
   onSelect,
   refreshing,
   rebaseSourceCommitId,
-  onRequestRebase,
+  stagedRebase,
+  onStageRebase,
+  onCancelStagedRebase,
+  onReviewStagedRebase,
   onOpenActionMenu,
 }: {
   changes: ChangeRow[];
@@ -389,7 +433,13 @@ function ChangeLog({
   onSelect: (changeId: string) => void;
   refreshing: boolean;
   rebaseSourceCommitId: string | null;
-  onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
+  stagedRebase: {
+    sourceCommitId: string;
+    destinationCommitId: string;
+  } | null;
+  onStageRebase: (sourceCommitId: string, destinationCommitId: string) => void;
+  onCancelStagedRebase: () => void;
+  onReviewStagedRebase: () => void;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
 }) {
   const scrollRef = useRef<HTMLElement>(null);
@@ -476,8 +526,12 @@ function ChangeLog({
         virtualized={virtualized}
         viewportHeight={viewport.height}
         scrollTop={viewport.scrollTop}
+        scrollContainerRef={scrollRef}
         rebaseSourceCommitId={rebaseSourceCommitId}
-        onRequestRebase={onRequestRebase}
+        stagedRebase={stagedRebase}
+        onStageRebase={onStageRebase}
+        onCancelStagedRebase={onCancelStagedRebase}
+        onReviewStagedRebase={onReviewStagedRebase}
         onOpenActionMenu={onOpenActionMenu}
       />
     </section>
@@ -493,8 +547,12 @@ function ChangeRows({
   virtualized,
   viewportHeight,
   scrollTop,
+  scrollContainerRef,
   rebaseSourceCommitId,
-  onRequestRebase,
+  stagedRebase,
+  onStageRebase,
+  onCancelStagedRebase,
+  onReviewStagedRebase,
   onOpenActionMenu,
 }: {
   changes: ChangeRow[];
@@ -505,8 +563,15 @@ function ChangeRows({
   virtualized: boolean;
   viewportHeight: number;
   scrollTop: number;
+  scrollContainerRef: RefObject<HTMLElement | null>;
   rebaseSourceCommitId: string | null;
-  onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
+  stagedRebase: {
+    sourceCommitId: string;
+    destinationCommitId: string;
+  } | null;
+  onStageRebase: (sourceCommitId: string, destinationCommitId: string) => void;
+  onCancelStagedRebase: () => void;
+  onReviewStagedRebase: () => void;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -518,7 +583,24 @@ function ChangeRows({
     active: boolean;
   } | null>(null);
   const suppressClickRef = useRef(false);
-
+  const previewSourceCommitId =
+    draggedCommitId ?? stagedRebase?.sourceCommitId ?? null;
+  const previewDestinationCommitId =
+    dropTarget ?? stagedRebase?.destinationCommitId ?? null;
+  const topologyPreview = useMemo(
+    () =>
+      estimateRebaseTopology(
+        changes,
+        previewSourceCommitId,
+        previewDestinationCommitId,
+      ),
+    [changes, previewDestinationCommitId, previewSourceCommitId],
+  );
+  const previewDagRows = useMemo(
+    () =>
+      topologyPreview ? layoutDag(topologyPreview.changes).rows : dagRows,
+    [dagRows, topologyPreview],
+  );
   const commitAtPoint = (clientX: number, clientY: number) =>
     document
       .elementFromPoint(clientX, clientY)
@@ -550,9 +632,26 @@ function ChangeRows({
     }
     drag.active = true;
     setDraggedCommitId(drag.sourceCommitId);
+    const scrollElement = scrollContainerRef.current;
+    if (scrollElement) {
+      const bounds = scrollElement.getBoundingClientRect();
+      const edgeSize = 44;
+      const distanceFromTop = clientY - bounds.top;
+      const distanceFromBottom = bounds.bottom - clientY;
+      if (distanceFromTop < edgeSize) {
+        scrollElement.scrollTop -= Math.ceil((edgeSize - distanceFromTop) / 4);
+      } else if (distanceFromBottom < edgeSize) {
+        scrollElement.scrollTop += Math.ceil((edgeSize - distanceFromBottom) / 4);
+      }
+    }
     const destinationCommitId = commitAtPoint(clientX, clientY);
     setDropTarget(
-      destinationCommitId && destinationCommitId !== drag.sourceCommitId
+      destinationCommitId &&
+        canPreviewRebase(
+          changes,
+          drag.sourceCommitId,
+          destinationCommitId,
+        )
         ? destinationCommitId
         : null,
     );
@@ -578,9 +677,9 @@ function ChangeRows({
     if (
       drag.active &&
       destinationCommitId &&
-      destinationCommitId !== drag.sourceCommitId
+      canPreviewRebase(changes, drag.sourceCommitId, destinationCommitId)
     ) {
-      onRequestRebase(drag.sourceCommitId, destinationCommitId);
+      onStageRebase(drag.sourceCommitId, destinationCommitId);
     }
     return drag.active;
   };
@@ -612,7 +711,7 @@ function ChangeRows({
         return (
           <button
             type="button"
-            className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""} ${change.commitId === rebaseSourceCommitId ? "rebase-source" : ""} ${change.commitId === dropTarget ? "rebase-drop-target" : ""}`}
+            className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""} ${change.commitId === rebaseSourceCommitId ? "rebase-source" : ""} ${change.commitId === previewSourceCommitId ? "rebase-preview-source" : ""} ${change.commitId === previewDestinationCommitId ? "rebase-drop-target" : ""}`}
             style={virtualized ? { top: index * HISTORY_ROW_HEIGHT } : undefined}
             aria-posinset={index + 1}
             aria-setsize={changes.length}
@@ -683,13 +782,25 @@ function ChangeRows({
             }}
             key={`${change.changeId}-${change.commitId}`}
           >
-            <DagCell change={change} layout={dagRows[index]} width={dagWidth} />
+            <DagCell
+              change={change}
+              layout={previewDagRows[index]}
+              previousLayout={topologyPreview ? dagRows[index] : undefined}
+              width={dagWidth}
+              moving={change.commitId === previewSourceCommitId}
+            />
             <code className="change-id">{change.changeId}</code>
             <span className="change-description">
               <BookmarkLabels bookmarks={change.bookmarks} limit={2} />
               <span className="change-summary">{change.summary || "(no description)"}</span>
               {change.workingCopy && <strong>Working Copy</strong>}
               {change.conflict && <strong className="conflict-label">Conflict</strong>}
+              {change.commitId === previewSourceCommitId && (
+                <strong className="rebase-position-label">Moving</strong>
+              )}
+              {change.commitId === previewDestinationCommitId && (
+                <strong className="rebase-parent-label">New parent</strong>
+              )}
             </span>
             <span className="change-author">{change.author || "—"}</span>
             <code className="change-commit col-commit">{change.commitId}</code>
@@ -697,6 +808,59 @@ function ChangeRows({
           </button>
         );
       })}
+      {stagedRebase && topologyPreview && (
+        <div
+          className="rebase-topology-card"
+          role="status"
+          style={{
+            top: Math.max(
+              4,
+              changes.findIndex(
+                (change) =>
+                  change.commitId === stagedRebase.destinationCommitId,
+              ) *
+                HISTORY_ROW_HEIGHT +
+                HISTORY_ROW_HEIGHT +
+                4,
+            ),
+          }}
+        >
+          <div className="rebase-topology-summary">
+            <GitFork aria-hidden="true" />
+            <span>
+              <strong>Estimated topology</strong>
+              <small>
+                {topologyPreview.source.changeId} onto{" "}
+                {topologyPreview.destination.changeId}
+              </small>
+            </span>
+          </div>
+          <div
+            className="rebase-topology-legend"
+            aria-label="Current topology is faded; proposed topology is blue and dashed"
+          >
+            <span>
+              <Minus className="current" aria-hidden="true" />
+              Current
+            </span>
+            <span>
+              <Minus className="proposed" aria-hidden="true" />
+              Proposed
+            </span>
+          </div>
+          <button type="button" onClick={onCancelStagedRebase}>
+            <X aria-hidden="true" />
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={onReviewStagedRebase}
+          >
+            Review rebase
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -708,45 +872,98 @@ function laneX(lane: number) {
 function DagCell({
   change,
   layout,
+  previousLayout,
   width,
+  moving = false,
 }: {
   change: ChangeRow;
   layout: DagRowLayout;
+  previousLayout?: DagRowLayout;
   width: number;
+  moving?: boolean;
 }) {
-  const isRoot = /^0+$/.test(change.commitId);
-  const nodeX = laneX(layout.lane);
+  const comparing =
+    previousLayout !== undefined &&
+    !dagRowLayoutEquals(previousLayout, layout);
+
   return (
     <span
-      className="dag-cell"
+      className={`dag-cell ${comparing ? "comparing" : ""} ${moving ? "moving" : ""}`}
       aria-hidden="true"
       data-lane={layout.lane}
       data-lane-overflow={layout.lane >= MAX_VISIBLE_DAG_LANES ? "true" : undefined}
     >
-      <svg viewBox={`0 0 ${width} 20`} preserveAspectRatio="xMinYMid meet">
-        {layout.hasIncoming && (
-          <path className={`lane-${layout.lane % 6}`} d={`M${nodeX} 0V10`} />
-        )}
-        {layout.edges.map((edge, index) => {
-          const fromX = laneX(edge.fromLane);
-          const toX = laneX(edge.toLane);
-          const startY = edge.kind === "parent" ? 10 : 0;
-          return (
-            <path
-              className={`lane-${edge.fromLane % 6} ${edge.kind === "parent" && (edge.parentIndex ?? 0) > 0 ? "branch-line" : ""}`}
-              d={`M${fromX} ${startY} C${fromX} 14 ${toX} 15 ${toX} 20`}
-              key={`${edge.kind}-${edge.fromLane}-${edge.toLane}-${index}`}
-            />
-          );
-        })}
-        <circle
-          className={`lane-${layout.lane % 6} ${change.workingCopy ? "working-node" : ""} ${isRoot ? "root-node" : ""}`}
-          cx={nodeX}
-          cy="10"
-          r={change.workingCopy ? "4.5" : "3.5"}
+      {comparing && previousLayout ? (
+        <>
+          <DagSvg
+            change={change}
+            layout={previousLayout}
+            width={width}
+            className="dag-layer previous"
+          />
+          <DagSvg
+            change={change}
+            layout={layout}
+            width={width}
+            className={`dag-layer proposed ${moving ? "moving" : ""}`}
+          />
+        </>
+      ) : (
+        <DagSvg
+          change={change}
+          layout={layout}
+          width={width}
+          className={moving ? "dag-layer proposed moving" : undefined}
         />
-      </svg>
+      )}
     </span>
+  );
+}
+
+function DagSvg({
+  change,
+  layout,
+  width,
+  className,
+}: {
+  change: ChangeRow;
+  layout: DagRowLayout;
+  width: number;
+  className?: string;
+}) {
+  const isRoot = /^0+$/.test(change.commitId);
+  const nodeX = laneX(layout.lane);
+  return (
+    <svg
+      className={className}
+      viewBox={`0 0 ${width} 20`}
+      preserveAspectRatio="xMinYMid meet"
+    >
+      {layout.hasIncoming && (
+        <path
+          className={`lane-${layout.lane % 6}`}
+          d={`M${nodeX} 0V10`}
+        />
+      )}
+      {layout.edges.map((edge, index) => {
+        const fromX = laneX(edge.fromLane);
+        const toX = laneX(edge.toLane);
+        const startY = edge.kind === "parent" ? 10 : 0;
+        return (
+          <path
+            className={`edge-${edge.kind} lane-${edge.fromLane % 6} ${edge.kind === "parent" && (edge.parentIndex ?? 0) > 0 ? "branch-line" : ""}`}
+            d={`M${fromX} ${startY} C${fromX} 14 ${toX} 15 ${toX} 20`}
+            key={`${edge.kind}-${edge.fromLane}-${edge.toLane}-${index}`}
+          />
+        );
+      })}
+      <circle
+        className={`lane-${layout.lane % 6} ${change.workingCopy ? "working-node" : ""} ${change.bookmarks.length > 0 ? "bookmark-node" : ""} ${isRoot ? "root-node" : ""}`}
+        cx={nodeX}
+        cy="10"
+        r={change.workingCopy ? "4.5" : "3.5"}
+      />
+    </svg>
   );
 }
 
