@@ -410,6 +410,8 @@ pub async fn preview_mutation(
         &intent,
         context.operation_id,
         context.candidates,
+        context.workspace_root,
+        context.workspace_commit_id,
     )
     .map_err(mutation_validation_error)?;
     state
@@ -494,10 +496,12 @@ async fn execute_mutation_inner(
         .mutation_context(&repository, &stored.intent, CancellationToken::new())
         .await
         .map_err(driver_error)?;
-    if !stored
-        .preview
-        .matches_context(&current.operation_id, &current.candidates)
-    {
+    if !stored.preview.matches_context(
+        &current.operation_id,
+        &current.candidates,
+        current.workspace_root.as_deref(),
+        current.workspace_commit_id.as_deref(),
+    ) {
         return Err(AppError {
             kind: AppErrorKind::Stale,
             message: "repository changed after preview; review the mutation again".into(),
@@ -510,6 +514,8 @@ async fn execute_mutation_inner(
             &repository,
             &stored.intent,
             &stored.preview.candidates,
+            current.workspace_root.as_deref(),
+            current.workspace_commit_id.as_deref(),
             CancellationToken::new(),
         )
         .await
@@ -571,6 +577,7 @@ async fn execute_mutation_inner(
     verify_postcondition(
         &stored.intent,
         &stored.preview.candidates,
+        current.workspace_commit_id.as_deref(),
         &projection,
     )
     .map_err(|detail| AppError {
@@ -942,6 +949,8 @@ mod tests {
             &intent,
             "abcdef0123456789".into(),
             Vec::new(),
+            None,
+            None,
         )
         .unwrap();
         let second = MutationPreview::build(
@@ -950,6 +959,8 @@ mod tests {
             &intent,
             "abcdef0123456789".into(),
             Vec::new(),
+            None,
+            None,
         )
         .unwrap();
         let mut previews = MutationPreviews::default();
@@ -991,6 +1002,8 @@ mod tests {
             &intent,
             "abcdef0123456789".into(),
             Vec::new(),
+            None,
+            None,
         )
         .unwrap();
         let mut previews = MutationPreviews::default();

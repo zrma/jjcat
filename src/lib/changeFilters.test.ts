@@ -53,18 +53,19 @@ describe("change history filters", () => {
   it.each<[HistoryView, string[]]>([
     ["all", ["working", "local", "remote"]],
     ["working-copy", ["working"]],
-    ["bookmarks", ["local"]],
-    ["remote-bookmarks", ["remote"]],
     ["conflicts", ["remote"]],
   ])("filters the %s repository view", (view, expected) => {
     expect(filterChanges(changes, view, "").map((change) => change.changeId)).toEqual(expected);
   });
 
   it("applies text search within the selected repository view", () => {
-    expect(
-      filterChanges(changes, "remote-bookmarks", "origin").map((change) => change.changeId),
-    ).toEqual(["remote"]);
-    expect(filterChanges(changes, "bookmarks", "carol")).toEqual([]);
+    expect(filterChanges(changes, "all", "origin").map((change) => change.changeId)).toEqual([
+      "remote",
+    ]);
+    expect(filterChanges(changes, "all", "main").map((change) => change.changeId)).toEqual([
+      "local",
+      "remote",
+    ]);
     expect(filterChanges(changes, "all", "fixture bot")).toEqual([changes[0]]);
     expect(filterChanges(changes, "all", "integration@example.invalid")).toEqual([
       changes[0],

@@ -10,6 +10,8 @@ import {
 } from "react";
 import {
   ChevronDown,
+  ChevronsDown,
+  ChevronsUp,
   File,
   Files,
   Folder,
@@ -31,7 +33,13 @@ import {
 import {
   canPreviewRebase,
   estimateRebaseTopology,
+  type RebaseTopologyPreview,
 } from "../lib/rebaseTopology";
+import {
+  foldHistory,
+  HISTORY_REVEAL_STEP,
+  type HistoryFoldItem,
+} from "../lib/historyFolding";
 import {
   clampSplitterSize,
   splitterBounds,
@@ -56,6 +64,9 @@ import type { MutationLaunch } from "../lib/changeActions";
 interface ChangeWorkspaceProps {
   changes: ChangeRow[];
   selectedChange?: ChangeRow;
+  workingCopyMode: boolean;
+  compactHistory: boolean;
+  workingCopyFileCount: number;
   onSelect: (changeId: string) => void;
   refreshing: boolean;
   changeDetailsLoading: boolean;
@@ -95,6 +106,9 @@ const SPLITTER_KEY_STEP = 24;
 export function ChangeWorkspace({
   changes,
   selectedChange,
+  workingCopyMode,
+  compactHistory,
+  workingCopyFileCount,
   onSelect,
   refreshing,
   changeDetailsLoading,
@@ -221,10 +235,31 @@ export function ChangeWorkspace({
     }
   };
 
+  if (workingCopyMode) {
+    return (
+      <WorkingCopyWorkspace
+        change={selectedChange}
+        fileCount={workingCopyFileCount}
+        loading={changeDetailsLoading}
+        error={changeDetailsError}
+        selectedFilePath={selectedFilePath}
+        diff={diff}
+        diffLoading={diffLoading}
+        diffError={diffError}
+        diffViewMode={diffViewMode}
+        whitespaceMode={whitespaceMode}
+        onSelectFile={onSelectFile}
+        onDiffViewModeChange={onDiffViewModeChange}
+        onWhitespaceModeChange={onWhitespaceModeChange}
+      />
+    );
+  }
+
   return (
     <div className="content-grid" ref={contentGridRef} style={gridStyle}>
       <ChangeLog
         changes={changes}
+        compactHistory={compactHistory}
         selected={selectedChange?.changeId}
         onSelect={onSelect}
         refreshing={refreshing}
@@ -416,8 +451,82 @@ export function ChangeWorkspace({
   );
 }
 
+function WorkingCopyWorkspace({
+  change,
+  fileCount,
+  loading,
+  error,
+  selectedFilePath,
+  diff,
+  diffLoading,
+  diffError,
+  diffViewMode,
+  whitespaceMode,
+  onSelectFile,
+  onDiffViewModeChange,
+  onWhitespaceModeChange,
+}: {
+  change?: ChangeRow;
+  fileCount: number;
+  loading: boolean;
+  error: string | null;
+  selectedFilePath: string | null;
+  diff: FileDiffProjection | null;
+  diffLoading: boolean;
+  diffError: string | null;
+  diffViewMode: DiffViewMode;
+  whitespaceMode: WhitespaceMode;
+  onSelectFile: (path: string) => void;
+  onDiffViewModeChange: (mode: DiffViewMode) => void;
+  onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+}) {
+  return (
+    <section className="working-copy-workspace" aria-label="Working copy files">
+      <header className="working-copy-heading">
+        <FolderGit2 aria-hidden="true" />
+        <strong>Working Copy</strong>
+        <span>
+          {fileCount} {fileCount === 1 ? "file" : "files"}
+        </span>
+        {change && (
+          <small title={change.summary || "(no description)"}>
+            {change.summary || "(no description)"}
+          </small>
+        )}
+      </header>
+      <div className="working-copy-content">
+        {loading ? (
+          <aside className="details-empty" aria-live="polite">
+            <FolderGit2 aria-hidden="true" />
+            <p>Loading working copy files…</p>
+          </aside>
+        ) : error ? (
+          <aside className="details-empty detail-error" role="alert">
+            <FolderGit2 aria-hidden="true" />
+            <p>{error}</p>
+          </aside>
+        ) : (
+          <ChangeFiles
+            change={change}
+            selectedFilePath={selectedFilePath}
+            diff={diff}
+            diffLoading={diffLoading}
+            diffError={diffError}
+            diffViewMode={diffViewMode}
+            whitespaceMode={whitespaceMode}
+            onSelectFile={onSelectFile}
+            onDiffViewModeChange={onDiffViewModeChange}
+            onWhitespaceModeChange={onWhitespaceModeChange}
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
 function ChangeLog({
   changes,
+  compactHistory,
   selected,
   onSelect,
   refreshing,
@@ -429,6 +538,7 @@ function ChangeLog({
   onOpenActionMenu,
 }: {
   changes: ChangeRow[];
+  compactHistory: boolean;
   selected?: string;
   onSelect: (changeId: string) => void;
   refreshing: boolean;
@@ -444,9 +554,60 @@ function ChangeLog({
 }) {
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
-  const virtualized = changes.length >= VIRTUALIZATION_THRESHOLD;
-  const dag = useMemo(() => layoutDag(changes), [changes]);
-  const visibleLaneCount = Math.min(dag.maxLaneCount, MAX_VISIBLE_DAG_LANES);
+  const [revealedByGap, setRevealedByGap] = useState<Record<string, number>>({});
+  const stagedTopologyPreview = useMemo(
+    () =>
+      estimateRebaseTopology(
+        changes,
+        stagedRebase?.sourceCommitId ?? null,
+        stagedRebase?.destinationCommitId ?? null,
+      ),
+    [changes, stagedRebase],
+  );
+  const displayChanges = stagedTopologyPreview?.changes ?? changes;
+  const previewAnchors = stagedTopologyPreview
+    ? [
+        stagedTopologyPreview.source.changeId,
+        stagedTopologyPreview.destination.changeId,
+      ]
+    : [];
+  const historyIdentity = `${displayChanges[0]?.commitId ?? ""}:${displayChanges.at(-1)?.commitId ?? ""}:${displayChanges.length}`;
+  const foldItems = useMemo(
+    () =>
+      foldHistory(
+        displayChanges,
+        selected,
+        revealedByGap,
+        compactHistory,
+        previewAnchors,
+      ),
+    [
+      compactHistory,
+      displayChanges,
+      previewAnchors,
+      revealedByGap,
+      selected,
+    ],
+  );
+  const virtualized = foldItems.length >= VIRTUALIZATION_THRESHOLD;
+  const currentDag = useMemo(() => layoutDag(changes), [changes]);
+  const displayDag = useMemo(() => layoutDag(displayChanges), [displayChanges]);
+  const previousDagRowsByChangeId = useMemo(
+    () =>
+      stagedTopologyPreview
+        ? new Map(
+            changes.map((change, index) => [
+              change.changeId,
+              currentDag.rows[index],
+            ]),
+          )
+        : null,
+    [changes, currentDag.rows, stagedTopologyPreview],
+  );
+  const visibleLaneCount = Math.min(
+    Math.max(currentDag.maxLaneCount, displayDag.maxLaneCount),
+    MAX_VISIBLE_DAG_LANES,
+  );
   const dagWidth = Math.max(42, DAG_PADDING * 2 + visibleLaneCount * DAG_LANE_GAP);
   const graphStyle = { "--dag-width": `${dagWidth}px` } as CSSProperties;
 
@@ -468,10 +629,13 @@ function ChangeLog({
     const element = scrollRef.current;
     if (element) element.scrollTop = 0;
     setViewport((current) => ({ ...current, scrollTop: 0 }));
-  }, [changes[0]?.changeId]);
+    setRevealedByGap({});
+  }, [historyIdentity]);
 
   useEffect(() => {
-    const index = changes.findIndex((change) => change.changeId === selected);
+    const index = foldItems.findIndex(
+      (item) => item.kind === "change" && item.change.changeId === selected,
+    );
     const element = scrollRef.current;
     if (!element || index < 0) return;
     const rowTop = HISTORY_HEADER_HEIGHT + index * HISTORY_ROW_HEIGHT;
@@ -481,7 +645,7 @@ function ChangeLog({
     } else if (rowBottom > element.scrollTop + element.clientHeight) {
       element.scrollTop = rowBottom - element.clientHeight;
     }
-  }, [changes, selected]);
+  }, [foldItems, selected]);
 
   if (changes.length === 0) {
     return (
@@ -501,7 +665,7 @@ function ChangeLog({
     <section
       className="change-log"
       aria-label="Change history"
-      aria-rowcount={changes.length}
+      aria-rowcount={foldItems.length}
       ref={scrollRef}
       style={graphStyle}
       onScroll={(event) => {
@@ -519,7 +683,10 @@ function ChangeLog({
       </div>
       <ChangeRows
         changes={changes}
-        dagRows={dag.rows}
+        items={foldItems}
+        dagRows={displayDag.rows}
+        stagedTopologyPreview={stagedTopologyPreview}
+        previousDagRowsByChangeId={previousDagRowsByChangeId}
         dagWidth={dagWidth}
         selected={selected}
         onSelect={onSelect}
@@ -533,6 +700,9 @@ function ChangeLog({
         onCancelStagedRebase={onCancelStagedRebase}
         onReviewStagedRebase={onReviewStagedRebase}
         onOpenActionMenu={onOpenActionMenu}
+        onRevealGap={(id, count) =>
+          setRevealedByGap((current) => ({ ...current, [id]: count }))
+        }
       />
     </section>
   );
@@ -540,7 +710,10 @@ function ChangeLog({
 
 function ChangeRows({
   changes,
+  items,
   dagRows,
+  stagedTopologyPreview,
+  previousDagRowsByChangeId,
   dagWidth,
   selected,
   onSelect,
@@ -554,9 +727,13 @@ function ChangeRows({
   onCancelStagedRebase,
   onReviewStagedRebase,
   onOpenActionMenu,
+  onRevealGap,
 }: {
   changes: ChangeRow[];
+  items: HistoryFoldItem[];
   dagRows: DagRowLayout[];
+  stagedTopologyPreview: RebaseTopologyPreview | null;
+  previousDagRowsByChangeId: ReadonlyMap<string, DagRowLayout> | null;
   dagWidth: number;
   selected?: string;
   onSelect: (changeId: string) => void;
@@ -573,6 +750,7 @@ function ChangeRows({
   onCancelStagedRebase: () => void;
   onReviewStagedRebase: () => void;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
+  onRevealGap: (id: string, count: number) => void;
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [draggedCommitId, setDraggedCommitId] = useState<string | null>(null);
@@ -587,20 +765,45 @@ function ChangeRows({
     draggedCommitId ?? stagedRebase?.sourceCommitId ?? null;
   const previewDestinationCommitId =
     dropTarget ?? stagedRebase?.destinationCommitId ?? null;
-  const topologyPreview = useMemo(
+  const hoverTopologyPreview = useMemo(
     () =>
-      estimateRebaseTopology(
-        changes,
-        previewSourceCommitId,
-        previewDestinationCommitId,
-      ),
-    [changes, previewDestinationCommitId, previewSourceCommitId],
+      stagedRebase
+        ? null
+        : estimateRebaseTopology(
+            changes,
+            previewSourceCommitId,
+            previewDestinationCommitId,
+          ),
+    [
+      changes,
+      previewDestinationCommitId,
+      previewSourceCommitId,
+      stagedRebase,
+    ],
   );
-  const previewDagRows = useMemo(
+  const hoverOrderMatches = useMemo(
     () =>
-      topologyPreview ? layoutDag(topologyPreview.changes).rows : dagRows,
-    [dagRows, topologyPreview],
+      hoverTopologyPreview?.changes.every(
+        (change, index) => change.changeId === changes[index]?.changeId,
+      ) ?? false,
+    [changes, hoverTopologyPreview],
   );
+  const hoverDagRowsByChangeId = useMemo(
+    () => {
+      if (!hoverTopologyPreview || !hoverOrderMatches) return null;
+      const layout = layoutDag(hoverTopologyPreview.changes);
+      return new Map(
+        hoverTopologyPreview.changes.map((change, index) => [
+          change.changeId,
+          layout.rows[index],
+        ]),
+      );
+    },
+    [hoverOrderMatches, hoverTopologyPreview],
+  );
+  const topologyPreview =
+    stagedTopologyPreview ??
+    (hoverOrderMatches ? hoverTopologyPreview : null);
   const commitAtPoint = (clientX: number, clientY: number) =>
     document
       .elementFromPoint(clientX, clientY)
@@ -686,7 +889,7 @@ function ChangeRows({
 
   const range = virtualized
     ? virtualRange(
-        changes.length,
+        items.length,
         HISTORY_ROW_HEIGHT,
         viewportHeight,
         scrollTop,
@@ -694,27 +897,40 @@ function ChangeRows({
       )
     : {
         startIndex: 0,
-        endIndex: changes.length,
+        endIndex: items.length,
         offsetTop: 0,
-        totalHeight: changes.length * HISTORY_ROW_HEIGHT,
+        totalHeight: items.length * HISTORY_ROW_HEIGHT,
       };
-  const visibleChanges = changes.slice(range.startIndex, range.endIndex);
+  const visibleItems = items.slice(range.startIndex, range.endIndex);
 
   return (
     <div
       className={`log-body ${virtualized ? "virtualized" : ""}`}
       style={virtualized ? { height: range.totalHeight } : undefined}
-      data-rendered-rows={visibleChanges.length}
+      data-rendered-rows={visibleItems.length}
     >
-      {visibleChanges.map((change, visibleIndex) => {
-        const index = range.startIndex + visibleIndex;
+      {visibleItems.map((item, visibleIndex) => {
+        const displayIndex = range.startIndex + visibleIndex;
+        if (item.kind === "fold") {
+          return (
+            <HistoryFoldRow
+              fold={item}
+              virtualized={virtualized}
+              displayIndex={displayIndex}
+              dagWidth={dagWidth}
+              onReveal={onRevealGap}
+              key={`fold-${item.id}`}
+            />
+          );
+        }
+        const { change, sourceIndex } = item;
         return (
           <button
             type="button"
             className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""} ${change.commitId === rebaseSourceCommitId ? "rebase-source" : ""} ${change.commitId === previewSourceCommitId ? "rebase-preview-source" : ""} ${change.commitId === previewDestinationCommitId ? "rebase-drop-target" : ""}`}
-            style={virtualized ? { top: index * HISTORY_ROW_HEIGHT } : undefined}
-            aria-posinset={index + 1}
-            aria-setsize={changes.length}
+            style={virtualized ? { top: displayIndex * HISTORY_ROW_HEIGHT } : undefined}
+            aria-posinset={displayIndex + 1}
+            aria-setsize={items.length}
             onClick={() => {
               if (suppressClickRef.current) {
                 suppressClickRef.current = false;
@@ -746,6 +962,7 @@ function ChangeRows({
                 return;
               }
               beginPointerDrag(change.commitId, event.clientX, event.clientY);
+              event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
               if (updatePointerDrag(event.clientX, event.clientY)) {
@@ -757,11 +974,17 @@ function ChangeRows({
                 event.preventDefault();
                 event.stopPropagation();
               }
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
             }}
             onPointerCancel={(event) => {
               if (finishPointerDrag(event.clientX, event.clientY, true)) {
                 event.preventDefault();
                 event.stopPropagation();
+              }
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
               }
             }}
             onMouseDown={(event) => {
@@ -784,8 +1007,20 @@ function ChangeRows({
           >
             <DagCell
               change={change}
-              layout={previewDagRows[index]}
-              previousLayout={topologyPreview ? dagRows[index] : undefined}
+              layout={
+                hoverDagRowsByChangeId?.get(change.changeId) ??
+                dagRows[sourceIndex]
+              }
+              previousLayout={
+                stagedTopologyPreview?.affectedChangeIds.has(change.changeId)
+                  ? previousDagRowsByChangeId?.get(change.changeId)
+                  : hoverDagRowsByChangeId &&
+                      hoverTopologyPreview?.affectedChangeIds.has(
+                        change.changeId,
+                      )
+                    ? dagRows[sourceIndex]
+                    : undefined
+              }
               width={dagWidth}
               moving={change.commitId === previewSourceCommitId}
             />
@@ -794,6 +1029,14 @@ function ChangeRows({
               <BookmarkLabels bookmarks={change.bookmarks} limit={2} />
               <span className="change-summary">{change.summary || "(no description)"}</span>
               {change.workingCopy && <strong>Working Copy</strong>}
+              {!change.workingCopy && (change.workspaceCopies?.length ?? 0) > 0 && (
+                <strong
+                  className="workspace-copy-label"
+                  title={`Working copy for ${change.workspaceCopies?.join(", ")}`}
+                >
+                  Workspace · {change.workspaceCopies?.join(", ")}
+                </strong>
+              )}
               {change.conflict && <strong className="conflict-label">Conflict</strong>}
               {change.commitId === previewSourceCommitId && (
                 <strong className="rebase-position-label">Moving</strong>
@@ -815,9 +1058,10 @@ function ChangeRows({
           style={{
             top: Math.max(
               4,
-              changes.findIndex(
-                (change) =>
-                  change.commitId === stagedRebase.destinationCommitId,
+              items.findIndex(
+                (item) =>
+                  item.kind === "change" &&
+                  item.change.commitId === stagedRebase.destinationCommitId,
               ) *
                 HISTORY_ROW_HEIGHT +
                 HISTORY_ROW_HEIGHT +
@@ -861,6 +1105,81 @@ function ChangeRows({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function HistoryFoldRow({
+  fold,
+  virtualized,
+  displayIndex,
+  dagWidth,
+  onReveal,
+}: {
+  fold: Extract<HistoryFoldItem, { kind: "fold" }>;
+  virtualized: boolean;
+  displayIndex: number;
+  dagWidth: number;
+  onReveal: (id: string, count: number) => void;
+}) {
+  const revealCount = Math.min(
+    fold.totalCount,
+    fold.shownCount + HISTORY_REVEAL_STEP,
+  );
+  return (
+    <div
+      className={`history-fold-row ${virtualized ? "virtualized-row" : ""}`}
+      style={virtualized ? { top: displayIndex * HISTORY_ROW_HEIGHT } : undefined}
+      role="row"
+      aria-label={
+        fold.hiddenCount > 0
+          ? `${fold.hiddenCount} changes hidden`
+          : `${fold.totalCount} changes expanded`
+      }
+    >
+      <span className="history-fold-graph" style={{ width: dagWidth }}>
+        <i aria-hidden="true">~</i>
+      </span>
+      <span className="history-fold-summary">
+        <span>
+          {fold.hiddenCount > 0
+            ? `${fold.hiddenCount} changes hidden`
+            : `${fold.totalCount} changes expanded`}
+          {fold.shownCount > 0 &&
+            fold.hiddenCount > 0 &&
+            ` · ${fold.shownCount} shown`}
+        </span>
+        <span className="history-fold-actions">
+          {fold.hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => onReveal(fold.id, revealCount)}
+              title={`Show up to ${HISTORY_REVEAL_STEP} more changes`}
+            >
+              <ChevronsDown aria-hidden="true" />
+              Show {Math.min(HISTORY_REVEAL_STEP, fold.hiddenCount)} more
+            </button>
+          )}
+          {fold.hiddenCount > HISTORY_REVEAL_STEP && (
+            <button
+              type="button"
+              onClick={() => onReveal(fold.id, fold.totalCount)}
+            >
+              Show all
+            </button>
+          )}
+          {fold.shownCount > 0 && (
+            <button
+              type="button"
+              onClick={() => onReveal(fold.id, 0)}
+              title="Collapse this history section"
+            >
+              <ChevronsUp aria-hidden="true" />
+              Collapse
+            </button>
+          )}
+        </span>
+      </span>
     </div>
   );
 }
@@ -932,6 +1251,7 @@ function DagSvg({
   className?: string;
 }) {
   const isRoot = /^0+$/.test(change.commitId);
+  const isWorkspaceCopy = (change.workspaceCopies?.length ?? 0) > 0;
   const nodeX = laneX(layout.lane);
   return (
     <svg
@@ -941,7 +1261,7 @@ function DagSvg({
     >
       {layout.hasIncoming && (
         <path
-          className={`lane-${layout.lane % 6}`}
+          className={`lane-${layout.lane % 6} ${isWorkspaceCopy ? "workspace-line" : ""} ${change.workingCopy ? "working-line" : ""}`}
           d={`M${nodeX} 0V10`}
         />
       )}
@@ -951,14 +1271,14 @@ function DagSvg({
         const startY = edge.kind === "parent" ? 10 : 0;
         return (
           <path
-            className={`edge-${edge.kind} lane-${edge.fromLane % 6} ${edge.kind === "parent" && (edge.parentIndex ?? 0) > 0 ? "branch-line" : ""}`}
+            className={`edge-${edge.kind} lane-${edge.fromLane % 6} ${isWorkspaceCopy ? "workspace-line" : ""} ${change.workingCopy ? "working-line" : ""} ${edge.kind === "parent" && (edge.parentIndex ?? 0) > 0 ? "branch-line" : ""}`}
             d={`M${fromX} ${startY} C${fromX} 14 ${toX} 15 ${toX} 20`}
             key={`${edge.kind}-${edge.fromLane}-${edge.toLane}-${index}`}
           />
         );
       })}
       <circle
-        className={`lane-${layout.lane % 6} ${change.workingCopy ? "working-node" : ""} ${change.bookmarks.length > 0 ? "bookmark-node" : ""} ${isRoot ? "root-node" : ""}`}
+        className={`lane-${layout.lane % 6} ${isWorkspaceCopy ? "workspace-node" : ""} ${change.workingCopy ? "working-node" : ""} ${change.bookmarks.length > 0 ? "bookmark-node" : ""} ${isRoot ? "root-node" : ""}`}
         cx={nodeX}
         cy="10"
         r={change.workingCopy ? "4.5" : "3.5"}

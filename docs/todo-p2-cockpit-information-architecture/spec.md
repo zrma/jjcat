@@ -24,8 +24,10 @@ Status: implemented and rendered QA passed
 ## Scope
 
 - `Pinned`, `Local`, `SSH`만 사용하는 stable repository grouping
-- selected repository에 한정된 `Working Copy`, `All Changes`, `Bookmarks`,
-  `Remote Bookmarks`, `Conflicts`, `Operations` navigation과 bounded counts
+- selected repository에 한정된 `Working Copy`, `Workspaces`, `All Changes`,
+  `Conflicts`, `Operations` navigation과 bounded counts
+- local/remote bookmark는 별도 filter가 아니라 `All Changes`의 inline reference와
+  reference-centered folding anchor로 유지
 - locally stored projection만 사용하는 `Last Fetched` 요약
 - `Overview`, `Changes`, `Operations` inspector tabs
 - graph/history와 inspector 높이를 조절하는 pointer/keyboard splitter
@@ -55,8 +57,8 @@ Status: implemented and rendered QA passed
 | ID | Status | Verify | Work item |
 | --- | --- | --- | --- |
 | C1 | done | `src/lib/repositories.test.ts` | last-opened 변경이 unpinned rail order를 바꾸지 않는다. |
-| C2 | done | `src/lib/changeFilters.test.ts` | 모든 stable repository view가 projection을 결정적으로 filter한다. |
-| C3 | done | `src/App.tsx` | navigation에 reference/conflict counts와 last-fetched state가 표시된다. |
+| C2 | done | `src/lib/changeFilters.test.ts`, `src/lib/historyFolding.test.ts` | stable repository view와 reference-centered folding이 projection을 결정적으로 표시한다. |
+| C3 | done | `src/App.tsx` | navigation에 workspace/conflict counts와 last-fetched state가 표시되고 bookmark는 graph 안에 남는다. |
 | C4 | done | `src/components/ChangeWorkspace.tsx` | overview가 전체 message/trailer, author/committer, refs와 identity를 제공하고 file tree/diff 및 operations와 같은 inspector shell을 공유한다. |
 | C5 | done | `pnpm test && pnpm build` | frontend typecheck, 32 unit tests와 production bundle을 통과한다. |
 | C6 | done | `scripts/check.sh` | repository canonical gate, 39 Rust unit tests와 rename integration test를 통과한다. |

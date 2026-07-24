@@ -42,8 +42,11 @@ local/SSH mutation은 opaque single-use preview, repository별 queue, execute �
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
 rebase/squash/file-level split/abandon, protected empty pruning, undo, bookmark move와 confirmed
 push가 구현됐다. graph drag/drop과 keyboard shaping은 execute를 우회하지 않고 같은 rebase
-preview를 연다. active todo는 없으며 다음 repo-owned milestone은 P4 distribution이다.
-remote helper는 계속 범위 밖이다.
+preview를 연다. workspace manager는 current/non-empty workspace와 unsafe path를 보호하면서
+다른 empty workspace의 working-copy change, registration과 exact directory를 단일
+preview-first action으로 정리한다.
+active todo는 없으며 다음 repo-owned milestone은 P4 distribution이다. remote helper는 계속
+범위 밖이다.
 
 ## Completion Rule
 

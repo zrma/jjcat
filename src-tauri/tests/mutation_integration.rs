@@ -118,6 +118,8 @@ async fn execute(
             repository,
             intent,
             &context.candidates,
+            context.workspace_root.as_deref(),
+            context.workspace_commit_id.as_deref(),
             CancellationToken::new(),
         )
         .await
@@ -127,6 +129,215 @@ async fn execute(
         .await
         .unwrap();
     (context.operation_id, after, context.candidates)
+}
+
+#[tokio::test]
+async fn prune_protects_every_workspace_working_copy() {
+    let directory = tempdir().unwrap();
+    let repository_path = directory.path().join("repository");
+    let secondary_path = directory.path().join("secondary");
+    init_repository(&repository_path);
+    jj(
+        &[
+            "workspace",
+            "add",
+            "--name",
+            "secondary",
+            secondary_path.to_str().unwrap(),
+        ],
+        &repository_path,
+    );
+
+    let driver = JjDriver::default();
+    let repository = local_record(&repository_path, "multi-workspace fixture");
+    let projected = projection(&driver, &repository).await;
+    let secondary = projected
+        .changes
+        .iter()
+        .find(|change| !change.working_copy && !change.workspace_copies.is_empty())
+        .expect("secondary workspace must be visible in the projection");
+    let context = driver
+        .mutation_context(
+            &repository,
+            &MutationIntent::PruneEmpty,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        context
+            .candidates
+            .iter()
+            .all(|candidate| candidate.commit_id != secondary.commit_id)
+    );
+}
+
+async fn exercise_workspace_removal(
+    driver: &JjDriver,
+    repository: &RepositoryRecord,
+    secondary_path: &Path,
+) {
+    let before = projection(driver, repository).await;
+    assert_eq!(before.workspaces.len(), 2);
+    let current = before
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.current)
+        .expect("current workspace must be identified");
+    let secondary = before
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.name == "secondary")
+        .expect("secondary workspace must be listed");
+    assert_eq!(
+        Path::new(&secondary.root).canonicalize().unwrap(),
+        secondary_path.canonicalize().unwrap()
+    );
+    fs::write(
+        secondary_path.join("untracked-workspace-file.txt"),
+        "remove with workspace\n",
+    )
+    .unwrap();
+
+    let current_error = driver
+        .mutation_context(
+            repository,
+            &MutationIntent::RemoveWorkspace {
+                name: current.name.clone(),
+            },
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap_err();
+    assert!(current_error.message.contains("current workspace"));
+
+    execute(
+        driver,
+        repository,
+        &MutationIntent::RemoveWorkspace {
+            name: "secondary".into(),
+        },
+    )
+    .await;
+    let after = projection(driver, repository).await;
+    assert_eq!(
+        after
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.name.as_str())
+            .collect::<Vec<_>>(),
+        vec![current.name.as_str()]
+    );
+    assert!(
+        !secondary_path.exists(),
+        "workspace removal must delete the workspace directory"
+    );
+    assert!(
+        after
+            .changes
+            .iter()
+            .all(|change| change.change_id != secondary.change_id),
+        "workspace removal must also abandon its empty working-copy change"
+    );
+}
+
+#[tokio::test]
+async fn local_and_simulated_ssh_remove_workspaces_and_their_directories() {
+    let directory = tempdir().unwrap();
+
+    let local_path = directory.path().join("local-repository");
+    let local_secondary = directory.path().join("local-secondary");
+    init_repository(&local_path);
+    jj(
+        &[
+            "workspace",
+            "add",
+            "--name",
+            "secondary",
+            local_secondary.to_str().unwrap(),
+        ],
+        &local_path,
+    );
+    jj(
+        &["describe", "-m", "temporary empty workspace"],
+        &local_secondary,
+    );
+    exercise_workspace_removal(
+        &JjDriver::default(),
+        &local_record(&local_path, "local workspace fixture"),
+        &local_secondary,
+    )
+    .await;
+
+    let remote_path = directory.path().join("ssh-repository");
+    let remote_secondary = directory.path().join("ssh-secondary");
+    init_repository(&remote_path);
+    jj(
+        &[
+            "workspace",
+            "add",
+            "--name",
+            "secondary",
+            remote_secondary.to_str().unwrap(),
+        ],
+        &remote_path,
+    );
+    jj(
+        &["describe", "-m", "temporary empty workspace"],
+        &remote_secondary,
+    );
+    let fake_home = directory.path().join("remote-home");
+    fs::create_dir_all(fake_home.join("fixtures")).unwrap();
+    std::os::unix::fs::symlink(&remote_path, fake_home.join("fixtures/repository")).unwrap();
+    let remote = RepositoryRecord::new(
+        "ssh workspace fixture",
+        RepositoryLocation::Ssh {
+            host: "fixture-host".into(),
+            path: "~/fixtures/repository".into(),
+        },
+    )
+    .unwrap();
+    let remote_driver =
+        JjDriver::with_programs("jj".into(), fake_ssh(directory.path(), &fake_home));
+    exercise_workspace_removal(&remote_driver, &remote, &remote_secondary).await;
+}
+
+#[tokio::test]
+async fn workspace_removal_rejects_a_non_empty_working_copy() {
+    let directory = tempdir().unwrap();
+    let repository_path = directory.path().join("repository");
+    let secondary_path = directory.path().join("secondary");
+    init_repository(&repository_path);
+    jj(
+        &[
+            "workspace",
+            "add",
+            "--name",
+            "secondary",
+            secondary_path.to_str().unwrap(),
+        ],
+        &repository_path,
+    );
+    fs::write(secondary_path.join("tracked.txt"), "keep this change\n").unwrap();
+    jj(&["status"], &secondary_path);
+
+    let driver = JjDriver::default();
+    let repository = local_record(&repository_path, "non-empty workspace fixture");
+    let error = driver
+        .mutation_context(
+            &repository,
+            &MutationIntent::RemoveWorkspace {
+                name: "secondary".into(),
+            },
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(error.message.contains("contains changes"));
+    assert!(secondary_path.exists());
+    assert_eq!(projection(&driver, &repository).await.workspaces.len(), 2);
 }
 
 async fn exercise_core_mutations(driver: &JjDriver, repository: &RepositoryRecord) {

@@ -94,7 +94,21 @@ export interface ChangeRow {
   files: ChangedFile[];
   conflict: boolean;
   workingCopy: boolean;
+  workspaceCopies?: string[];
   empty: boolean;
+}
+
+export interface WorkspaceRow {
+  name: string;
+  root: string;
+  changeId: string;
+  commitId: string;
+  summary: string;
+  updatedAt: string;
+  current: boolean;
+  empty: boolean;
+  conflict: boolean;
+  fileCount: number;
 }
 
 export interface RepositoryProjection {
@@ -108,6 +122,8 @@ export interface RepositoryProjection {
   changes: ChangeRow[];
   conflicts: number;
   workingCopyHasChanges: boolean;
+  workingCopyFileCount: number;
+  workspaces: WorkspaceRow[];
   syncStatus: SyncStatus;
 }
 
@@ -171,6 +187,7 @@ export type MutationIntent =
   | { kind: "split"; sourceCommitId: string; paths: string[]; message: string }
   | { kind: "abandon"; targetCommitIds: string[] }
   | { kind: "pruneEmpty" }
+  | { kind: "removeWorkspace"; name: string }
   | { kind: "undo"; operationId: string }
   | { kind: "bookmarkMove"; name: string; targetCommitId: string }
   | { kind: "push"; name: string; remote: string };

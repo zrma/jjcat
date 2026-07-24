@@ -28,7 +28,7 @@ Status: resolved for P3 implementation
 
 ## Q4: Empty change pruning 보호 범위
 
-- Decision: current working copy, root, immutable change와 local/remote bookmark가 붙은 change를
+- Decision: 모든 active workspace working copy, root, immutable change와 local/remote bookmark가 붙은 change를
   제외하고 preview에 열거된 exact empty commit만 abandon한다.
 - Reason: current edit target과 named reference를 implicit cleanup에서 보존한다.
 - Revisit when: bookmark를 부모로 이동하는 별도 explicit cleanup mode가 필요하다.

@@ -3,10 +3,8 @@ import {
   AlertTriangle,
   ArrowUp,
   ArrowDownToLine,
-  Bookmark,
   Cable,
   CircleX,
-  Cloud,
   Code2,
   Database,
   FileDiff,
@@ -36,8 +34,10 @@ import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { MutationDialog } from "./components/MutationDialog";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
+import { WorkspaceManager } from "./components/WorkspaceManager";
 import { filterChanges, type HistoryView } from "./lib/changeFilters";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
+import { repositoryNavigation as navigationForProjection } from "./lib/repositoryNavigation";
 import { groupRepositories } from "./lib/repositories";
 import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
 import type {
@@ -188,6 +188,7 @@ function App() {
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [historyView, setHistoryView] = useState<HistoryView>("all");
+  const [showWorkspaceManager, setShowWorkspaceManager] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
@@ -225,26 +226,10 @@ function App() {
     ? registry?.cachedProjections[selectedRepository.id]
     : undefined;
   const selectedProjection = selectedCache?.projection;
-  const repositoryNavigation = useMemo(() => {
-    const bookmarks = new Set<string>();
-    const remoteBookmarks = new Set<string>();
-    for (const change of selectedProjection?.changes ?? []) {
-      for (const bookmark of change.bookmarks) {
-        if (bookmark.remote) {
-          remoteBookmarks.add(`${bookmark.name}@${bookmark.remote}`);
-        } else {
-          bookmarks.add(bookmark.name);
-        }
-      }
-    }
-    return {
-      changes: selectedProjection?.changes.length ?? 0,
-      workingCopy: selectedProjection?.changes.filter((change) => change.workingCopy).length ?? 0,
-      bookmarks: bookmarks.size,
-      remoteBookmarks: remoteBookmarks.size,
-      conflicts: selectedProjection?.conflicts ?? 0,
-    };
-  }, [selectedProjection]);
+  const repositoryNavigation = useMemo(
+    () => navigationForProjection(selectedProjection),
+    [selectedProjection],
+  );
   const visibleChanges = useMemo(() => {
     return filterChanges(selectedProjection?.changes ?? [], historyView, searchQuery);
   }, [historyView, searchQuery, selectedProjection]);
@@ -273,6 +258,7 @@ function App() {
     setSelectedChangeId(null);
     setSearchQuery("");
     setHistoryView("all");
+    setShowWorkspaceManager(false);
     setInspectorView("overview");
     setMutationDialog(null);
     setRebaseSourceCommitId(null);
@@ -331,6 +317,23 @@ function App() {
     setDiffLoading(false);
     setDiffError(null);
   }, [selectedRepository?.id, selectedChange?.changeId, selectedChange?.commitId]);
+
+  useEffect(() => {
+    if (
+      historyView !== "working-copy" ||
+      selectedFilePath ||
+      !selectedDetailsAvailable
+    ) {
+      return;
+    }
+    const firstFile = selectedChangeDetails?.files[0];
+    if (firstFile) setSelectedFilePath(firstFile.path);
+  }, [
+    historyView,
+    selectedChangeDetails,
+    selectedDetailsAvailable,
+    selectedFilePath,
+  ]);
 
   useEffect(() => {
     operationRequestRef.current += 1;
@@ -502,6 +505,7 @@ function App() {
         if (selectedRepository) void refreshRepository(selectedRepository.id);
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        if (!searchInputRef.current) return;
         event.preventDefault();
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
@@ -831,8 +835,9 @@ function App() {
             <h3>Workspace</h3>
             <button
               type="button"
-              className={historyView === "working-copy" ? "selected" : ""}
+              className={!showWorkspaceManager && historyView === "working-copy" ? "selected" : ""}
               onClick={() => {
+                setShowWorkspaceManager(false);
                 setHistoryView("working-copy");
                 setInspectorView("overview");
               }}
@@ -840,12 +845,26 @@ function App() {
             >
               <FolderGit2 aria-hidden="true" />
               <span>Working Copy</span>
-              <strong>{repositoryNavigation.workingCopy}</strong>
+              <strong>{repositoryNavigation.workingCopyFiles}</strong>
             </button>
             <button
               type="button"
-              className={historyView === "all" ? "selected" : ""}
+              className={showWorkspaceManager ? "selected" : ""}
               onClick={() => {
+                setShowWorkspaceManager(true);
+                setInspectorView("overview");
+              }}
+              disabled={!selectedRepository}
+            >
+              <FolderOpen aria-hidden="true" />
+              <span>Workspaces</span>
+              <strong>{selectedProjection?.workspaces.length ?? 0}</strong>
+            </button>
+            <button
+              type="button"
+              className={!showWorkspaceManager && historyView === "all" ? "selected" : ""}
+              onClick={() => {
+                setShowWorkspaceManager(false);
                 setHistoryView("all");
                 setInspectorView("overview");
               }}
@@ -853,36 +872,6 @@ function App() {
             >
               <FileDiff aria-hidden="true" />
               <span>All Changes</span>
-              <strong>{repositoryNavigation.changes}</strong>
-            </button>
-          </section>
-          <section className="navigation-section">
-            <h3>References</h3>
-            <button
-              type="button"
-              className={historyView === "bookmarks" ? "selected" : ""}
-              onClick={() => {
-                setHistoryView("bookmarks");
-                setInspectorView("overview");
-              }}
-              disabled={!selectedRepository}
-            >
-              <Bookmark aria-hidden="true" />
-              <span>Bookmarks</span>
-              <strong>{repositoryNavigation.bookmarks}</strong>
-            </button>
-            <button
-              type="button"
-              className={historyView === "remote-bookmarks" ? "selected" : ""}
-              onClick={() => {
-                setHistoryView("remote-bookmarks");
-                setInspectorView("overview");
-              }}
-              disabled={!selectedRepository}
-            >
-              <Cloud aria-hidden="true" />
-              <span>Remote Bookmarks</span>
-              <strong>{repositoryNavigation.remoteBookmarks}</strong>
             </button>
           </section>
           <section className="navigation-section">
@@ -891,6 +880,7 @@ function App() {
               type="button"
               className={historyView === "conflicts" ? "selected" : ""}
               onClick={() => {
+                setShowWorkspaceManager(false);
                 setHistoryView("conflicts");
                 setInspectorView("overview");
               }}
@@ -905,7 +895,11 @@ function App() {
             <button
               type="button"
               className={inspectorView === "operations" ? "selected" : ""}
-              onClick={() => setInspectorView("operations")}
+              onClick={() => {
+                setShowWorkspaceManager(false);
+                setHistoryView("all");
+                setInspectorView("operations");
+              }}
               disabled={!selectedRepository}
             >
               <History aria-hidden="true" />
@@ -1029,6 +1023,7 @@ function App() {
                   className="mutation-button"
                   title="Create a new change on the selected change"
                   onClick={() => {
+                    setShowWorkspaceManager(false);
                     if (!selectedChange) return;
                     setMutationDialog({
                       initialIntent: {
@@ -1073,7 +1068,10 @@ function App() {
                   className="handoff-button"
                   title="Inspect read-only operation log"
                   aria-label="Inspect operation log"
-                  onClick={() => setInspectorView("operations")}
+                  onClick={() => {
+                    setHistoryView("all");
+                    setInspectorView("operations");
+                  }}
                 >
                   <History aria-hidden="true" />
                 </button>
@@ -1095,17 +1093,19 @@ function App() {
                   <SquareTerminal aria-hidden="true" />
                   <span className="sr-only">Open terminal</span>
                 </button>
-                <label className="history-search">
-                  <Search aria-hidden="true" />
-                  <span className="sr-only">Filter changes</span>
-                  <input
-                    ref={searchInputRef}
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Filter changes"
-                  />
-                  <kbd>⌘F</kbd>
-                </label>
+                {!showWorkspaceManager && historyView !== "working-copy" && (
+                  <label className="history-search">
+                    <Search aria-hidden="true" />
+                    <span className="sr-only">Filter changes</span>
+                    <input
+                      ref={searchInputRef}
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Filter changes"
+                    />
+                    <kbd>⌘F</kbd>
+                  </label>
+                )}
                 <button
                   type="button"
                   className={`refresh-button ${selectedState === "refreshing" ? "active" : ""}`}
@@ -1128,9 +1128,34 @@ function App() {
                 )}
               </div>
             )}
+            {showWorkspaceManager ? (
+              <WorkspaceManager
+                workspaces={selectedProjection?.workspaces ?? []}
+                onReviewChange={(workspace) => {
+                  setShowWorkspaceManager(false);
+                  setHistoryView("all");
+                  setInspectorView("overview");
+                  setSelectedChangeId(workspace.changeId);
+                }}
+                onRemove={(workspace) =>
+                  setMutationDialog({
+                    initialIntent: {
+                      kind: "removeWorkspace",
+                      name: workspace.name,
+                    },
+                    previewImmediately: true,
+                  })
+                }
+              />
+            ) : (
             <ChangeWorkspace
               changes={visibleChanges}
               selectedChange={selectedChange}
+              workingCopyMode={historyView === "working-copy"}
+              compactHistory={
+                historyView === "all" && searchQuery.trim().length === 0
+              }
+              workingCopyFileCount={repositoryNavigation.workingCopyFiles}
               onSelect={setSelectedChangeId}
               refreshing={selectedState === "refreshing"}
               changeDetailsLoading={changeDetailsLoading && !selectedDetailsAvailable}
@@ -1177,6 +1202,7 @@ function App() {
                 setInspectorView("changes");
               }}
             />
+            )}
           </>
         )}
       </section>

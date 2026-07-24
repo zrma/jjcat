@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<MutationKind, string> = {
   split: "Split paths",
   abandon: "Abandon change",
   pruneEmpty: "Prune empty changes",
+  removeWorkspace: "Remove workspace",
   undo: "Undo current operation",
   bookmarkMove: "Move bookmark",
   push: "Push bookmark",
@@ -118,6 +119,13 @@ export function MutationDialog({
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [typedConfirmation, setTypedConfirmation] = useState("");
+  const activeWorkspaceCopies = changes.flatMap((change) =>
+    (change.workspaceCopies ?? []).map((name) => ({
+      name,
+      changeId: change.changeId,
+      current: change.workingCopy,
+    })),
+  );
   const [error, setError] = useState<string | null>(null);
   const initialPreviewStarted = useRef(false);
   const contextChange =
@@ -152,6 +160,8 @@ export function MutationDialog({
         return { kind, targetCommitIds: [target] };
       case "pruneEmpty":
         return { kind };
+      case "removeWorkspace":
+        return initialIntent.kind === "removeWorkspace" ? initialIntent : null;
       case "undo":
         return undoTarget ? { kind, operationId: undoTarget } : null;
       case "bookmarkMove":
@@ -242,7 +252,9 @@ export function MutationDialog({
       ? `Prune ${preview.candidates.length} empty ${
           preview.candidates.length === 1 ? "change" : "changes"
         }`
-      : preview?.title;
+      : preview?.kind === "pruneEmpty"
+        ? "Nothing to prune"
+        : preview?.title;
 
   return (
     <div className="dialog-backdrop mutation-backdrop" role="presentation">
@@ -359,8 +371,9 @@ export function MutationDialog({
                 <span>
                   <strong>Protected pruning</strong>
                   <small>
-                    Current <code>@</code>, root, immutable, local-bookmarked, and
-                    remote-bookmarked changes are excluded by the repository query.
+                    Active working copies in every workspace, root, immutable,
+                    local-bookmarked, and remote-bookmarked changes are excluded by
+                    the repository query.
                   </small>
                 </span>
               </div>
@@ -392,10 +405,20 @@ export function MutationDialog({
           </form>
         ) : (
           <div className="mutation-preview">
-            <section className={`mutation-risk risk-${preview.risk}`}>
+            <section
+              className={`mutation-risk risk-${preview.risk} ${
+                preview.kind === "pruneEmpty" && preview.candidates.length === 0
+                  ? "risk-noop"
+                  : ""
+              }`}
+            >
               <MutationRiskIcon kind={preview.kind} />
               <span>
-                <strong>{preview.risk.replace(/([A-Z])/g, " $1")}</strong>
+                <strong>
+                  {preview.kind === "pruneEmpty" && preview.candidates.length === 0
+                    ? "nothing to prune"
+                    : preview.risk.replace(/([A-Z])/g, " $1")}
+                </strong>
                 <small>{preview.effect}</small>
               </span>
             </section>
@@ -432,7 +455,11 @@ export function MutationDialog({
                   <span>{preview.candidates.length}</span>
                 </header>
                 {preview.candidates.length === 0 ? (
-                  <p>Nothing is eligible. Protected and current changes remain untouched.</p>
+                  <p>
+                    Nothing is eligible. {activeWorkspaceCopies.length} active workspace{" "}
+                    {activeWorkspaceCopies.length === 1 ? "copy remains" : "copies remain"}{" "}
+                    protected.
+                  </p>
                 ) : (
                   <ul>
                     {preview.candidates.map((candidate) => (
@@ -440,6 +467,17 @@ export function MutationDialog({
                         <code>{candidate.changeId}</code>
                         <span>{candidate.summary || "(no description)"}</span>
                         <code>{shortId(candidate.commitId)}</code>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {activeWorkspaceCopies.length > 0 && (
+                  <ul className="protected-workspaces">
+                    {activeWorkspaceCopies.map((workspace) => (
+                      <li key={`${workspace.name}-${workspace.changeId}`}>
+                        <span>{workspace.current ? "Current workspace" : "Other workspace"}</span>
+                        <strong>{workspace.name}</strong>
+                        <code>{workspace.changeId}</code>
                       </li>
                     ))}
                   </ul>

@@ -14,6 +14,7 @@ import type {
   MutationIntent,
   MutationPreview,
   ChangeRow,
+  WorkspaceRow,
 } from "./types";
 
 const LOCAL_ID = "e21c6676-690c-5847-b407-137074516f66";
@@ -29,6 +30,7 @@ function change(
     parentCommitIds: string[];
     bookmarks: BookmarkRef[];
     workingCopy: boolean;
+    workspaceCopies: string[];
     empty: boolean;
     files: { status: string; path: string; displayPath?: string }[];
     conflict: boolean;
@@ -54,6 +56,7 @@ function change(
     files: options.files ?? [],
     conflict: options.conflict ?? false,
     workingCopy: options.workingCopy ?? false,
+    workspaceCopies: options.workspaceCopies ?? [],
     empty: options.empty ?? false,
   };
 }
@@ -64,10 +67,20 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
     const changeId = sequence.toString(16).padStart(12, "0");
     const commitId = (sequence + 4_096).toString(16).padStart(12, "0");
     return change(changeId, commitId, `chore: fixture history row ${sequence}`, 360 + index * 12, {
+      bookmarks:
+        index === 42
+          ? [{ name: "feature/remote-review", remote: "origin" }]
+          : index === 104
+            ? [{ name: "release-candidate", remote: null }]
+            : [],
       parents: [
-        index === 152
+        index === 104
           ? "000000000000"
-          : (sequence + 1).toString(16).padStart(12, "0"),
+          : index === 103
+            ? (sequence + 2).toString(16).padStart(12, "0")
+          : index === 152
+            ? "000000000000"
+            : (sequence + 1).toString(16).padStart(12, "0"),
       ],
     });
   });
@@ -87,6 +100,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
         { name: "review-ready", remote: null },
       ],
       workingCopy: true,
+      workspaceCopies: ["default"],
       description:
         "feat: add repository identity\n\nKeep local and SSH repository identity stable across restarts.\n\nCo-authored-by: Fixture Bot <fixture@example.invalid>",
       files: [
@@ -109,6 +123,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
       {
         parents: ["6a7b8c9d0e1f"],
         parentCommitIds: ["6b7c8d9e0f1a2031425364758697a8b9c0d1e2f3"],
+        workspaceCopies: ["review"],
         empty: true,
       },
     ),
@@ -144,6 +159,33 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
       changes: rows,
       conflicts: 1,
       workingCopyHasChanges: true,
+      workingCopyFileCount: 3,
+      workspaces: [
+        {
+          name: "default",
+          root: "<repo-root>",
+          changeId: rows[0].changeId,
+          commitId: rows[0].commitId,
+          summary: rows[0].summary,
+          updatedAt: rows[0].updatedAt,
+          current: true,
+          empty: false,
+          conflict: false,
+          fileCount: 3,
+        },
+        {
+          name: "review",
+          root: "<workspace-root>/review",
+          changeId: rows[1].changeId,
+          commitId: rows[1].commitId,
+          summary: rows[1].summary,
+          updatedAt: rows[1].updatedAt,
+          current: false,
+          empty: true,
+          conflict: false,
+          fileCount: 0,
+        },
+      ],
       syncStatus: {
         available: true,
         remoteHeads: 1,
@@ -326,6 +368,7 @@ export class DemoBridge {
               (change) =>
                 change.empty &&
                 !change.workingCopy &&
+                (change.workspaceCopies?.length ?? 0) === 0 &&
                 !/^0+$/.test(change.commitId) &&
                 change.bookmarks.length === 0,
             )
@@ -335,7 +378,23 @@ export class DemoBridge {
               summary: change.summary,
             }))
         : [];
-    const content = mutationPreviewContent(intent, projection.changes);
+    if (intent.kind === "removeWorkspace") {
+      const workspace = projection.workspaces.find(
+        (candidate) => candidate.name === intent.name,
+      );
+      if (!workspace || workspace.current || !workspace.empty) {
+        throw {
+          kind: "invalidInput",
+          message:
+            "Only a registered, non-current workspace with an empty working copy can be removed.",
+        } satisfies AppError;
+      }
+    }
+    const content = mutationPreviewContent(
+      intent,
+      projection.changes,
+      projection.workspaces,
+    );
     const token = crypto.randomUUID();
     const preview: MutationPreview = {
       token,
@@ -372,7 +431,31 @@ export class DemoBridge {
     }
     this.mutationPreviews.delete(request.token);
     const cached = this.snapshot.registry.cachedProjections[stored.repositoryId];
+    const removedWorkspaceName =
+      stored.intent.kind === "removeWorkspace" ? stored.intent.name : null;
+    const removedWorkspaceCommitId = removedWorkspaceName
+      ? cached.projection.workspaces.find(
+          (workspace) => workspace.name === removedWorkspaceName,
+        )?.commitId
+      : undefined;
     applyDemoMutation(cached.projection.changes, stored.intent, stored.preview.candidates);
+    if (stored.intent.kind === "removeWorkspace") {
+      const workspaceName = stored.intent.name;
+      cached.projection.workspaces = cached.projection.workspaces.filter(
+        (workspace) => workspace.name !== workspaceName,
+      );
+      cached.projection.changes.forEach((change) => {
+        change.workspaceCopies = (change.workspaceCopies ?? []).filter(
+          (name) => name !== workspaceName,
+        );
+      });
+      if (removedWorkspaceCommitId) {
+        const changeIndex = cached.projection.changes.findIndex(
+          (change) => change.commitId === removedWorkspaceCommitId,
+        );
+        if (changeIndex >= 0) cached.projection.changes.splice(changeIndex, 1);
+      }
+    }
     const now = new Date().toISOString();
     cached.cachedAt = now;
     cached.projection.refreshedAt = now;
@@ -511,8 +594,13 @@ export class DemoBridge {
     if (repository?.location.kind === "ssh") {
       throw { kind: "driver", message: "SSH repository is disconnected; cached data is still available." } satisfies AppError;
     }
-    const cached = projection(repositoryId, new Date().toISOString());
-    this.snapshot.registry.cachedProjections[repositoryId] = cached;
+    const cached = this.snapshot.registry.cachedProjections[repositoryId];
+    if (!cached) {
+      throw { kind: "notFound", message: "Repository projection is missing." } satisfies AppError;
+    }
+    const refreshedAt = new Date().toISOString();
+    cached.cachedAt = refreshedAt;
+    cached.projection.refreshedAt = refreshedAt;
     return structuredClone(cached);
   }
 
@@ -549,6 +637,7 @@ export class DemoBridge {
 function mutationPreviewContent(
   intent: MutationIntent,
   changes: ChangeRow[],
+  workspaces: WorkspaceRow[],
 ): Omit<
   MutationPreview,
   | "token"
@@ -613,6 +702,12 @@ function mutationPreviewContent(
         "Abandon only mutable, unreferenced empty changes; current, root, and bookmarked changes stay protected.",
       risk: "destructive",
     },
+    removeWorkspace: {
+      title: "Remove workspace",
+      effect:
+        "Abandon its empty working-copy change, unregister the workspace, and permanently delete its directory, including untracked and ignored files.",
+      risk: "destructive",
+    },
     undo: {
       title: "Undo operation",
       effect: "Undo the exact current repository operation.",
@@ -660,6 +755,23 @@ function mutationPreviewContent(
     case "pruneEmpty":
       targets = [];
       break;
+    case "removeWorkspace": {
+      const workspace = workspaces.find((candidate) => candidate.name === intent.name);
+      targets = [
+        { label: "Workspace", value: intent.name, commitId: null },
+        {
+          label: "Directory",
+          value: workspace?.root || "Path unavailable",
+          commitId: null,
+        },
+        {
+          label: "Working-copy change",
+          value: workspace?.commitId || "Unavailable",
+          commitId: workspace?.commitId ?? null,
+        },
+      ];
+      break;
+    }
     case "undo":
       targets = [{ label: "Operation", value: intent.operationId, commitId: null }];
       break;
@@ -677,17 +789,11 @@ function mutationPreviewContent(
       break;
   }
   const confirmationPhrase =
-    intent.kind === "abandon"
-      ? `Abandon ${intent.targetCommitIds.length} changes`
-      : intent.kind === "undo"
-        ? "Undo current operation"
-        : intent.kind === "push"
-          ? `Push ${intent.name}`
-          : "Confirm";
+    intent.kind === "push" ? `Push ${intent.name}` : "Confirm";
   return {
     ...details[intent.kind],
     targets,
-    requiresTypedConfirmation: ["abandon", "undo", "push"].includes(intent.kind),
+    requiresTypedConfirmation: intent.kind === "push",
     confirmationPhrase,
   };
 }
@@ -740,6 +846,8 @@ function applyDemoMutation(
       }
       break;
     }
+    case "removeWorkspace":
+      break;
     case "bookmarkMove": {
       changes.forEach((item) => {
         item.bookmarks = item.bookmarks.filter(

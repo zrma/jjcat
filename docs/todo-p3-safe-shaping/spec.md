@@ -19,6 +19,7 @@ P2는 operation identity와 undo eligibility를 read-only로 보여주지만 실
 - `new`, `edit`, `describe`와 network `fetch`
 - `rebase`, `squash`, path-bounded `split`, `abandon`
 - 보호 규칙이 있는 bulk empty-change pruning
+- current workspace와 unsafe path를 보호하는 one-step workspace removal
 - operation `undo`와 실패 뒤 recovery guidance
 - local bookmark move와 explicit remote-write `push`
 - graph drag-and-drop rebase와 keyboard-equivalent source/destination selection
@@ -64,6 +65,7 @@ postcondition 불일치를 감지하면 recovery-required 상태로 종료한다
 | split | source commit ID + exact repository filesets | rewrite | two resulting changes |
 | abandon | exact commit ID(s) | destructive rewrite | targets absent |
 | prune empty | enumerated candidate commit IDs | destructive rewrite | candidates absent |
+| remove workspace | exact registered name + directory + empty working-copy commit | destructive | visible change, registration and directory absent |
 | undo | exact current operation ID | recovery | current operation restored to parent state |
 | bookmark move | bookmark name + commit ID | reference move | local bookmark target |
 | push | bookmark name + selected Git remote | remote write | local remote-bookmark target refresh |
@@ -76,7 +78,7 @@ exact `root-file:` fileset으로 전달한다.
 `Prune empty changes`는 preview 시점에 후보를 전부 열거하고 그 commit IDs만 execute한다.
 후보는 `empty() & mutable()`이면서 아래 보호 대상이 아닌 change다.
 
-- 현재 working-copy/edit target `@`
+- 모든 active workspace의 working-copy target
 - root
 - immutable change
 - local 또는 remote bookmark가 붙은 change
@@ -93,7 +95,8 @@ execute 직전 operation ID와 후보 집합이 모두 같아야 한다. 새 후
 - destructive rewrite, network action과 remote write는 색상뿐 아니라 text/icon/risk label로
   구분한다.
 - preview에는 repository, action, exact targets, expected operation, risk, command effect와
-  confirmation requirement를 표시한다. raw local/SSH command와 private path는 표시하지 않는다.
+  confirmation requirement를 표시한다. raw local/SSH command는 표시하지 않으며 workspace
+  removal만 삭제 대상을 확인할 수 있도록 exact registered directory를 명시한다.
 
 ## Acceptance Checklist
 
@@ -103,12 +106,13 @@ execute 직전 operation ID와 후보 집합이 모두 같아야 한다. 새 후
 | C2 | done | command concurrency tests | 같은 repository는 busy로 거절하고 서로 다른 repository는 독립적으로 진행 |
 | C3 | done | local/simulated SSH fixture | new, edit, describe와 fetch가 같은 typed request/result contract를 사용 |
 | C4 | done | isolated shaping fixture | rebase, squash, file-level split와 abandon 뒤 fresh projection 검증 |
-| C5 | done | protected candidate fixture | `@`와 bookmark target을 보존하고 exact unreferenced empty candidate만 제거 |
+| C5 | done | protected candidate fixture | 모든 workspace target과 bookmark target을 보존하고 exact unreferenced empty candidate만 제거 |
 | C6 | done | operation/domain fixture | undo, stale/duplicate execute rejection과 divergent failure recovery 분류 |
 | C7 | done | local bare remote fixture | bookmark move와 confirmed push 뒤 local/remote target 정렬 |
 | C8 | done | rendered interaction smoke | real mouse path drag와 `R`/방향키/`Enter`가 같은 rebase preview를 열고 직접 실행하지 않음 |
 | C9 | done | packaged desktop smoke | native repository load, action preview, window move/resize와 deterministic progress/result surface |
 | C10 | done | `scripts/check.sh` | canonical gate와 public-ready tracked documentation |
+| C11 | done | local/simulated SSH workspace fixture | current/non-empty workspace를 보호하고 exact empty working-copy change, registered directory와 untracked file까지 단일 confirmed action으로 정리 |
 
 ## Required Evidence
 

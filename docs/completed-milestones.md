@@ -83,8 +83,9 @@ implementation은 다음 P0 milestone로 넘겼다.
   request/result contract를 사용한다.
 - isolated fixture에서 rebase, squash, exact file-level split, abandon과 undo를 실행하고 fresh
   projection 및 operation postcondition을 확인했다.
-- working copy, root, immutable change와 local/remote bookmark target을 보호하고 preview에
-  열거된 unreferenced empty changes만 제거하는 pruning을 구현했다.
+- 모든 active workspace working copy, root, immutable change와 local/remote bookmark
+  target을 보호하고 preview에 열거된 unreferenced empty changes만 제거하는 pruning을
+  구현했다.
 - local bookmark move와 explicit typed-confirmation push를 local bare remote fixture로
   검증했으며 force/delete option은 제공하지 않는다.
 - graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path를 같은 rebase preview에 연결하고
@@ -98,6 +99,8 @@ implementation은 다음 P0 milestone로 넘겼다.
 - protected empty-change pruning을 repository navigation과 repository row context menu에
   노출하고 narrow window에는 compact fallback을 제공했다.
 - mutation dialog는 이미 선택된 intent의 parameter와 exact-target preview에 집중한다.
+- local abandon/prune/undo의 중복 typed confirmation을 제거하고 exact-target preview와
+  explicit action button을 확인 경계로 유지했다. remote push의 typed confirmation은 보존한다.
   pruning은 열거된 candidate count를 destructive button에 표시하고 별도 phrase 입력을
   요구하지 않으며, remote push 등의 typed confirmation과 stale-operation safety contract는
   유지한다.
@@ -110,9 +113,35 @@ implementation은 다음 P0 milestone로 넘겼다.
 
 - pointer drag hover 중 source parent를 current destination으로 바꾼 client-side 예상 DAG를
   계산해 실제 mutation 전에 graph 연결 변화를 보여준다.
+- 아래쪽 source를 위쪽 destination으로 옮기는 경우 제안 change를 stable topological
+  order로 재배치하고, source/descendants/destination만 비교 대상으로 제한해 무관한
+  fold 구간에 proposed lane이 남지 않게 했다.
 - source descendant를 destination으로 선택하는 cycle을 거부하고 viewport edge drag의
   bounded auto-scroll을 추가했다.
 - drop은 실행하지 않고 `Moving`, `New parent`, `Cancel`, `Review rebase`가 있는 inline
   checkpoint에 머문다. review 뒤에만 기존 backend exact-target preview로 전환한다.
 - deterministic topology tests, rendered Cancel/Review interaction과 canonical repository
   gate를 통과했다. 실제 repository mutation과 private context는 evidence에 포함하지 않았다.
+
+## 2026-07-25: Workspace Review and Cleanup
+
+- repository에 등록된 모든 workspace의 working-copy change, path와
+  changed-file/conflict/empty state를 전용 화면에 모았다.
+- current/non-empty workspace는 제거할 수 없게 보호하고 다른 empty workspace는 exact
+  name/path/working-copy change를 preview한 뒤 change, registration과 directory를 한 번에
+  정리한다.
+- local/simulated SSH에서 untracked file이 든 workspace directory까지 삭제되는 integration
+  test, 설명이 있는 empty working-copy change의 잔존 회귀 test와
+  current/non-empty/root/ancestor/symlink 안전 경계를 추가했다.
+
+## 2026-07-25: Reference-centered History Folding
+
+- local/remote bookmark 전용 sidebar filter를 제거하고 bookmark label, search와 mutation은
+  graph 안에 유지했다.
+- working copy, workspace copy, local/remote bookmark와 conflict 주변은 바로 보이고
+  기준점에서 먼 연속 구간은 `~` row로 접는 deterministic display projection을 추가했다.
+- 각 접힌 구간은 10개씩, 전체를 펼치거나 다시 접을 수 있으며 search와 selection은
+  원본 bounded history를 유지한다. rebase preview는 source/destination을 임시 anchor로
+  노출하고 제안 topology만 별도 stable order로 계산한다.
+- workspace inventory에서 fallible root metadata를 분리하고 exact-name best-effort lookup을
+  추가해 path가 유실된 legacy registration도 전체 refresh를 막지 않게 했다.

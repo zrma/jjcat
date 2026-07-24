@@ -45,6 +45,9 @@ pub enum MutationIntent {
         target_commit_ids: Vec<String>,
     },
     PruneEmpty,
+    RemoveWorkspace {
+        name: String,
+    },
     Undo {
         operation_id: String,
     },
@@ -102,6 +105,7 @@ impl MutationIntent {
             }
             Self::Abandon { target_commit_ids } => validate_commit_ids(target_commit_ids, false),
             Self::PruneEmpty => Ok(()),
+            Self::RemoveWorkspace { name } => validate_workspace_name(name),
             Self::Undo { operation_id } => validate_operation_id(operation_id),
             Self::BookmarkMove {
                 name,
@@ -128,6 +132,7 @@ impl MutationIntent {
             Self::Split { .. } => MutationKind::Split,
             Self::Abandon { .. } => MutationKind::Abandon,
             Self::PruneEmpty => MutationKind::PruneEmpty,
+            Self::RemoveWorkspace { .. } => MutationKind::RemoveWorkspace,
             Self::Undo { .. } => MutationKind::Undo,
             Self::BookmarkMove { .. } => MutationKind::BookmarkMove,
             Self::Push { .. } => MutationKind::Push,
@@ -160,9 +165,11 @@ impl MutationIntent {
             Self::Abandon { target_commit_ids } => {
                 target_commit_ids.iter().map(String::as_str).collect()
             }
-            Self::Fetch { .. } | Self::PruneEmpty | Self::Undo { .. } | Self::Push { .. } => {
-                Vec::new()
-            }
+            Self::Fetch { .. }
+            | Self::PruneEmpty
+            | Self::RemoveWorkspace { .. }
+            | Self::Undo { .. }
+            | Self::Push { .. } => Vec::new(),
         }
     }
 }
@@ -179,6 +186,7 @@ pub enum MutationKind {
     Split,
     Abandon,
     PruneEmpty,
+    RemoveWorkspace,
     Undo,
     BookmarkMove,
     Push,
@@ -237,6 +245,8 @@ impl MutationPreview {
         intent: &MutationIntent,
         expected_operation_id: String,
         candidates: Vec<MutationCandidate>,
+        workspace_root: Option<String>,
+        workspace_commit_id: Option<String>,
     ) -> Result<Self, MutationValidationError> {
         intent.validate()?;
         validate_operation_id(&expected_operation_id)?;
@@ -247,7 +257,23 @@ impl MutationPreview {
             validate_candidates(&candidates)?;
         }
 
-        let (title, effect, risk, targets) = preview_content(intent, &candidates);
+        if matches!(intent, MutationIntent::RemoveWorkspace { .. }) {
+            if workspace_root.as_deref().is_none_or(str::is_empty)
+                || workspace_commit_id.as_deref().is_none_or(str::is_empty)
+            {
+                return Err(MutationValidationError::InvalidWorkspace);
+            }
+            validate_commit_id(workspace_commit_id.as_deref().unwrap_or_default())?;
+        } else if workspace_root.is_some() || workspace_commit_id.is_some() {
+            return Err(MutationValidationError::InvalidWorkspace);
+        }
+
+        let (title, effect, risk, targets) = preview_content(
+            intent,
+            &candidates,
+            workspace_root.as_deref(),
+            workspace_commit_id.as_deref(),
+        );
         let (requires_typed_confirmation, confirmation_phrase) = confirmation(intent);
         Ok(Self {
             token,
@@ -265,14 +291,38 @@ impl MutationPreview {
         })
     }
 
-    pub fn matches_context(&self, operation_id: &str, candidates: &[MutationCandidate]) -> bool {
-        self.expected_operation_id == operation_id && self.candidates == candidates
+    pub fn matches_context(
+        &self,
+        operation_id: &str,
+        candidates: &[MutationCandidate],
+        workspace_root: Option<&str>,
+        workspace_commit_id: Option<&str>,
+    ) -> bool {
+        let workspace_target_matches = if self.kind == MutationKind::RemoveWorkspace {
+            let directory_matches = self
+                .targets
+                .iter()
+                .find(|target| target.label == "Directory")
+                .is_some_and(|target| Some(target.value.as_str()) == workspace_root);
+            let commit_matches = self
+                .targets
+                .iter()
+                .find(|target| target.label == "Working-copy change")
+                .is_some_and(|target| target.commit_id.as_deref() == workspace_commit_id);
+            directory_matches && commit_matches
+        } else {
+            workspace_root.is_none() && workspace_commit_id.is_none()
+        };
+        self.expected_operation_id == operation_id
+            && self.candidates == candidates
+            && workspace_target_matches
     }
 }
 
 pub fn verify_postcondition(
     intent: &MutationIntent,
     candidates: &[MutationCandidate],
+    workspace_commit_id: Option<&str>,
     projection: &RepositoryProjection,
 ) -> Result<(), &'static str> {
     let changes = &projection.changes;
@@ -325,6 +375,17 @@ pub fn verify_postcondition(
             .all(|candidate| !commit_exists(&candidate.commit_id))
             .then_some(())
             .ok_or("a previewed empty-change candidate remains after pruning"),
+        MutationIntent::RemoveWorkspace { name } => {
+            let workspace_removed = !projection
+                .workspaces
+                .iter()
+                .any(|workspace| workspace.name == *name);
+            let working_copy_removed =
+                workspace_commit_id.is_some_and(|commit_id| !commit_exists(commit_id));
+            (workspace_removed && working_copy_removed)
+                .then_some(())
+                .ok_or("the removed workspace or its working-copy change remains visible")
+        }
         MutationIntent::BookmarkMove {
             name,
             target_commit_id,
@@ -383,6 +444,8 @@ pub struct ExecuteMutationRequest {
 fn preview_content(
     intent: &MutationIntent,
     candidates: &[MutationCandidate],
+    workspace_root: Option<&str>,
+    workspace_commit_id: Option<&str>,
 ) -> (String, String, MutationRisk, Vec<MutationTarget>) {
     match intent {
         MutationIntent::New { parent_commit_ids } => (
@@ -483,7 +546,7 @@ fn preview_content(
         MutationIntent::PruneEmpty => (
             "Prune empty changes".into(),
             format!(
-                "Abandon {} unreferenced empty change{}; the working copy and bookmarked changes stay protected.",
+                "Abandon {} unreferenced empty change{}; active workspace copies and bookmarked changes stay protected.",
                 candidates.len(),
                 if candidates.len() == 1 { "" } else { "s" }
             ),
@@ -500,6 +563,28 @@ fn preview_content(
                     commit_id: Some(candidate.commit_id.clone()),
                 })
                 .collect(),
+        ),
+        MutationIntent::RemoveWorkspace { name } => (
+            "Remove workspace".into(),
+            "Abandon its empty working-copy change, unregister the workspace, and permanently delete its directory, including untracked and ignored files."
+                .into(),
+            MutationRisk::Destructive,
+            vec![
+                MutationTarget {
+                    label: "Workspace".into(),
+                    value: name.clone(),
+                    commit_id: None,
+                },
+                MutationTarget {
+                    label: "Directory".into(),
+                    value: workspace_root.unwrap_or_default().into(),
+                    commit_id: None,
+                },
+                commit_target(
+                    "Working-copy change",
+                    workspace_commit_id.unwrap_or_default(),
+                ),
+            ],
         ),
         MutationIntent::Undo { operation_id } => (
             "Undo operation".into(),
@@ -549,11 +634,6 @@ fn preview_content(
 
 fn confirmation(intent: &MutationIntent) -> (bool, String) {
     match intent {
-        MutationIntent::Abandon { target_commit_ids } => {
-            (true, format!("Abandon {} changes", target_commit_ids.len()))
-        }
-        MutationIntent::PruneEmpty => (false, "Confirm".into()),
-        MutationIntent::Undo { .. } => (true, "Undo current operation".into()),
         MutationIntent::Push { name, .. } => (true, format!("Push {name}")),
         _ => (false, "Confirm".into()),
     }
@@ -577,6 +657,17 @@ fn commit_targets(label: &str, commit_ids: &[String]) -> Vec<MutationTarget> {
 fn validate_message(message: &str) -> Result<(), MutationValidationError> {
     if message.len() > MAX_DESCRIPTION_BYTES || message.contains('\0') {
         return Err(MutationValidationError::InvalidMessage);
+    }
+    Ok(())
+}
+
+fn validate_workspace_name(name: &str) -> Result<(), MutationValidationError> {
+    if name.is_empty()
+        || name.len() > 255
+        || name.trim() != name
+        || name.chars().any(char::is_control)
+    {
+        return Err(MutationValidationError::InvalidWorkspace);
     }
     Ok(())
 }
@@ -706,6 +797,8 @@ pub enum MutationValidationError {
     InvalidBookmark,
     #[error("Git remote name is outside jjcat's safe reference subset")]
     InvalidRemote,
+    #[error("workspace name is outside jjcat's safe workspace subset")]
+    InvalidWorkspace,
     #[error("empty-change candidate is invalid")]
     InvalidCandidate,
     #[error("mutation candidates are only valid for empty pruning")]
@@ -866,6 +959,15 @@ mod tests {
             ),
             (
                 serde_json::json!({
+                    "kind": "removeWorkspace",
+                    "name": "review",
+                }),
+                MutationIntent::RemoveWorkspace {
+                    name: "review".into(),
+                },
+            ),
+            (
+                serde_json::json!({
                     "kind": "undo",
                     "operationId": "operation-id",
                 }),
@@ -915,6 +1017,8 @@ mod tests {
             },
             "abcdef0123456789".into(),
             Vec::new(),
+            None,
+            None,
         )
         .unwrap();
         let serialized = serde_json::to_string(&preview).unwrap();
@@ -937,6 +1041,8 @@ mod tests {
                 commit_id: SOURCE.into(),
                 summary: "empty fixture".into(),
             }],
+            None,
+            None,
         )
         .unwrap();
 
@@ -950,8 +1056,85 @@ mod tests {
                 change_id: "abcdefghijkl".into(),
                 commit_id: SOURCE.into(),
                 summary: "empty fixture".into(),
-            }]
+            }],
+            None,
+            None,
         ));
-        assert!(!preview.matches_context("fedcba9876543210", &preview.candidates));
+        assert!(!preview.matches_context("fedcba9876543210", &preview.candidates, None, None,));
+    }
+
+    #[test]
+    fn workspace_removal_previews_exact_directory_without_typed_confirmation() {
+        let preview = MutationPreview::build(
+            "opaque-token".into(),
+            &repository(),
+            &MutationIntent::RemoveWorkspace {
+                name: "review".into(),
+            },
+            "abcdef0123456789".into(),
+            Vec::new(),
+            Some("/fixtures/review-workspace".into()),
+            Some(SOURCE.into()),
+        )
+        .unwrap();
+
+        assert_eq!(preview.kind, MutationKind::RemoveWorkspace);
+        assert_eq!(preview.risk, MutationRisk::Destructive);
+        assert_eq!(preview.targets[0].value, "review");
+        assert_eq!(preview.targets[1].label, "Directory");
+        assert_eq!(preview.targets[1].value, "/fixtures/review-workspace");
+        assert_eq!(preview.targets[2].label, "Working-copy change");
+        assert_eq!(preview.targets[2].commit_id.as_deref(), Some(SOURCE));
+        assert!(
+            preview
+                .effect
+                .contains("Abandon its empty working-copy change")
+        );
+        assert!(preview.effect.contains("untracked and ignored files"));
+        assert!(!preview.requires_typed_confirmation);
+        assert!(preview.matches_context(
+            "abcdef0123456789",
+            &[],
+            Some("/fixtures/review-workspace"),
+            Some(SOURCE),
+        ));
+        assert!(!preview.matches_context(
+            "abcdef0123456789",
+            &[],
+            Some("/fixtures/other-workspace"),
+            Some(SOURCE),
+        ));
+        assert!(!preview.matches_context(
+            "abcdef0123456789",
+            &[],
+            Some("/fixtures/review-workspace"),
+            Some(DESTINATION),
+        ));
+    }
+
+    #[test]
+    fn local_recovery_actions_use_preview_and_button_confirmation_only() {
+        for intent in [
+            MutationIntent::Abandon {
+                target_commit_ids: vec![SOURCE.into()],
+            },
+            MutationIntent::Undo {
+                operation_id: "abcdef0123456789".into(),
+            },
+        ] {
+            let preview = MutationPreview::build(
+                "opaque-token".into(),
+                &repository(),
+                &intent,
+                "abcdef0123456789".into(),
+                Vec::new(),
+                None,
+                None,
+            )
+            .unwrap();
+
+            assert!(!preview.requires_typed_confirmation);
+            assert_eq!(preview.confirmation_phrase, "Confirm");
+        }
     }
 }

@@ -311,7 +311,24 @@ pub struct ChangeRow {
     pub files: Vec<ChangedFile>,
     pub conflict: bool,
     pub working_copy: bool,
+    #[serde(default)]
+    pub workspace_copies: Vec<String>,
     pub empty: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRow {
+    pub name: String,
+    pub root: String,
+    pub change_id: String,
+    pub commit_id: String,
+    pub summary: String,
+    pub updated_at: String,
+    pub current: bool,
+    pub empty: bool,
+    pub conflict: bool,
+    pub file_count: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -323,6 +340,10 @@ pub struct RepositoryProjection {
     pub changes: Vec<ChangeRow>,
     pub conflicts: usize,
     pub working_copy_has_changes: bool,
+    #[serde(default)]
+    pub working_copy_file_count: usize,
+    #[serde(default)]
+    pub workspaces: Vec<WorkspaceRow>,
     #[serde(default)]
     pub sync_status: SyncStatus,
 }

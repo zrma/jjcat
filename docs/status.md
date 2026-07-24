@@ -35,7 +35,17 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - v1→v2 persistent tab recovery와 legacy diff cache만 무효화하는 v2→v3 migration
 - keyboard/pointer quick switcher search, close와 reopen
 - stable pinned/local/SSH repository grouping과 compact freshness/error state
-- working copy, local/remote bookmark, conflict, operation과 last-fetched repository navigation
+- working copy, workspace, conflict, operation과 last-fetched repository navigation
+- working copy, local/remote bookmark, conflict와 workspace 기준점을 중심으로 오래된
+  선형 구간을 접고 구간별로 10개씩 또는 전체를 펼치는 reference-centered graph
+- graph filter와 분리된 working copy file tree/diff 작업면과 실제 changed-file count
+- 등록된 모든 current/other workspace의 path, working-copy change와
+  changed-file/conflict/empty state를 검토하는 전용 workspace 관리 화면
+- workspace path metadata가 유실된 legacy registration도 전체 refresh를 막지 않는
+  core inventory와 best-effort path lookup 분리
+- current/non-empty workspace와 unsafe path를 보호하고 exact empty working-copy change,
+  registered directory와 registration을 함께 정리하는 local/SSH workspace removal
+  preview/execute
 - repository별 refresh dedup/cancel, active/inactive interval과 bounded failure backoff
 - structured argv를 사용하는 local/SSH VS Code 및 platform terminal handoff
 - 40개 이상 history의 bounded row virtualization과 representative interaction fixture
@@ -51,12 +61,16 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
   operation/candidate stale recheck와 실패 뒤 recovery-required 분류
 - local/SSH `new`, `edit`, full-message `describe`와 explicit network `fetch`
 - `rebase`, complete `squash`, exact file-level `split`, exact-target `abandon`
-- current working copy, root, immutable change와 local/remote bookmark target을 보존하는
-  enumerated empty-change pruning
+- 모든 active workspace working copy, root, immutable change와 local/remote bookmark
+  target을 보존하는 enumerated empty-change pruning
+- current/other workspace working copy를 구분하는 graph badge와 semantic node color
 - exact current operation `undo`, local bookmark move와 typed-confirmation remote push
+- local abandon/prune/undo는 exact-target preview와 explicit button confirmation만 사용
 - graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path가 공유하는 rebase preview
 - pointer drag 중 cycle-safe 예상 DAG, source/new-parent label과 drop 뒤 inline
   Cancel/Review rebase checkpoint
+- 아래쪽 branch를 위쪽 parent로 옮길 때도 제안 change를 stable topological order로
+  재배치하고 source/descendants/new-parent에만 blue comparison을 적용하는 folded preview
 - fresh projection/operation log 기반 action postcondition과 cache refresh
 - selected change 가까이의 `Change` 메뉴와 graph row context menu로 제공하는
   edit/describe/history shaping/bookmark 작업

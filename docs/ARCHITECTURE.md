@@ -83,6 +83,11 @@ metadata를 읽는다. commit trailer는 description의 일부로 그대로 보�
 content는 포함하지 않는다. 이 row/file 분리는 visible head나 파일 수가 큰 repository가 전체
 graph refresh의 1 MiB capture budget을 소진하지 않게 한다. 선택 detail의 metadata capture도
 4 MiB로 제한하고 diff 직전에는 같은 revision의 canonical file membership을 다시 확인한다.
+workspace inventory의 machine-readable core에는 fallible path metadata를 포함하지 않는다.
+각 registration의 path는 이름을 exact argument로 전달한 별도 best-effort query로 보강하며,
+기록된 path가 없는 legacy workspace 하나가 전체 projection과 다른 repository refresh를
+실패시키지 않게 한다. 현재 workspace는 `jj root`와 current-working-copy hint를 함께 사용해
+식별한다.
 active/inactive tab은 서로 다른 bounded interval로 refresh하며 repository별 동시 query는
 하나만 허용한다. 실패는 cache를 보존하고 bounded exponential backoff를 적용한다. 일반
 query/parse 실패는 SSH 단절로 단정하지 않고 `Refresh failed`로 표시하며, transport 자체가
@@ -103,9 +108,26 @@ template와 remote terminal working-directory bootstrap은 이후 configuration 
 먼저 deterministic lane model로 계산하므로 virtual window 밖에서도 edge가 안정적이다.
 pointer와 위/아래 방향키 selection은 같은 revision state를 사용하며 화면 밖 선택은 scroll
 window가 따라간다.
+`All Changes`는 working copy, current/other workspace copy, local/remote bookmark와 conflict를
+reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
+구간은 실제 projection을 삭제하지 않고 `~` fold row로 축약한다. 사용자는 각 구간에서 10개씩,
+전체를 펼치거나 다시 접을 수 있다. search와 dedicated conflict view는 일치 항목을 숨기지
+않으며 selection과 normal-state DAG layout은 원본 bounded projection을 기준으로 계산한다.
+rebase preview는 source와 destination을 임시 anchor로 노출한 뒤 제안 parent relation에 맞춘
+stable topological order를 별도 display projection으로 사용한다.
 repository rail은 선택할 때 바뀌는 recent ordering을 만들지 않고 pinned/local/SSH grouping의
-registry order를 보존한다. selected projection의 working copy, local/remote bookmark와
-conflict metadata는 stable history filter와 count로 노출한다.
+registry order를 보존한다. `All Changes`는 bounded graph projection의 행 수를 총 history
+개수처럼 노출하지 않는다. `Working Copy`는 history filter가 아니라 현재 change의 file
+tree/diff 작업면을 열며, 별도 bounded query로 얻은 실제 changed-file count를 표시한다.
+`Workspaces`는 repository에 등록된 모든 working directory와 각 working-copy change,
+changed-file/conflict/empty state를 한 화면에 열거한다. current workspace는 보호하며 다른
+workspace의 `Remove`는 exact registered path를 preview한 뒤 registration과 해당 directory를
+한 번에 정리한다. 제거 대상은 empty working-copy change로 제한하며 그 change도 같은
+mutation에서 abandon한다. current/non-empty workspace, filesystem root, current workspace의
+ancestor, symlink target은 backend에서 거부한다.
+local/remote bookmark는 graph label, search, mutation과 위 reference anchor로 노출하며
+동일한 `All Changes` 결과를 줄이는 별도 sidebar filter/count는 두지 않는다. conflict는
+dedicated repository view를 유지한다.
 desktop density는 20px history row와 압축된 titlebar/toolbar를 사용해 기본 창 크기에서
 20개 이상의 change를 노출한다. system UI font, 10-12px의 readable text floor, 높은
 foreground contrast와 의미가 있는 state/graph에 한정된 accent color를 유지한다. repository와
@@ -163,21 +185,29 @@ set을 다시 검사한다. stale/duplicate/invalid request는 command를 실행
 operation race를 완전히 잠그는 CLI API는 없으므로 execute 직전 recheck와 postcondition
 detection의 한계를 사용자에게 숨기지 않는다.
 
-empty pruning은 preview에서 `empty() & mutable()` 후보를 exact commit ID로 열거하고 current
-working copy, root, immutable change와 local/remote bookmark target을 보호한다. execute는
+empty pruning은 preview에서 `empty() & mutable()` 후보를 exact commit ID로 열거하고 모든
+workspace의 working copy, root, immutable change와 local/remote bookmark target을 보호한다. execute는
 동일 operation과 동일 후보 집합일 때만 그 IDs를 abandon한다.
+workspace removal은 fresh workspace inventory에서 exact name, path, working-copy commit,
+empty/current 여부를 다시 확인하고 current 또는 non-empty workspace를 거부한다. local/SSH
+모두 registration을 제거하고 previewed empty working-copy change를 abandon한 뒤 exact
+registered directory를 삭제하며 untracked/ignored file도 대상에 포함한다. 성공은 fresh
+projection에서 registration과 해당 visible change가 사라지고 directory가 존재하지 않는
+경우에만 인정한다.
+preview와 단일 destructive 실행 버튼 외에 typed phrase나 추가 확인 단계는 요구하지 않는다.
 
 graph drag-and-drop과 keyboard shaping은 command를 직접 호출하지 않고 같은 rebase preview를
 연다. push는 별도 remote-write risk와 exact bookmark confirmation을 요구하며 force/delete
 option은 제공하지 않는다.
-pointer rebase는 hover 중 source의 parent relation만 client-side로 바꿔 deterministic DAG를
-다시 계산한다. 이 예상 topology는 command output이 아니며 cycle target을 거부한다. drop
-뒤에도 graph 위의 inline checkpoint를 유지하고, `Review rebase`에서만 backend-issued
-opaque token을 사용하는 exact mutation preview로 전환한다. topology가 달라지는 row에서는
-current layout 전체를 neutral ghost로 낮추고 proposed layout 전체를 deep-blue dashed
-style로 다시 그려 두 상태를 분리한다. lane 번호는 bookmark 의미로 사용하지 않으며,
-실제 bookmark metadata가 있는 target node만 amber로 표시한다. moving bookmark target은
-blue fill과 amber outline을 함께 사용한다. normal-state mint geometry는 비교 구간에 섞지 않는다.
+pointer rebase는 hover 중 source의 parent relation만 client-side로 바꾸고 자식이 부모보다
+먼저 오도록 stable topological order를 다시 계산한다. 이 예상 topology는 command output이
+아니며 cycle target을 거부한다. drop 뒤에도 graph 위의 inline checkpoint를 유지하고,
+`Review rebase`에서만 backend-issued opaque token을 사용하는 exact mutation preview로
+전환한다. source, source descendants와 destination만 영향 범위로 취급해 current layout을
+neutral ghost로 낮추고 proposed layout을 deep-blue dashed style로 다시 그린다. lane 재배치만
+발생한 무관한 row와 fold 구간에는 proposed color를 적용하지 않는다. lane 번호는 bookmark
+의미로 사용하지 않으며 실제 bookmark metadata가 있는 target node만 amber로 표시한다.
+moving bookmark target은 blue fill과 amber outline을 함께 사용한다.
 mutation dialog는 action catalog를 다시 선택하게 하지 않고 entrypoint에서 전달된 단일
 intent의 parameter와 exact targets만 보여준다. 따라서 change, repository, network와 recovery
 범위가 한 native select에 섞이지 않는다.

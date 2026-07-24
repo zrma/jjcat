@@ -4,10 +4,61 @@ export interface RebaseTopologyPreview {
   changes: ChangeRow[];
   source: ChangeRow;
   destination: ChangeRow;
+  affectedChangeIds: ReadonlySet<string>;
 }
 
 function changeByCommitId(changes: ChangeRow[], commitId: string) {
   return changes.find((change) => change.commitId === commitId);
+}
+
+function stableTopologicalOrder(changes: ChangeRow[]) {
+  const byId = new Map(changes.map((change) => [change.changeId, change]));
+  const originalIndex = new Map(
+    changes.map((change, index) => [change.changeId, index]),
+  );
+  const incoming = new Map(
+    changes.map((change) => [change.changeId, 0]),
+  );
+
+  for (const change of changes) {
+    for (const parent of new Set(change.parents)) {
+      if (!byId.has(parent)) continue;
+      incoming.set(parent, (incoming.get(parent) ?? 0) + 1);
+    }
+  }
+
+  const ready = changes
+    .filter((change) => incoming.get(change.changeId) === 0)
+    .sort(
+      (left, right) =>
+        (originalIndex.get(left.changeId) ?? 0) -
+        (originalIndex.get(right.changeId) ?? 0),
+    );
+  const ordered: ChangeRow[] = [];
+
+  while (ready.length > 0) {
+    const change = ready.shift();
+    if (!change) break;
+    ordered.push(change);
+
+    for (const parent of new Set(change.parents)) {
+      if (!byId.has(parent)) continue;
+      const remaining = (incoming.get(parent) ?? 0) - 1;
+      incoming.set(parent, remaining);
+      if (remaining !== 0) continue;
+      const parentChange = byId.get(parent);
+      if (!parentChange) continue;
+      const insertionIndex = ready.findIndex(
+        (candidate) =>
+          (originalIndex.get(candidate.changeId) ?? 0) >
+          (originalIndex.get(parentChange.changeId) ?? 0),
+      );
+      if (insertionIndex < 0) ready.push(parentChange);
+      else ready.splice(insertionIndex, 0, parentChange);
+    }
+  }
+
+  return ordered.length === changes.length ? ordered : changes;
 }
 
 function hasAncestor(
@@ -63,17 +114,30 @@ export function estimateRebaseTopology(
   const destination = changeByCommitId(changes, destinationCommitId);
   if (!source || !destination) return null;
 
+  const reparented = changes.map((change) =>
+    change.changeId === source.changeId
+      ? {
+          ...change,
+          parents: [destination.changeId],
+          parentCommitIds: [destination.commitId],
+        }
+      : change,
+  );
+  const changesById = new Map(changes.map((change) => [change.changeId, change]));
+  const affectedChangeIds = new Set<string>([
+    source.changeId,
+    destination.changeId,
+  ]);
+  for (const change of changes) {
+    if (hasAncestor(changesById, change.changeId, source.changeId)) {
+      affectedChangeIds.add(change.changeId);
+    }
+  }
+
   return {
     source,
     destination,
-    changes: changes.map((change) =>
-      change.changeId === source.changeId
-        ? {
-            ...change,
-            parents: [destination.changeId],
-            parentCommitIds: [destination.commitId],
-          }
-        : change,
-    ),
+    affectedChangeIds,
+    changes: stableTopologicalOrder(reparented),
   };
 }

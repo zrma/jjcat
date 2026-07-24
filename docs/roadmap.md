@@ -27,6 +27,8 @@
 - [x] conflict, outgoing와 behind projection
 - [x] operation log와 read-only undo eligibility surface
 - [x] reference/conflict navigation과 resizable overview/changes/operations inspector
+- [x] working copy file tree/diff 작업면과 changed-file count
+- [x] reference-centered history folding과 구간별 progressive reveal/collapse
 
 ## P3: Safe Shaping
 
@@ -35,6 +37,7 @@
 - [x] bookmark move와 push
 - [x] operation precondition, preview와 recovery acceptance
 - [x] pointer drag/drop, cycle-safe 예상 topology와 keyboard-equivalent shaping preview
+- [x] current/other workspace 검토와 exact directory까지 정리하는 one-step removal
 
 ## P4: Distribution
 

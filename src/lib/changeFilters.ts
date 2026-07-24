@@ -1,11 +1,6 @@
 import type { ChangeRow } from "../types";
 
-export type HistoryView =
-  | "all"
-  | "working-copy"
-  | "bookmarks"
-  | "remote-bookmarks"
-  | "conflicts";
+export type HistoryView = "all" | "working-copy" | "conflicts";
 
 export function filterChanges(
   changes: ChangeRow[],
@@ -15,18 +10,6 @@ export function filterChanges(
   const query = searchQuery.trim().toLocaleLowerCase();
   return changes.filter((change) => {
     if (historyView === "working-copy" && !change.workingCopy) return false;
-    if (
-      historyView === "bookmarks" &&
-      !change.bookmarks.some((bookmark) => bookmark.remote === null)
-    ) {
-      return false;
-    }
-    if (
-      historyView === "remote-bookmarks" &&
-      !change.bookmarks.some((bookmark) => bookmark.remote !== null)
-    ) {
-      return false;
-    }
     if (historyView === "conflicts" && !change.conflict) return false;
     if (!query) return true;
     return [

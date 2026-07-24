@@ -49,6 +49,7 @@
         ],
         "conflicts": 0,
         "workingCopyHasChanges": false,
+        "workingCopyFileCount": 0,
         "syncStatus": {
           "available": false,
           "remoteHeads": 0,

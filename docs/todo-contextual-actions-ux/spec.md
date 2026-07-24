@@ -26,13 +26,13 @@ Status: completed
 - mutation dialog의 action 선택 select를 제거하고 선택한 작업의 parameter/preview에만
   집중한다.
 - protected pruning은 exact candidate count가 표시된 한 번의 destructive confirmation
-  button으로 실행하고, remote push 등의 high-risk 작업은 typed confirmation을 유지한다.
+  button으로 실행하고, 외부 상태를 쓰는 remote push만 typed confirmation을 유지한다.
 - pointer, keyboard, narrow-window와 assistive labeling을 함께 검증한다.
 
 ## Constraints
 
 - 기존 preview-first mutation과 local/SSH parity를 보존한다.
-- current `@`, root, immutable 및 local/remote bookmark target의 prune 보호 규칙을
+- 모든 active workspace working copy, root, immutable 및 local/remote bookmark target의 prune 보호 규칙을
   바꾸지 않는다.
 - 진행 중인 이전 change와 public tracked-artifact 경계를 보존한다.
 

@@ -1,5 +1,5 @@
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use regex::Regex;
@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use crate::domain::{
     BookmarkRef, ChangeRow, ChangedFile, DiffHunk, DiffLine, DiffLineKind, FileDiffProjection,
     JjCapability, OperationLogProjection, OperationRow, RemoteDirectoryListing, RepositoryLocation,
-    RepositoryProjection, RepositoryRecord, SyncStatus, WhitespaceMode,
+    RepositoryProjection, RepositoryRecord, SyncStatus, WhitespaceMode, WorkspaceRow,
 };
 use crate::mutation::{MutationCandidate, MutationIntent, MutationValidationError};
 use crate::process::{
@@ -35,8 +35,20 @@ const OPERATION_TEMPLATE: &str = concat!(
     "\",\\\"started_at\\\":\" ++ time.start().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
     "\",\\\"snapshot\\\":\" ++ if(snapshot, \"true\", \"false\") ++ \"}\\n\"",
 );
+const WORKSPACE_TEMPLATE: &str = concat!(
+    "\"{\" ++ ",
+    "\"\\\"name\\\":\" ++ name.escape_json() ++ ",
+    "\",\\\"current_hint\\\":\" ++ if(target.current_working_copy(), \"true\", \"false\") ++ ",
+    "\",\\\"change_id\\\":\" ++ target.change_id().short(12).escape_json() ++ ",
+    "\",\\\"commit_id\\\":\" ++ stringify(target.commit_id()).escape_json() ++ ",
+    "\",\\\"summary\\\":\" ++ target.description().first_line().escape_json() ++ ",
+    "\",\\\"updated_at\\\":\" ++ target.committer().timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
+    "\",\\\"empty\\\":\" ++ if(target.empty(), \"true\", \"false\") ++ ",
+    "\",\\\"conflict\\\":\" ++ if(target.conflict(), \"true\", \"false\") ++ ",
+    "\",\\\"file_count\\\":\" ++ target.diff().files().len() ++ \"}\\n\"",
+);
 const PRUNE_CANDIDATE_REVSET: &str =
-    "empty() & mutable() & ~@ & ~root() & ~bookmarks() & ~remote_bookmarks()";
+    "empty() & mutable() & ~working_copies() & ~root() & ~bookmarks() & ~remote_bookmarks()";
 const PRUNE_CANDIDATE_TEMPLATE: &str = concat!(
     "\"{\" ++ ",
     "\"\\\"change_id\\\":\" ++ change_id.short(12).escape_json() ++ ",
@@ -63,6 +75,7 @@ const LOG_TEMPLATE: &str = concat!(
     "\",\\\"files\\\":\\\"\\\"\" ++ ",
     "\",\\\"conflict\\\":\" ++ if(conflict, \"true\", \"false\") ++ ",
     "\",\\\"working_copy\\\":\" ++ if(current_working_copy, \"true\", \"false\") ++ ",
+    "\",\\\"workspace_copies\\\":\" ++ json(self.working_copies().map(|workspace| workspace.name())) ++ ",
     "\",\\\"empty\\\":\" ++ if(empty, \"true\", \"false\") ++ \"}\\n\"",
 );
 const CHANGE_DETAILS_TEMPLATE: &str = concat!(
@@ -85,6 +98,7 @@ const CHANGE_DETAILS_TEMPLATE: &str = concat!(
     "\",\\\"files\\\":\" ++ stringify(self.diff().files().map(|f| f.status_char() ++ \"\\t\" ++ f.path() ++ \"\\t\" ++ f.display_diff_path()).join(\"\\n\")).escape_json() ++ ",
     "\",\\\"conflict\\\":\" ++ if(conflict, \"true\", \"false\") ++ ",
     "\",\\\"working_copy\\\":\" ++ if(current_working_copy, \"true\", \"false\") ++ ",
+    "\",\\\"workspace_copies\\\":\" ++ json(self.working_copies().map(|workspace| workspace.name())) ++ ",
     "\",\\\"empty\\\":\" ++ if(empty, \"true\", \"false\") ++ \"}\\n\"",
 );
 
@@ -143,8 +157,27 @@ impl JjDriver {
             });
         }
 
-        let (log_output, remote_heads, outgoing, behind) = tokio::try_join!(
+        let (
+            log_output,
+            working_copy_files,
+            workspace_output,
+            workspace_root,
+            remote_heads,
+            outgoing,
+            behind,
+        ) = tokio::try_join!(
             self.run_query(repository, JjQuery::Log, cancellation.child_token()),
+            self.run_query(
+                repository,
+                JjQuery::WorkingCopyFileCount,
+                cancellation.child_token()
+            ),
+            self.run_query(repository, JjQuery::Workspaces, cancellation.child_token()),
+            self.run_query(
+                repository,
+                JjQuery::WorkspaceRoot,
+                cancellation.child_token()
+            ),
             self.run_query(
                 repository,
                 JjQuery::SyncMetric(SyncMetric::RemoteHeads),
@@ -158,7 +191,7 @@ impl JjDriver {
             self.run_query(
                 repository,
                 JjQuery::SyncMetric(SyncMetric::Behind),
-                cancellation
+                cancellation.child_token()
             ),
         )?;
         let changes = parse_log(&log_output.stdout)?;
@@ -167,6 +200,17 @@ impl JjDriver {
             .iter()
             .find(|change| change.working_copy)
             .is_some_and(|change| !change.empty);
+        let working_copy_file_count = parse_count(&working_copy_files.stdout, "working copy file")?;
+        let current_root =
+            parse_single_text_line(&workspace_root.stdout, "current workspace root")?;
+        let workspaces = self
+            .hydrate_workspace_roots(
+                repository,
+                parse_workspaces(&workspace_output.stdout, &current_root)?,
+                &current_root,
+                cancellation.child_token(),
+            )
+            .await?;
         let sync_status =
             parse_sync_status(&remote_heads.stdout, &outgoing.stdout, &behind.stdout)?;
 
@@ -179,6 +223,8 @@ impl JjDriver {
             changes,
             conflicts,
             working_copy_has_changes,
+            working_copy_file_count,
+            workspaces,
             sync_status,
         })
     }
@@ -366,6 +412,83 @@ impl JjDriver {
             });
         }
 
+        let mut workspace_root = None;
+        let mut workspace_commit_id = None;
+        if matches!(
+            intent,
+            MutationIntent::RemoveWorkspace { .. } | MutationIntent::Abandon { .. }
+        ) {
+            let (workspace_output, workspace_root_output) = tokio::try_join!(
+                self.run_query(repository, JjQuery::Workspaces, cancellation.child_token()),
+                self.run_query(
+                    repository,
+                    JjQuery::WorkspaceRoot,
+                    cancellation.child_token()
+                ),
+            )?;
+            let current_root =
+                parse_single_text_line(&workspace_root_output.stdout, "current workspace root")?;
+            let workspaces = self
+                .hydrate_workspace_roots(
+                    repository,
+                    parse_workspaces(&workspace_output.stdout, &current_root)?,
+                    &current_root,
+                    cancellation.child_token(),
+                )
+                .await?;
+            match intent {
+                MutationIntent::RemoveWorkspace { name } => {
+                    let workspace = workspaces
+                        .iter()
+                        .find(|workspace| workspace.name == *name)
+                        .ok_or_else(|| DriverError {
+                            kind: DriverErrorKind::InvalidRepository,
+                            message: "the selected workspace is no longer registered".into(),
+                        })?;
+                    if workspace.current {
+                        return Err(DriverError {
+                            kind: DriverErrorKind::InvalidRepository,
+                            message:
+                                "the current workspace cannot be removed; switch to another workspace first"
+                            .into(),
+                        });
+                    }
+                    if workspace.root.is_empty() {
+                        return Err(DriverError {
+                            kind: DriverErrorKind::InvalidRepository,
+                            message: "the selected workspace directory could not be resolved"
+                                .into(),
+                        });
+                    }
+                    if !workspace.empty {
+                        return Err(DriverError {
+                            kind: DriverErrorKind::InvalidRepository,
+                            message:
+                                "the workspace working copy contains changes; review or empty it before removal"
+                                    .into(),
+                        });
+                    }
+                    workspace_root = Some(workspace.root.clone());
+                    workspace_commit_id = Some(workspace.commit_id.clone());
+                }
+                MutationIntent::Abandon { target_commit_ids } => {
+                    if workspaces.iter().any(|workspace| {
+                        target_commit_ids
+                            .iter()
+                            .any(|commit_id| commit_id == &workspace.commit_id)
+                    }) {
+                        return Err(DriverError {
+                            kind: DriverErrorKind::InvalidRepository,
+                            message:
+                                "a workspace working-copy change cannot be abandoned; remove the workspace instead"
+                                    .into(),
+                        });
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+
         let commit_ids = intent.commit_ids();
         if !commit_ids.is_empty() {
             let inspection = self
@@ -405,6 +528,8 @@ impl JjDriver {
         Ok(MutationContext {
             operation_id,
             candidates,
+            workspace_root,
+            workspace_commit_id,
         })
     }
 
@@ -428,6 +553,8 @@ impl JjDriver {
         repository: &RepositoryRecord,
         intent: &MutationIntent,
         candidates: &[MutationCandidate],
+        expected_workspace_root: Option<&str>,
+        expected_workspace_commit_id: Option<&str>,
         cancellation: CancellationToken,
     ) -> Result<(), DriverError> {
         repository.validate().map_err(|error| DriverError {
@@ -439,6 +566,33 @@ impl JjDriver {
             return Err(DriverError {
                 kind: DriverErrorKind::InvalidRepository,
                 message: "mutation candidates are only valid for empty pruning".into(),
+            });
+        }
+        if let MutationIntent::RemoveWorkspace { name } = intent {
+            let expected_workspace_root = expected_workspace_root.ok_or_else(|| DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "workspace removal is missing its previewed directory".into(),
+            })?;
+            let expected_workspace_commit_id =
+                expected_workspace_commit_id.ok_or_else(|| DriverError {
+                    kind: DriverErrorKind::InvalidRepository,
+                    message: "workspace removal is missing its previewed working-copy change"
+                        .into(),
+                })?;
+            return self
+                .remove_workspace(
+                    repository,
+                    name,
+                    expected_workspace_root,
+                    expected_workspace_commit_id,
+                    cancellation,
+                )
+                .await;
+        }
+        if expected_workspace_root.is_some() || expected_workspace_commit_id.is_some() {
+            return Err(DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "workspace context is only valid for workspace removal".into(),
             });
         }
         let args = mutation_args(intent, candidates)?;
@@ -470,6 +624,137 @@ impl JjDriver {
         Ok(())
     }
 
+    async fn remove_workspace(
+        &self,
+        repository: &RepositoryRecord,
+        name: &str,
+        expected_workspace_root: &str,
+        expected_workspace_commit_id: &str,
+        cancellation: CancellationToken,
+    ) -> Result<(), DriverError> {
+        let intent = MutationIntent::RemoveWorkspace {
+            name: name.to_owned(),
+        };
+        let context = self
+            .mutation_context(repository, &intent, cancellation.child_token())
+            .await?;
+        let target_root = context.workspace_root.ok_or_else(|| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: "the selected workspace directory could not be resolved".into(),
+        })?;
+        let target_commit_id = context.workspace_commit_id.ok_or_else(|| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: "the workspace working-copy change could not be resolved".into(),
+        })?;
+        if target_root != expected_workspace_root {
+            return Err(DriverError {
+                kind: DriverErrorKind::StaleOperation,
+                message:
+                    "the selected workspace directory changed after preview; review the removal again"
+                        .into(),
+            });
+        }
+        if target_commit_id != expected_workspace_commit_id {
+            return Err(DriverError {
+                kind: DriverErrorKind::StaleOperation,
+                message:
+                    "the workspace working-copy change changed after preview; review the removal again"
+                        .into(),
+            });
+        }
+
+        match &repository.location {
+            RepositoryLocation::Local { .. } => {
+                let current_root = self
+                    .run_query(
+                        repository,
+                        JjQuery::WorkspaceRoot,
+                        cancellation.child_token(),
+                    )
+                    .await?;
+                let current_root =
+                    parse_single_text_line(&current_root.stdout, "current workspace root")?;
+                let target = validate_local_workspace_removal(&target_root, &current_root).await?;
+
+                let args = mutation_args(&intent, &[])?;
+                self.run_mutation_plan(
+                    repository,
+                    self.mutation_plan(repository, args),
+                    cancellation.child_token(),
+                )
+                .await?;
+                let abandon = MutationIntent::Abandon {
+                    target_commit_ids: vec![target_commit_id],
+                };
+                let args = mutation_args(&abandon, &[])?;
+                self.run_mutation_plan(
+                    repository,
+                    self.mutation_plan(repository, args),
+                    cancellation.child_token(),
+                )
+                .await?;
+                tokio::fs::remove_dir_all(&target)
+                    .await
+                    .map_err(|_| DriverError {
+                        kind: DriverErrorKind::CommandFailed,
+                        message:
+                            "the workspace was unregistered but its directory could not be deleted"
+                                .into(),
+                    })?;
+                if tokio::fs::symlink_metadata(&target).await.is_ok() {
+                    return Err(DriverError {
+                        kind: DriverErrorKind::CommandFailed,
+                        message: "the workspace was unregistered but its directory still exists"
+                            .into(),
+                    });
+                }
+                Ok(())
+            }
+            RepositoryLocation::Ssh { host, path } => {
+                let plan = CommandPlan {
+                    program: self.ssh_program.clone(),
+                    args: ssh_arguments(host),
+                    current_dir: None,
+                    stdin: Some(
+                        remote_workspace_removal_script(
+                            path,
+                            name,
+                            expected_workspace_root,
+                            expected_workspace_commit_id,
+                        )
+                        .into_bytes(),
+                    ),
+                };
+                self.run_mutation_plan(repository, plan, cancellation).await
+            }
+        }
+    }
+
+    async fn run_mutation_plan(
+        &self,
+        repository: &RepositoryRecord,
+        plan: CommandPlan,
+        cancellation: CancellationToken,
+    ) -> Result<(), DriverError> {
+        let output = run_command(plan, self.timeout, cancellation)
+            .await
+            .map_err(|error| process_error(repository, error))?;
+        if output.truncated {
+            return Err(DriverError {
+                kind: DriverErrorKind::OutputLimit,
+                message: "mutation output exceeded the safe capture limit".into(),
+            });
+        }
+        if output.exit_code != Some(0) {
+            let raw = String::from_utf8_lossy(&output.stderr);
+            return Err(DriverError {
+                kind: DriverErrorKind::CommandFailed,
+                message: redact_error(raw.trim(), &repository.location),
+            });
+        }
+        Ok(())
+    }
+
     async fn run_query(
         &self,
         repository: &RepositoryRecord,
@@ -478,6 +763,53 @@ impl JjDriver {
     ) -> Result<CommandOutput, DriverError> {
         self.run_query_with_limit(repository, query, cancellation, DEFAULT_OUTPUT_LIMIT)
             .await
+    }
+
+    async fn hydrate_workspace_roots(
+        &self,
+        repository: &RepositoryRecord,
+        mut workspaces: Vec<WorkspaceRow>,
+        current_root: &str,
+        cancellation: CancellationToken,
+    ) -> Result<Vec<WorkspaceRow>, DriverError> {
+        let mut current_resolved = false;
+        for workspace in &mut workspaces {
+            match self
+                .run_query(
+                    repository,
+                    JjQuery::WorkspaceRootByName {
+                        name: workspace.name.clone(),
+                    },
+                    cancellation.child_token(),
+                )
+                .await
+            {
+                Ok(output) => {
+                    let root = parse_single_text_line(&output.stdout, "registered workspace root")?;
+                    workspace.current = root == current_root;
+                    workspace.root = root;
+                    current_resolved |= workspace.current;
+                }
+                Err(error) if error.kind == DriverErrorKind::Cancelled => return Err(error),
+                Err(_) if workspace.current && !current_resolved => {
+                    // Older jj repositories can retain a current workspace registration
+                    // without a recorded path. `jj root` remains authoritative for that
+                    // workspace, while the missing per-workspace root stays non-fatal.
+                    workspace.root = current_root.to_owned();
+                    current_resolved = true;
+                }
+                Err(_) => {
+                    workspace.current = false;
+                }
+            }
+        }
+        workspaces.sort_by(|left, right| {
+            right
+                .current
+                .cmp(&left.current)
+                .then_with(|| left.name.cmp(&right.name))
+        });
+        Ok(workspaces)
     }
 
     async fn run_query_with_limit(
@@ -551,6 +883,8 @@ impl JjDriver {
 pub struct MutationContext {
     pub operation_id: String,
     pub candidates: Vec<MutationCandidate>,
+    pub workspace_root: Option<String>,
+    pub workspace_commit_id: Option<String>,
 }
 
 fn ssh_arguments(host: &str) -> Vec<OsString> {
@@ -581,6 +915,21 @@ fn remote_script(path: &str, query: JjQuery) -> String {
         JjQuery::Log => format!(
             "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(visible_heads())' -n {HISTORY_CHANGE_LIMIT} -T '{LOG_TEMPLATE}'"
         ),
+        JjQuery::WorkingCopyFileCount => {
+            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r @ -T 'self.diff().files().len() ++ \"\\n\"'".into()
+        }
+        JjQuery::Workspaces => format!(
+            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy workspace list -T '{WORKSPACE_TEMPLATE}'"
+        ),
+        JjQuery::WorkspaceRoot => {
+            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy root".into()
+        }
+        JjQuery::WorkspaceRootByName { name } => {
+            let encoded_name = encode_hex(&name);
+            format!(
+                "workspace=$(decode_hex '{encoded_name}')\nexec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy workspace root --name \"$workspace\""
+            )
+        }
         JjQuery::ChangeDetails { commit_id } => {
             let encoded_commit = encode_hex(&commit_id);
             format!(
@@ -650,6 +999,150 @@ fn remote_mutation_script(path: &str, args: &[OsString]) -> String {
     )
 }
 
+async fn validate_local_workspace_removal(
+    target_root: &str,
+    current_root: &str,
+) -> Result<PathBuf, DriverError> {
+    let target = Path::new(target_root);
+    let current = Path::new(current_root);
+    if !target.is_absolute() || !current.is_absolute() || target.parent().is_none() {
+        return Err(unsafe_workspace_removal());
+    }
+    let metadata = tokio::fs::symlink_metadata(target)
+        .await
+        .map_err(|_| unsafe_workspace_removal())?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(unsafe_workspace_removal());
+    }
+    let target = tokio::fs::canonicalize(target)
+        .await
+        .map_err(|_| unsafe_workspace_removal())?;
+    let current = tokio::fs::canonicalize(current)
+        .await
+        .map_err(|_| unsafe_workspace_removal())?;
+    if target == current || current.starts_with(&target) {
+        return Err(unsafe_workspace_removal());
+    }
+    Ok(target)
+}
+
+fn unsafe_workspace_removal() -> DriverError {
+    DriverError {
+        kind: DriverErrorKind::InvalidRepository,
+        message:
+            "the selected workspace directory failed the removal safety checks; no files were deleted"
+                .into(),
+    }
+}
+
+fn remote_workspace_removal_script(
+    path: &str,
+    name: &str,
+    expected_workspace_root: &str,
+    expected_workspace_commit_id: &str,
+) -> String {
+    let encoded_path = encode_hex(path);
+    let encoded_name = encode_hex(name);
+    let encoded_expected_root = encode_hex(expected_workspace_root);
+    let encoded_expected_commit = encode_hex(expected_workspace_commit_id);
+    format!(
+        "set -eu
+decode_hex() {{
+  encoded=$1
+  decoded=''
+  while [ -n \"$encoded\" ]; do
+    rest=${{encoded#??}}
+    byte=${{encoded%\"$rest\"}}
+    encoded=$rest
+    octal=$(printf '%03o' \"0x$byte\")
+    decoded=\"$decoded$(printf \"\\\\$octal\")\"
+  done
+  printf '%s' \"$decoded\"
+}}
+repo=$(decode_hex '{encoded_path}')
+workspace=$(decode_hex '{encoded_name}')
+expected_root=$(decode_hex '{encoded_expected_root}')
+expected_commit=$(decode_hex '{encoded_expected_commit}')
+case \"$repo\" in
+  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;
+esac
+find_jj() {{
+  if command -v jj >/dev/null 2>&1; then
+    command -v jj
+    return 0
+  fi
+  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do
+    if [ -x \"$candidate\" ]; then
+      printf '%s\\n' \"$candidate\"
+      return 0
+    fi
+  done
+  return 127
+}}
+jj_bin=$(find_jj) || {{
+  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2
+  exit 127
+}}
+current_root=$(\"$jj_bin\" --repository \"$repo\" --ignore-working-copy root)
+target_root=$(\"$jj_bin\" --repository \"$repo\" --ignore-working-copy workspace root --name \"$workspace\")
+workspace_records=$(\"$jj_bin\" --repository \"$repo\" --ignore-working-copy workspace list -T 'name ++ \"\\t\" ++ stringify(target.commit_id()) ++ \"\\t\" ++ if(target.empty(), \"true\", \"false\") ++ \"\\n\"')
+target_commit=''
+target_empty=''
+tab=$(printf '\\t')
+while IFS=\"$tab\" read -r listed_name listed_commit listed_empty; do
+  if [ \"$listed_name\" = \"$workspace\" ]; then
+    target_commit=$listed_commit
+    target_empty=$listed_empty
+    break
+  fi
+done <<EOF
+$workspace_records
+EOF
+if [ \"$target_root\" != \"$expected_root\" ]; then
+  printf '%s\\n' 'workspace directory changed after preview' >&2
+  exit 75
+fi
+if [ \"$target_commit\" != \"$expected_commit\" ]; then
+  printf '%s\\n' 'workspace working-copy change changed after preview' >&2
+  exit 75
+fi
+if [ \"$target_empty\" != 'true' ]; then
+  printf '%s\\n' 'workspace working copy contains changes' >&2
+  exit 65
+fi
+case \"$current_root\" in
+  /*) ;;
+  *) printf '%s\\n' 'current workspace root failed the removal safety checks' >&2; exit 64 ;;
+esac
+case \"$target_root\" in
+  /) printf '%s\\n' 'workspace root failed the removal safety checks' >&2; exit 64 ;;
+  /*) ;;
+  *) printf '%s\\n' 'workspace root failed the removal safety checks' >&2; exit 64 ;;
+esac
+if [ ! -d \"$target_root\" ] || [ -L \"$target_root\" ]; then
+  printf '%s\\n' 'workspace directory failed the removal safety checks' >&2
+  exit 64
+fi
+current_real=$(CDPATH= cd -- \"$current_root\" && pwd -P)
+target_real=$(CDPATH= cd -- \"$target_root\" && pwd -P)
+if [ \"$target_real\" = \"$current_real\" ]; then
+  printf '%s\\n' 'the current workspace cannot be removed' >&2
+  exit 64
+fi
+case \"$current_real/\" in
+  \"$target_real/\"*) printf '%s\\n' 'workspace directory failed the removal safety checks' >&2; exit 64 ;;
+esac
+\"$jj_bin\" --repository \"$repo\" workspace forget -- \"$workspace\"
+\"$jj_bin\" --repository \"$repo\" abandon \"$expected_commit\"
+rm -rf -- \"$target_root\"
+if [ -e \"$target_root\" ] || [ -L \"$target_root\" ]; then
+  printf '%s\\n' 'workspace directory still exists after removal' >&2
+  exit 74
+fi
+"
+    )
+}
+
 fn encode_hex(value: &str) -> String {
     value
         .as_bytes()
@@ -673,6 +1166,12 @@ fn remote_directory_script(path: &str) -> String {
 enum JjQuery {
     Version,
     Log,
+    WorkingCopyFileCount,
+    Workspaces,
+    WorkspaceRoot,
+    WorkspaceRootByName {
+        name: String,
+    },
     ChangeDetails {
         commit_id: String,
     },
@@ -712,6 +1211,10 @@ impl JjQuery {
         match self {
             Self::Version => "jj version probe",
             Self::Log => "history projection",
+            Self::WorkingCopyFileCount => "working copy file count",
+            Self::Workspaces => "workspace inventory",
+            Self::WorkspaceRoot => "current workspace root",
+            Self::WorkspaceRootByName { .. } => "registered workspace root",
             Self::ChangeDetails { .. } => "selected change details",
             Self::Diff { .. } => "file diff",
             Self::SyncMetric(SyncMetric::RemoteHeads) => "remote bookmark count",
@@ -739,6 +1242,44 @@ impl JjQuery {
                 HISTORY_CHANGE_LIMIT,
                 "-T",
                 LOG_TEMPLATE,
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+            Self::WorkingCopyFileCount => [
+                "--ignore-working-copy",
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "-r",
+                "@",
+                "-T",
+                "self.diff().files().len() ++ \"\\n\"",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+            Self::Workspaces => [
+                "--ignore-working-copy",
+                "workspace",
+                "list",
+                "-T",
+                WORKSPACE_TEMPLATE,
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+            Self::WorkspaceRoot => ["--ignore-working-copy", "root"]
+                .into_iter()
+                .map(OsString::from)
+                .collect(),
+            Self::WorkspaceRootByName { name } => [
+                "--ignore-working-copy",
+                "workspace",
+                "root",
+                "--name",
+                name.as_str(),
             ]
             .into_iter()
             .map(OsString::from)
@@ -948,6 +1489,12 @@ fn mutation_args(
                 )
                 .collect()
         }
+        MutationIntent::RemoveWorkspace { name } => vec![
+            "workspace".into(),
+            "forget".into(),
+            "--".into(),
+            name.clone(),
+        ],
         MutationIntent::Undo { .. } => vec!["undo".into()],
         MutationIntent::BookmarkMove {
             name,
@@ -993,7 +1540,60 @@ struct LogRecord {
     files: String,
     conflict: bool,
     working_copy: bool,
+    #[serde(default)]
+    workspace_copies: Vec<String>,
     empty: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkspaceRecord {
+    name: String,
+    current_hint: bool,
+    change_id: String,
+    commit_id: String,
+    summary: String,
+    updated_at: String,
+    empty: bool,
+    conflict: bool,
+    file_count: usize,
+}
+
+fn parse_workspaces(bytes: &[u8], current_root: &str) -> Result<Vec<WorkspaceRow>, DriverError> {
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| invalid_output("workspace inventory was not UTF-8"))?;
+    let mut workspaces = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            serde_json::from_str::<WorkspaceRecord>(line)
+                .map_err(|_| invalid_output("workspace inventory template returned invalid JSONL"))
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(|record| WorkspaceRow {
+            current: record.current_hint,
+            name: record.name,
+            root: if record.current_hint {
+                current_root.to_owned()
+            } else {
+                String::new()
+            },
+            change_id: record.change_id,
+            commit_id: record.commit_id,
+            summary: record.summary,
+            updated_at: record.updated_at,
+            empty: record.empty,
+            conflict: record.conflict,
+            file_count: record.file_count,
+        })
+        .collect::<Vec<_>>();
+    workspaces.sort_by(|left, right| {
+        right
+            .current
+            .cmp(&left.current)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    Ok(workspaces)
 }
 
 #[derive(Debug, Deserialize)]
@@ -1018,6 +1618,18 @@ fn parse_single_line(stdout: &[u8], label: &str) -> Result<String, DriverError> 
     }
     let value = lines.into_iter().next().expect("one line was checked");
     if !(12..=128).contains(&value.len()) || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(invalid_output(&format!("jj returned an invalid {label}")));
+    }
+    Ok(value)
+}
+
+fn parse_single_text_line(stdout: &[u8], label: &str) -> Result<String, DriverError> {
+    let lines = parse_lines(stdout);
+    if lines.len() != 1 {
+        return Err(invalid_output(&format!("jj returned an invalid {label}")));
+    }
+    let value = lines.into_iter().next().expect("one line was checked");
+    if value.chars().any(char::is_control) {
         return Err(invalid_output(&format!("jj returned an invalid {label}")));
     }
     Ok(value)
@@ -1137,6 +1749,7 @@ fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
                 files: parse_files(&record.files),
                 conflict: record.conflict,
                 working_copy: record.working_copy,
+                workspace_copies: record.workspace_copies,
                 empty: record.empty,
             })
         })
@@ -1441,7 +2054,7 @@ mod tests {
     #[test]
     fn jsonl_projection_preserves_machine_readable_fields() {
         let rows = parse_log(
-            br#"{"change_id":"abc","commit_id":"def0123456789abcdef0123456789abcdef012345","summary":"feat: fixture","description":"feat: fixture\n\nCo-authored-by: Fixture Bot <fixture@example.invalid>\n","author":"Agent","author_email":"agent@example.invalid","author_timestamp":"2026-01-01T00:00:00Z","committer":"Integrator","committer_email":"integrator@example.invalid","committer_timestamp":"2026-01-01T00:01:00Z","updated_at":"2026-01-01T00:01:00Z","local_bookmarks":[{"name":"main","target":[]}],"remote_bookmarks":[{"name":"main","remote":"origin","target":[]}],"parents":"parent","parent_commit_ids":"abc0123456789abcdef0123456789abcdef012345","files":"R\tsrc/main.rs\tsrc/{legacy.rs => main.rs}\nA\tREADME.md\tREADME.md","conflict":false,"working_copy":true,"empty":false}
+            br#"{"change_id":"abc","commit_id":"def0123456789abcdef0123456789abcdef012345","summary":"feat: fixture","description":"feat: fixture\n\nCo-authored-by: Fixture Bot <fixture@example.invalid>\n","author":"Agent","author_email":"agent@example.invalid","author_timestamp":"2026-01-01T00:00:00Z","committer":"Integrator","committer_email":"integrator@example.invalid","committer_timestamp":"2026-01-01T00:01:00Z","updated_at":"2026-01-01T00:01:00Z","local_bookmarks":[{"name":"main","target":[]}],"remote_bookmarks":[{"name":"main","remote":"origin","target":[]}],"parents":"parent","parent_commit_ids":"abc0123456789abcdef0123456789abcdef012345","files":"R\tsrc/main.rs\tsrc/{legacy.rs => main.rs}\nA\tREADME.md\tREADME.md","conflict":false,"working_copy":true,"workspace_copies":["default"],"empty":false}
 "#,
         )
         .unwrap();
@@ -1472,6 +2085,7 @@ mod tests {
         assert_eq!(rows[0].files[0].path, "src/main.rs");
         assert_eq!(rows[0].files[0].display_path, "src/{legacy.rs => main.rs}");
         assert!(rows[0].working_copy);
+        assert_eq!(rows[0].workspace_copies, vec!["default"]);
     }
 
     #[test]
@@ -1529,6 +2143,64 @@ mod tests {
         assert!(!message.contains("/home/tester/private/file"));
         assert!(message.contains("<ssh-host>"));
         assert!(message.contains("<repo-path>"));
+    }
+
+    #[tokio::test]
+    async fn workspace_directory_safety_rejects_current_and_ancestor_targets() {
+        let directory = tempfile::tempdir().unwrap();
+        let current = directory.path().join("current");
+        let sibling = directory.path().join("sibling");
+        let linked = directory.path().join("linked");
+        tokio::fs::create_dir_all(&current).await.unwrap();
+        tokio::fs::create_dir_all(&sibling).await.unwrap();
+        std::os::unix::fs::symlink(&sibling, &linked).unwrap();
+
+        assert!(
+            validate_local_workspace_removal(current.to_str().unwrap(), current.to_str().unwrap(),)
+                .await
+                .is_err()
+        );
+        assert!(
+            validate_local_workspace_removal(
+                directory.path().to_str().unwrap(),
+                current.to_str().unwrap(),
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            validate_local_workspace_removal(linked.to_str().unwrap(), current.to_str().unwrap(),)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            validate_local_workspace_removal(sibling.to_str().unwrap(), current.to_str().unwrap(),)
+                .await
+                .unwrap(),
+            sibling.canonicalize().unwrap(),
+        );
+    }
+
+    #[test]
+    fn remote_workspace_removal_encodes_targets_and_keeps_fixed_safety_guards() {
+        let script = remote_workspace_removal_script(
+            "~/private repository",
+            "review workspace",
+            "/private/review workspace",
+            "0123456789abcdef0123456789abcdef01234567",
+        );
+
+        assert!(!script.contains("~/private repository"));
+        assert!(!script.contains("review workspace"));
+        assert!(!script.contains("/private/review workspace"));
+        assert!(script.contains(&encode_hex("~/private repository")));
+        assert!(script.contains(&encode_hex("review workspace")));
+        assert!(script.contains(&encode_hex("/private/review workspace")));
+        assert!(script.contains(&encode_hex("0123456789abcdef0123456789abcdef01234567")));
+        assert!(script.contains("workspace forget -- \"$workspace\""));
+        assert!(script.contains("abandon \"$expected_commit\""));
+        assert!(script.contains("rm -rf -- \"$target_root\""));
+        assert!(script.contains("the current workspace cannot be removed"));
     }
 
     #[test]
@@ -1625,6 +2297,89 @@ mod tests {
     }
 
     #[test]
+    fn working_copy_file_count_is_a_separate_bounded_query() {
+        let args = JjQuery::WorkingCopyFileCount
+            .args()
+            .into_iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            [
+                "--ignore-working-copy",
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "-r",
+                "@",
+                "-T",
+                "self.diff().files().len() ++ \"\\n\"",
+            ]
+        );
+
+        let script = remote_script("~/projects/repository", JjQuery::WorkingCopyFileCount);
+        assert!(script.contains("self.diff().files().len()"));
+        assert!(script.contains("--repository \"$repo\""));
+    }
+
+    #[test]
+    fn workspace_projection_marks_the_current_root_without_losing_cleanup_context() {
+        let workspaces = parse_workspaces(
+            br#"{"name":"review","current_hint":false,"change_id":"abc","commit_id":"0123456789abcdef0123456789abcdef01234567","summary":"","updated_at":"2026-01-01T00:00:00Z","empty":true,"conflict":false,"file_count":0}
+{"name":"default","current_hint":true,"change_id":"def","commit_id":"89abcdef0123456789abcdef0123456789abcdef","summary":"feat: current","updated_at":"2026-01-02T00:00:00Z","empty":false,"conflict":true,"file_count":3}
+"#,
+            "/fixtures/current",
+        )
+        .unwrap();
+
+        assert_eq!(workspaces[0].name, "default");
+        assert!(workspaces[0].current);
+        assert!(workspaces[0].conflict);
+        assert_eq!(workspaces[1].name, "review");
+        assert!(workspaces[1].empty);
+        assert!(workspaces[1].root.is_empty());
+    }
+
+    #[test]
+    fn workspace_inventory_template_never_serializes_the_fallible_root_keyword() {
+        assert!(!WORKSPACE_TEMPLATE.contains("root.escape_json"));
+        assert!(WORKSPACE_TEMPLATE.contains("current_working_copy"));
+    }
+
+    #[test]
+    fn named_workspace_root_queries_keep_the_name_as_one_argument() {
+        let args = JjQuery::WorkspaceRootByName {
+            name: "review workspace".into(),
+        }
+        .args()
+        .into_iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            vec![
+                "--ignore-working-copy",
+                "workspace",
+                "root",
+                "--name",
+                "review workspace",
+            ]
+        );
+
+        let script = remote_script(
+            "~/projects/repository",
+            JjQuery::WorkspaceRootByName {
+                name: "review workspace".into(),
+            },
+        );
+        assert!(script.contains("workspace=$(decode_hex"));
+        assert!(script.contains("workspace root --name \"$workspace\""));
+        assert!(!script.contains("review workspace"));
+    }
+
+    #[test]
     fn diff_selectors_reject_parent_traversal_and_non_commit_revisions() {
         assert!(valid_commit_id("012345abcdef"));
         assert!(!valid_commit_id("main"));
@@ -1713,6 +2468,16 @@ mod tests {
         .into_iter()
         .map(|value| value.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
+        let remove_workspace = mutation_args(
+            &MutationIntent::RemoveWorkspace {
+                name: "review".into(),
+            },
+            &[],
+        )
+        .unwrap()
+        .into_iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
 
         assert_eq!(
             rebase,
@@ -1732,6 +2497,10 @@ mod tests {
                 "--bookmark",
                 "exact:feature/safe-shaping",
             ]
+        );
+        assert_eq!(
+            remove_workspace,
+            vec!["workspace", "forget", "--", "review"]
         );
     }
 
@@ -1761,7 +2530,7 @@ mod tests {
 
     #[test]
     fn empty_pruning_query_protects_current_and_referenced_changes() {
-        assert!(PRUNE_CANDIDATE_REVSET.contains("~@"));
+        assert!(PRUNE_CANDIDATE_REVSET.contains("~working_copies()"));
         assert!(PRUNE_CANDIDATE_REVSET.contains("~root()"));
         assert!(PRUNE_CANDIDATE_REVSET.contains("mutable()"));
         assert!(PRUNE_CANDIDATE_REVSET.contains("~bookmarks()"));
