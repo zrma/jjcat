@@ -9,7 +9,11 @@ const MAX_TARGETS: usize = 64;
 const MAX_SPLIT_PATHS: usize = 256;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum MutationIntent {
     New {
         parent_commit_ids: Vec<String>,
@@ -244,8 +248,7 @@ impl MutationPreview {
         }
 
         let (title, effect, risk, targets) = preview_content(intent, &candidates);
-        let (requires_typed_confirmation, confirmation_phrase) =
-            confirmation(intent, candidates.len());
+        let (requires_typed_confirmation, confirmation_phrase) = confirmation(intent);
         Ok(Self {
             token,
             repository_id: repository.id.clone(),
@@ -544,12 +547,12 @@ fn preview_content(
     }
 }
 
-fn confirmation(intent: &MutationIntent, candidate_count: usize) -> (bool, String) {
+fn confirmation(intent: &MutationIntent) -> (bool, String) {
     match intent {
         MutationIntent::Abandon { target_commit_ids } => {
             (true, format!("Abandon {} changes", target_commit_ids.len()))
         }
-        MutationIntent::PruneEmpty => (true, format!("Prune {candidate_count} empty changes")),
+        MutationIntent::PruneEmpty => (false, "Confirm".into()),
         MutationIntent::Undo { .. } => (true, "Undo current operation".into()),
         MutationIntent::Push { name, .. } => (true, format!("Push {name}")),
         _ => (false, "Confirm".into()),
@@ -771,6 +774,137 @@ mod tests {
     }
 
     #[test]
+    fn mutation_intent_round_trips_frontend_camel_case_contract() {
+        let cases = [
+            (
+                serde_json::json!({
+                    "kind": "new",
+                    "parentCommitIds": [SOURCE],
+                }),
+                MutationIntent::New {
+                    parent_commit_ids: vec![SOURCE.into()],
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "edit",
+                    "targetCommitId": SOURCE,
+                }),
+                MutationIntent::Edit {
+                    target_commit_id: SOURCE.into(),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "describe",
+                    "targetCommitId": SOURCE,
+                    "message": "feat: describe fixture",
+                }),
+                MutationIntent::Describe {
+                    target_commit_id: SOURCE.into(),
+                    message: "feat: describe fixture".into(),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "fetch",
+                    "remote": "origin",
+                }),
+                MutationIntent::Fetch {
+                    remote: Some("origin".into()),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "rebase",
+                    "sourceCommitId": SOURCE,
+                    "destinationCommitId": DESTINATION,
+                }),
+                MutationIntent::Rebase {
+                    source_commit_id: SOURCE.into(),
+                    destination_commit_id: DESTINATION.into(),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "squash",
+                    "sourceCommitId": SOURCE,
+                    "destinationCommitId": DESTINATION,
+                }),
+                MutationIntent::Squash {
+                    source_commit_id: SOURCE.into(),
+                    destination_commit_id: DESTINATION.into(),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "split",
+                    "sourceCommitId": SOURCE,
+                    "paths": ["src/main.rs"],
+                    "message": "feat: split fixture",
+                }),
+                MutationIntent::Split {
+                    source_commit_id: SOURCE.into(),
+                    paths: vec!["src/main.rs".into()],
+                    message: "feat: split fixture".into(),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "abandon",
+                    "targetCommitIds": [SOURCE],
+                }),
+                MutationIntent::Abandon {
+                    target_commit_ids: vec![SOURCE.into()],
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "pruneEmpty",
+                }),
+                MutationIntent::PruneEmpty,
+            ),
+            (
+                serde_json::json!({
+                    "kind": "undo",
+                    "operationId": "operation-id",
+                }),
+                MutationIntent::Undo {
+                    operation_id: "operation-id".into(),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "bookmarkMove",
+                    "name": "main",
+                    "targetCommitId": SOURCE,
+                }),
+                MutationIntent::BookmarkMove {
+                    name: "main".into(),
+                    target_commit_id: SOURCE.into(),
+                },
+            ),
+            (
+                serde_json::json!({
+                    "kind": "push",
+                    "name": "main",
+                    "remote": "origin",
+                }),
+                MutationIntent::Push {
+                    name: "main".into(),
+                    remote: "origin".into(),
+                },
+            ),
+        ];
+
+        for (frontend_value, expected_intent) in cases {
+            let decoded: MutationIntent = serde_json::from_value(frontend_value.clone()).unwrap();
+            assert_eq!(decoded, expected_intent);
+            assert_eq!(serde_json::to_value(decoded).unwrap(), frontend_value);
+        }
+    }
+
+    #[test]
     fn preview_never_contains_repository_location_or_command_text() {
         let preview = MutationPreview::build(
             "opaque-token".into(),
@@ -792,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_pruning_lists_candidates_and_requires_exact_confirmation() {
+    fn empty_pruning_lists_candidates_without_redundant_typed_confirmation() {
         let preview = MutationPreview::build(
             "opaque-token".into(),
             &repository(),
@@ -808,8 +942,8 @@ mod tests {
 
         assert_eq!(preview.kind, MutationKind::PruneEmpty);
         assert_eq!(preview.targets[0].commit_id.as_deref(), Some(SOURCE));
-        assert!(preview.requires_typed_confirmation);
-        assert_eq!(preview.confirmation_phrase, "Prune 1 empty changes");
+        assert!(!preview.requires_typed_confirmation);
+        assert_eq!(preview.confirmation_phrase, "Confirm");
         assert!(preview.matches_context(
             "abcdef0123456789",
             &[MutationCandidate {

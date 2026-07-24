@@ -114,6 +114,11 @@ native shell은 blank titlebar drag와 8방향 edge/corner resize hit area를 �
 overview는 author/committer, refs와 identity, 전체 commit message와 changed files를 같은
 고정 inspector에서 읽게 한다. graph/history와 inspector 사이의 separator는 pointer drag,
 위/아래 방향키, Home/End와 double-click reset을 지원하며 양쪽 작업면의 최소 높이를 보존한다.
+change-level mutation은 범용 action catalog가 아니라 selected change 옆의 visible `Change`
+menu와 graph row context menu에서 시작한다. repository-level pruning은 stable repository
+navigation과 repository row context menu에 두며 rail이 접히는 narrow window에서만 compact
+toolbar fallback을 제공한다. 이 entrypoint들은 mutation command를 직접 실행하지 않고 아래의
+동일한 preview/confirmation queue로 intent를 전달한다.
 
 ### Diff Inspection
 
@@ -165,10 +170,16 @@ working copy, root, immutable change와 local/remote bookmark target을 보호�
 graph drag-and-drop과 keyboard shaping은 command를 직접 호출하지 않고 같은 rebase preview를
 연다. push는 별도 remote-write risk와 exact bookmark confirmation을 요구하며 force/delete
 option은 제공하지 않는다.
+mutation dialog는 action catalog를 다시 선택하게 하지 않고 entrypoint에서 전달된 단일
+intent의 parameter와 exact targets만 보여준다. 따라서 change, repository, network와 recovery
+범위가 한 native select에 섞이지 않는다.
 
 ## CLI Integration Contract
 
 - 지원 `jj` version과 capability를 연결 시 탐지한다.
+- frontend에서 Tauri로 전달하는 mutation intent는 variant와 내부 field 모두 camelCase를
+  사용한다. Rust enum은 snake_case field를 유지하되 Serde `rename_all_fields`로 경계를
+  명시하며 모든 variant의 JSON round trip을 회귀 테스트한다.
 - human-readable 기본 출력에 의존하지 않고 template 또는 helper protocol을 사용한다.
 - stdout, stderr, exit status, timeout과 cancellation을 분리한다.
 - output은 bounded하며 ANSI와 terminal prompt를 허용하지 않는다.

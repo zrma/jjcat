@@ -90,3 +90,18 @@ implementation은 다음 P0 milestone로 넘겼다.
 - graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path를 같은 rebase preview에 연결하고
   packaged desktop shell, deterministic interaction smoke와 canonical local gate를 통과했다.
   private repository identity, path, remote와 raw output은 tracked evidence에 남기지 않았다.
+
+## 2026-07-24: Contextual Mutation UX
+
+- 범용 `Actions` button과 native action selector를 제거하고 selected change 옆의 `Change`
+  menu와 graph row context menu로 change-level mutation을 이동했다.
+- protected empty-change pruning을 repository navigation과 repository row context menu에
+  노출하고 narrow window에는 compact fallback을 제공했다.
+- mutation dialog는 이미 선택된 intent의 parameter와 exact-target preview에 집중한다.
+  pruning은 열거된 candidate count를 destructive button에 표시하고 별도 phrase 입력을
+  요구하지 않으며, remote push 등의 typed confirmation과 stale-operation safety contract는
+  유지한다.
+- Tauri mutation intent의 variant 내부 field까지 camelCase로 직렬화하고 전체 intent JSON
+  round trip을 검사해 rebase를 포함한 frontend/native IPC 계약을 고정했다.
+- desktop/narrow rendered interaction, focused frontend tests와 canonical repository gate를
+  통과했다. private repository identity, path, remote와 raw output은 기록하지 않았다.

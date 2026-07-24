@@ -56,6 +56,12 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - exact current operation `undo`, local bookmark move와 typed-confirmation remote push
 - graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path가 공유하는 rebase preview
 - fresh projection/operation log 기반 action postcondition과 cache refresh
+- selected change 가까이의 `Change` 메뉴와 graph row context menu로 제공하는
+  edit/describe/history shaping/bookmark 작업
+- repository navigation과 repository row context menu에 노출된 protected empty-change
+  pruning, rail이 접히는 narrow window의 compact fallback
+- action 선택 단계를 제거하고 선택한 작업의 parameter와 exact-target preview에 집중하는
+  mutation dialog
 
 ## Known Upstream Constraints
 

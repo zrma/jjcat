@@ -17,6 +17,7 @@ import {
   GitPullRequestArrow,
   History,
   Laptop,
+  ListX,
   Pin,
   PinOff,
   Plus,
@@ -65,7 +66,10 @@ type RepositoryState =
   | "disconnected-cached"
   | "empty";
 type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
-type MutationDialogState = { initialIntent: MutationIntent | null };
+type MutationDialogState = {
+  initialIntent: MutationIntent;
+  previewImmediately: boolean;
+};
 type ResizeDirection =
   | "East"
   | "North"
@@ -544,6 +548,7 @@ function App() {
             sourceCommitId: rebaseSourceCommitId,
             destinationCommitId: selectedChange.commitId,
           },
+          previewImmediately: true,
         });
         setRebaseSourceCommitId(null);
       }
@@ -906,6 +911,19 @@ function App() {
               <History aria-hidden="true" />
               <span>Operations</span>
             </button>
+            <button
+              type="button"
+              onClick={() =>
+                setMutationDialog({
+                  initialIntent: { kind: "pruneEmpty" },
+                  previewImmediately: true,
+                })
+              }
+              disabled={!selectedRepository}
+            >
+              <Trash2 aria-hidden="true" />
+              <span>Prune Empty Changes…</span>
+            </button>
           </section>
           {selectedProjection && (
             <section className="navigation-section navigation-sync" aria-label="Last fetched state">
@@ -942,8 +960,8 @@ function App() {
                       event.preventDefault();
                       setContextMenu({
                         repositoryId: repository.id,
-                        x: Math.min(event.clientX, window.innerWidth - 190),
-                        y: Math.min(event.clientY, window.innerHeight - 118),
+                        x: Math.min(event.clientX, window.innerWidth - 220),
+                        y: Math.min(event.clientY, window.innerHeight - 154),
                       });
                     }}
                     key={repository.id}
@@ -1017,6 +1035,7 @@ function App() {
                         kind: "new",
                         parentCommitIds: [selectedChange.commitId],
                       },
+                      previewImmediately: true,
                     });
                   }}
                   disabled={!selectedChange}
@@ -1030,6 +1049,7 @@ function App() {
                   onClick={() =>
                     setMutationDialog({
                       initialIntent: { kind: "fetch", remote: "origin" },
+                      previewImmediately: true,
                     })
                   }
                 >
@@ -1037,11 +1057,16 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  className="mutation-button"
-                  title="Open preview-first repository actions"
-                  onClick={() => setMutationDialog({ initialIntent: null })}
+                  className="mutation-button compact-prune-button"
+                  title="Prune empty changes"
+                  onClick={() =>
+                    setMutationDialog({
+                      initialIntent: { kind: "pruneEmpty" },
+                      previewImmediately: true,
+                    })
+                  }
                 >
-                  <GitPullRequestArrow aria-hidden="true" /> Actions
+                  <ListX aria-hidden="true" /> Prune
                 </button>
                 <button
                   type="button"
@@ -1131,12 +1156,20 @@ function App() {
                     sourceCommitId,
                     destinationCommitId,
                   },
+                  previewImmediately: true,
                 });
                 setRebaseSourceCommitId(null);
               }}
               onRequestUndo={(operationId) =>
                 setMutationDialog({
                   initialIntent: { kind: "undo", operationId },
+                  previewImmediately: true,
+                })
+              }
+              onLaunchMutation={({ intent, previewImmediately }) =>
+                setMutationDialog({
+                  initialIntent: intent,
+                  previewImmediately,
                 })
               }
               onSelectFile={(path) => {
@@ -1220,6 +1253,16 @@ function App() {
             setContextMenu(null);
             if (repository) void setRepositoryPinned(repository, !repository.pinned);
           }}
+          onPrune={() => {
+            const repositoryId = contextMenu.repositoryId;
+            setContextMenu(null);
+            void selectRepository(repositoryId).then(() =>
+              setMutationDialog({
+                initialIntent: { kind: "pruneEmpty" },
+                previewImmediately: true,
+              }),
+            );
+          }}
           onRemove={() => {
             const repository = registry.repositories.find(
               (candidate) => candidate.id === contextMenu.repositoryId,
@@ -1244,6 +1287,7 @@ function App() {
           selectedChange={selectedChange}
           undoTarget={operationLog?.undoTarget ?? null}
           initialIntent={mutationDialog.initialIntent}
+          previewImmediately={mutationDialog.previewImmediately}
           onClose={() => setMutationDialog(null)}
           onExecuted={mutationExecuted}
         />
@@ -1639,6 +1683,7 @@ function RepositoryMenu({
   refreshing,
   onRefresh,
   onPin,
+  onPrune,
   onRemove,
 }: {
   menu: RepositoryContextMenu;
@@ -1646,6 +1691,7 @@ function RepositoryMenu({
   refreshing: boolean;
   onRefresh: () => void;
   onPin: () => void;
+  onPrune: () => void;
   onRemove: () => void;
 }) {
   if (!repository) return null;
@@ -1665,6 +1711,11 @@ function RepositoryMenu({
       <button type="button" role="menuitem" onClick={onPin}>
         {repository.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
         {repository.pinned ? "Unpin repository" : "Pin repository"}
+      </button>
+      <span className="menu-separator" />
+      <button type="button" role="menuitem" onClick={onPrune} disabled={refreshing}>
+        <ListX aria-hidden="true" />
+        Prune empty changes…
       </button>
       <span className="menu-separator" />
       <button type="button" role="menuitem" className="danger" onClick={onRemove} disabled={refreshing}>

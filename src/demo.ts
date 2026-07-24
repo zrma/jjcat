@@ -101,6 +101,17 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
       ],
       },
     ),
+    change(
+      "eeeeeeeeeeee",
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "(no description)",
+      8,
+      {
+        parents: ["6a7b8c9d0e1f"],
+        parentCommitIds: ["6b7c8d9e0f1a2031425364758697a8b9c0d1e2f3"],
+        empty: true,
+      },
+    ),
     change("6a7b8c9d0e1f", "6b7c8d9e0f1a", "test: cover SSH timeout", 18, {
       parents: ["5e6f7a8b9c0d"],
     }),
@@ -665,27 +676,18 @@ function mutationPreviewContent(
       ];
       break;
   }
-  const candidateCount = changes.filter(
-    (item) =>
-      item.empty &&
-      !item.workingCopy &&
-      !/^0+$/.test(item.commitId) &&
-      item.bookmarks.length === 0,
-  ).length;
   const confirmationPhrase =
     intent.kind === "abandon"
       ? `Abandon ${intent.targetCommitIds.length} changes`
-      : intent.kind === "pruneEmpty"
-        ? `Prune ${candidateCount} empty changes`
-        : intent.kind === "undo"
-          ? "Undo current operation"
-          : intent.kind === "push"
-            ? `Push ${intent.name}`
-            : "Confirm";
+      : intent.kind === "undo"
+        ? "Undo current operation"
+        : intent.kind === "push"
+          ? `Push ${intent.name}`
+          : "Confirm";
   return {
     ...details[intent.kind],
     targets,
-    requiresTypedConfirmation: ["abandon", "pruneEmpty", "undo", "push"].includes(intent.kind),
+    requiresTypedConfirmation: ["abandon", "undo", "push"].includes(intent.kind),
     confirmationPhrase,
   };
 }

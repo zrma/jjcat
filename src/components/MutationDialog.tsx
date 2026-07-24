@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -27,25 +27,35 @@ interface MutationDialogProps {
   changes: ChangeRow[];
   selectedChange?: ChangeRow;
   undoTarget: string | null;
-  initialIntent: MutationIntent | null;
+  initialIntent: MutationIntent;
+  previewImmediately: boolean;
   onClose: () => void;
   onExecuted: (execution: MutationExecution) => void;
 }
 
-const ACTIONS: { kind: MutationKind; label: string; group: string }[] = [
-  { kind: "new", label: "New change", group: "Working copy" },
-  { kind: "edit", label: "Edit change", group: "Working copy" },
-  { kind: "describe", label: "Describe change", group: "Working copy" },
-  { kind: "fetch", label: "Fetch remote", group: "Network" },
-  { kind: "rebase", label: "Rebase onto…", group: "Shape history" },
-  { kind: "squash", label: "Squash into…", group: "Shape history" },
-  { kind: "split", label: "Split paths", group: "Shape history" },
-  { kind: "abandon", label: "Abandon change", group: "Shape history" },
-  { kind: "pruneEmpty", label: "Prune empty changes", group: "Recovery" },
-  { kind: "undo", label: "Undo current operation", group: "Recovery" },
-  { kind: "bookmarkMove", label: "Move bookmark", group: "Bookmarks" },
-  { kind: "push", label: "Push bookmark", group: "Bookmarks" },
-];
+const ACTION_LABELS: Record<MutationKind, string> = {
+  new: "New change",
+  edit: "Edit change",
+  describe: "Describe change",
+  fetch: "Fetch remote",
+  rebase: "Rebase onto…",
+  squash: "Squash into…",
+  split: "Split paths",
+  abandon: "Abandon change",
+  pruneEmpty: "Prune empty changes",
+  undo: "Undo current operation",
+  bookmarkMove: "Move bookmark",
+  push: "Push bookmark",
+};
+
+const CONFIGURABLE_ACTIONS = new Set<MutationKind>([
+  "describe",
+  "rebase",
+  "squash",
+  "split",
+  "bookmarkMove",
+  "push",
+]);
 
 function shortId(value: string) {
   return value.slice(0, 12);
@@ -58,48 +68,60 @@ export function MutationDialog({
   selectedChange,
   undoTarget,
   initialIntent,
+  previewImmediately,
   onClose,
   onExecuted,
 }: MutationDialogProps) {
   const fallback = selectedChange ?? changes[0];
-  const [kind, setKind] = useState<MutationKind>(initialIntent?.kind ?? "new");
+  const kind = initialIntent.kind;
   const [sourceCommitId, setSourceCommitId] = useState(
-    "sourceCommitId" in (initialIntent ?? {})
-      ? (initialIntent as Extract<MutationIntent, { kind: "rebase" | "squash" | "split" }>)
-          .sourceCommitId
-      : fallback?.commitId ?? "",
+    "sourceCommitId" in initialIntent
+      ? initialIntent.sourceCommitId
+      : "targetCommitId" in initialIntent
+        ? initialIntent.targetCommitId
+        : "targetCommitIds" in initialIntent
+          ? initialIntent.targetCommitIds[0] ?? ""
+          : "parentCommitIds" in initialIntent
+            ? initialIntent.parentCommitIds[0] ?? ""
+            : fallback?.commitId ?? "",
   );
   const [destinationCommitId, setDestinationCommitId] = useState(
-    "destinationCommitId" in (initialIntent ?? {})
-      ? (
-          initialIntent as Extract<
-            MutationIntent,
-            { kind: "rebase" | "squash" }
-          >
-        ).destinationCommitId
+    "destinationCommitId" in initialIntent
+      ? initialIntent.destinationCommitId
       : fallback?.parentCommitIds?.[0] ?? changes[1]?.commitId ?? "",
   );
   const [message, setMessage] = useState(
-    initialIntent?.kind === "describe"
+    initialIntent.kind === "describe"
       ? initialIntent.message
+      : initialIntent.kind === "split"
+        ? initialIntent.message
       : selectedChange?.description ?? selectedChange?.summary ?? "",
   );
   const [paths, setPaths] = useState(
-    initialIntent?.kind === "split"
+    initialIntent.kind === "split"
       ? initialIntent.paths.join("\n")
       : selectedChange?.files.map((file) => file.path).join("\n") ?? "",
   );
   const [bookmark, setBookmark] = useState(
-    selectedChange?.bookmarks.find((item) => !item.remote)?.name ?? "main",
+    initialIntent.kind === "bookmarkMove" || initialIntent.kind === "push"
+      ? initialIntent.name
+      : selectedChange?.bookmarks.find((item) => !item.remote)?.name ?? "main",
   );
-  const [remote, setRemote] = useState("origin");
+  const [remote, setRemote] = useState(
+    initialIntent.kind === "fetch"
+      ? initialIntent.remote ?? ""
+      : initialIntent.kind === "push"
+        ? initialIntent.remote
+        : "origin",
+  );
   const [preview, setPreview] = useState<MutationPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [typedConfirmation, setTypedConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const initialPreviewStarted = useRef(false);
-  const changeOptions = useMemo(() => changes, [changes]);
+  const contextChange =
+    changes.find((change) => change.commitId === sourceCommitId) ?? fallback;
 
   function buildIntent(): MutationIntent | null {
     const target = sourceCommitId || fallback?.commitId || "";
@@ -157,10 +179,10 @@ export function MutationDialog({
   }
 
   useEffect(() => {
-    if (!initialIntent || initialPreviewStarted.current) return;
+    if (!previewImmediately || initialPreviewStarted.current) return;
     initialPreviewStarted.current = true;
     void requestPreview(initialIntent);
-  }, [initialIntent]);
+  }, [initialIntent, previewImmediately]);
 
   useEffect(() => {
     const firstMutable = changes.find((change) => !/^0+$/.test(change.commitId));
@@ -208,12 +230,19 @@ export function MutationDialog({
     }
   }
 
-  const action = ACTIONS.find((candidate) => candidate.kind === kind);
+  const actionLabel = ACTION_LABELS[kind];
+  const configurable = CONFIGURABLE_ACTIONS.has(kind);
   const executeDisabled =
     executing ||
     (preview?.requiresTypedConfirmation &&
       typedConfirmation !== preview.confirmationPhrase) ||
     (preview?.kind === "pruneEmpty" && preview.candidates.length === 0);
+  const executeLabel =
+    preview?.kind === "pruneEmpty" && preview.candidates.length > 0
+      ? `Prune ${preview.candidates.length} empty ${
+          preview.candidates.length === 1 ? "change" : "changes"
+        }`
+      : preview?.title;
 
   return (
     <div className="dialog-backdrop mutation-backdrop" role="presentation">
@@ -225,12 +254,15 @@ export function MutationDialog({
       >
         <header>
           <div>
-            <GitPullRequestArrow aria-hidden="true" />
+            <MutationRiskIcon kind={kind} />
             <span>
               <h2 id="mutation-title">
-                {preview ? preview.title : "Repository action"}
+                {preview ? preview.title : actionLabel}
               </h2>
-              <small>{repositoryName} · preview before execution</small>
+              <small>
+                {repositoryName} ·{" "}
+                {preview ? "preview before execution" : "configure exact targets"}
+              </small>
             </span>
           </div>
           <button type="button" onClick={onClose} disabled={executing} aria-label="Close">
@@ -246,43 +278,21 @@ export function MutationDialog({
               void requestPreview();
             }}
           >
-            <label>
-              Action
-              <select
-                value={kind}
-                onChange={(event) => setKind(event.target.value as MutationKind)}
-              >
-                {ACTIONS.map((item) => (
-                  <option value={item.kind} key={item.kind}>
-                    {item.group} · {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {[
-              "new",
-              "edit",
-              "describe",
-              "rebase",
-              "squash",
-              "split",
-              "abandon",
-              "bookmarkMove",
-            ].includes(kind) && (
-              <ChangeSelect
-                label={kind === "new" ? "Parent change" : "Source change"}
-                changes={changeOptions}
-                value={sourceCommitId}
-                onChange={setSourceCommitId}
-                excludeRoot={kind !== "new" && kind !== "bookmarkMove"}
-              />
-            )}
+            {contextChange &&
+              ["describe", "rebase", "squash", "split", "bookmarkMove"].includes(
+                kind,
+              ) && (
+                <div className="mutation-subject">
+                  <span>Selected change</span>
+                  <code>{contextChange.changeId}</code>
+                  <strong>{contextChange.summary || "(no description)"}</strong>
+                </div>
+              )}
 
             {(kind === "rebase" || kind === "squash") && (
               <ChangeSelect
                 label="Destination change"
-                changes={changeOptions}
+                changes={changes}
                 value={destinationCommitId}
                 onChange={setDestinationCommitId}
                 exclude={sourceCommitId}
@@ -376,7 +386,7 @@ export function MutationDialog({
                 Cancel
               </button>
               <button type="submit" className="primary" disabled={loading}>
-                {loading ? "Building preview…" : `Review ${action?.label ?? "action"}`}
+                {loading ? "Building preview…" : `Review ${actionLabel}`}
               </button>
             </footer>
           </form>
@@ -459,12 +469,16 @@ export function MutationDialog({
                 type="button"
                 className="secondary"
                 onClick={() => {
-                  setPreview(null);
-                  setError(null);
+                  if (configurable) {
+                    setPreview(null);
+                    setError(null);
+                  } else {
+                    onClose();
+                  }
                 }}
                 disabled={executing}
               >
-                Back
+                {configurable ? "Back" : "Cancel"}
               </button>
               <button
                 type="button"
@@ -472,7 +486,7 @@ export function MutationDialog({
                 disabled={executeDisabled}
                 onClick={() => void execute()}
               >
-                {executing ? "Executing…" : preview.title}
+                {executing ? "Executing…" : executeLabel}
               </button>
             </footer>
           </div>

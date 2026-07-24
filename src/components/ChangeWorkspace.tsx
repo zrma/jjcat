@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ChevronDown,
   File,
   Files,
   Folder,
@@ -35,8 +36,10 @@ import type {
   WhitespaceMode,
 } from "../types";
 import { BookmarkLabels } from "./BookmarkLabels";
+import { ChangeActionMenu } from "./ChangeActionMenu";
 import { DiffViewer } from "./DiffViewer";
 import { OperationLogPanel } from "./OperationLogPanel";
+import type { MutationLaunch } from "../lib/changeActions";
 
 interface ChangeWorkspaceProps {
   changes: ChangeRow[];
@@ -62,6 +65,7 @@ interface ChangeWorkspaceProps {
   rebaseSourceCommitId: string | null;
   onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
   onRequestUndo: (operationId: string) => void;
+  onLaunchMutation: (launch: MutationLaunch) => void;
 }
 
 const VIRTUALIZATION_THRESHOLD = 40;
@@ -100,9 +104,11 @@ export function ChangeWorkspace({
   rebaseSourceCommitId,
   onRequestRebase,
   onRequestUndo,
+  onLaunchMutation,
 }: ChangeWorkspaceProps) {
   const contentGridRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
+  const changeActionButtonRef = useRef<HTMLButtonElement>(null);
   const splitterDragRef = useRef<{
     pointerId: number;
     startY: number;
@@ -110,6 +116,11 @@ export function ChangeWorkspace({
   } | null>(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [inspectorHeight, setInspectorHeight] = useState<number | null>(null);
+  const [changeActionMenu, setChangeActionMenu] = useState<{
+    changeId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const bounds = splitterBounds(
     contentHeight,
     MIN_HISTORY_HEIGHT,
@@ -151,6 +162,27 @@ export function ChangeWorkspace({
     [],
   );
 
+  useEffect(() => {
+    if (!changeActionMenu) return;
+    const close = () => setChangeActionMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [changeActionMenu]);
+
+  const menuChange =
+    selectedChange?.changeId === changeActionMenu?.changeId
+      ? selectedChange
+      : changes.find((change) => change.changeId === changeActionMenu?.changeId);
+
   const finishSplitterDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (splitterDragRef.current?.pointerId !== event.pointerId) return;
     splitterDragRef.current = null;
@@ -169,6 +201,14 @@ export function ChangeWorkspace({
         refreshing={refreshing}
         rebaseSourceCommitId={rebaseSourceCommitId}
         onRequestRebase={onRequestRebase}
+        onOpenActionMenu={(change, x, y) => {
+          onSelect(change.changeId);
+          setChangeActionMenu({
+            changeId: change.changeId,
+            x: Math.max(8, Math.min(x, window.innerWidth - 296)),
+            y: Math.max(8, Math.min(y, window.innerHeight - 520)),
+          });
+        }}
       />
       <div
         className="workspace-splitter"
@@ -254,6 +294,35 @@ export function ChangeWorkspace({
             <History aria-hidden="true" />
             Operations
           </button>
+          <span className="inspector-tab-spacer" />
+          <button
+            type="button"
+            ref={changeActionButtonRef}
+            className={`change-action-trigger ${changeActionMenu ? "open" : ""}`}
+            aria-haspopup="menu"
+            aria-expanded={Boolean(changeActionMenu)}
+            disabled={!selectedChange || inspectorView === "operations"}
+            onClick={() => {
+              if (changeActionMenu) {
+                setChangeActionMenu(null);
+                return;
+              }
+              const rect = changeActionButtonRef.current?.getBoundingClientRect();
+              if (!rect || !selectedChange) return;
+              setChangeActionMenu({
+                changeId: selectedChange.changeId,
+                x: Math.max(8, Math.min(rect.right - 286, window.innerWidth - 296)),
+                y: Math.max(
+                  8,
+                  Math.min(rect.bottom + 4, window.innerHeight - 456),
+                ),
+              });
+            }}
+          >
+            <GitCommitHorizontal aria-hidden="true" />
+            Change
+            <ChevronDown aria-hidden="true" />
+          </button>
         </nav>
         <div className="inspector-panel">
           {inspectorView === "operations" ? (
@@ -292,6 +361,16 @@ export function ChangeWorkspace({
           )}
         </div>
       </section>
+      {changeActionMenu && menuChange && (
+        <ChangeActionMenu
+          change={menuChange}
+          changes={changes}
+          x={changeActionMenu.x}
+          y={changeActionMenu.y}
+          onClose={() => setChangeActionMenu(null)}
+          onLaunch={onLaunchMutation}
+        />
+      )}
     </div>
   );
 }
@@ -303,6 +382,7 @@ function ChangeLog({
   refreshing,
   rebaseSourceCommitId,
   onRequestRebase,
+  onOpenActionMenu,
 }: {
   changes: ChangeRow[];
   selected?: string;
@@ -310,6 +390,7 @@ function ChangeLog({
   refreshing: boolean;
   rebaseSourceCommitId: string | null;
   onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
+  onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
 }) {
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
@@ -397,6 +478,7 @@ function ChangeLog({
         scrollTop={viewport.scrollTop}
         rebaseSourceCommitId={rebaseSourceCommitId}
         onRequestRebase={onRequestRebase}
+        onOpenActionMenu={onOpenActionMenu}
       />
     </section>
   );
@@ -413,6 +495,7 @@ function ChangeRows({
   scrollTop,
   rebaseSourceCommitId,
   onRequestRebase,
+  onOpenActionMenu,
 }: {
   changes: ChangeRow[];
   dagRows: DagRowLayout[];
@@ -424,6 +507,7 @@ function ChangeRows({
   scrollTop: number;
   rebaseSourceCommitId: string | null;
   onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
+  onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [draggedCommitId, setDraggedCommitId] = useState<string | null>(null);
@@ -538,6 +622,15 @@ function ChangeRows({
                 return;
               }
               onSelect(change.changeId);
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              const rect = event.currentTarget.getBoundingClientRect();
+              onOpenActionMenu(
+                change,
+                event.clientX || rect.left + 24,
+                event.clientY || rect.top + 16,
+              );
             }}
             data-commit-id={change.commitId}
             aria-grabbed={
