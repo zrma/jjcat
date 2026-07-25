@@ -242,6 +242,7 @@ body[data-runtime="tauri"] .brand-lockup {
 }
 
 .tab {
+  position: relative;
   display: flex;
   align-items: center;
   height: 36px;
@@ -251,6 +252,9 @@ body[data-runtime="tauri"] .brand-lockup {
   border-right: 1px solid var(--line-soft);
   border-radius: 0;
   background: transparent;
+  transition:
+    background-color 100ms ease,
+    opacity 100ms ease;
 }
 
 .tab + .tab {
@@ -276,6 +280,39 @@ body[data-runtime="tauri"] .brand-lockup {
   font-size: 11px;
   font-weight: 600;
   text-align: left;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.tab.dragging > button:first-child {
+  cursor: grabbing;
+}
+
+.tab.dragging {
+  opacity: 0.46;
+}
+
+.tab.drop-before::before,
+.tab.drop-after::after {
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 999px;
+  background: #65aef7;
+  box-shadow: 0 0 0 1px rgb(101 174 247 / 22%);
+  content: "";
+  pointer-events: none;
+}
+
+.tab.drop-before::before {
+  left: -1px;
+}
+
+.tab.drop-after::after {
+  right: -1px;
 }
 
 .tab > button:first-child span:nth-child(2) {

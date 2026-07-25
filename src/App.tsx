@@ -43,6 +43,10 @@ import { repositoryNavigation as navigationForProjection } from "./lib/repositor
 import { groupRepositories } from "./lib/repositories";
 import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
 import { historyShortcutFor } from "./lib/historyShortcuts";
+import {
+  reorderRepositoryTabs,
+  type RepositoryTabDropEdge,
+} from "./lib/repositoryTabs";
 import type {
   AppError,
   CachedProjection,
@@ -69,6 +73,17 @@ type RepositoryState =
   | "disconnected-cached"
   | "empty";
 type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
+type RepositoryTabDropTarget = {
+  repositoryId: string;
+  edge: RepositoryTabDropEdge;
+};
+type RepositoryTabPointerDrag = {
+  repositoryId: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+};
 type MutationDialogState = {
   initialIntent: MutationIntent;
   previewImmediately: boolean;
@@ -206,6 +221,9 @@ function App() {
   const [rebaseSourceCommitId, setRebaseSourceCommitId] = useState<string | null>(null);
   const [mutationNotice, setMutationNotice] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const [tabDropTarget, setTabDropTarget] =
+    useState<RepositoryTabDropTarget | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const refreshingRef = useRef<Record<string, string>>({});
   const failureCountsRef = useRef<Record<string, number>>({});
@@ -214,6 +232,9 @@ function App() {
   const diffRequestRef = useRef(0);
   const operationRequestRef = useRef(0);
   const historyStepExecutingRef = useRef(false);
+  const tabOrderSavingRef = useRef(false);
+  const tabPointerDragRef = useRef<RepositoryTabPointerDrag | null>(null);
+  const suppressTabClickRef = useRef(false);
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -539,6 +560,19 @@ function App() {
         }
       }
       if (
+        event.altKey &&
+        event.shiftKey &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+        !isTextEntry(event.target) &&
+        selectedRepository
+      ) {
+        event.preventDefault();
+        moveRepositoryTabWithKeyboard(
+          selectedRepository.id,
+          event.key === "ArrowLeft" ? -1 : 1,
+        );
+      }
+      if (
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
@@ -774,6 +808,72 @@ function App() {
     }
   }
 
+  async function persistRepositoryTabOrder(
+    sourceId: string,
+    targetId: string,
+    edge: RepositoryTabDropEdge,
+  ) {
+    if (!registry || tabOrderSavingRef.current) return;
+    const reordered = reorderRepositoryTabs(
+      registry.openRepositoryIds,
+      sourceId,
+      targetId,
+      edge,
+    );
+    if (reordered === registry.openRepositoryIds) return;
+
+    tabOrderSavingRef.current = true;
+    try {
+      const snapshot = await bridge.updateOpenRepositories(
+        reordered,
+        registry.selectedRepository,
+      );
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message);
+    } finally {
+      tabOrderSavingRef.current = false;
+    }
+  }
+
+  function repositoryTabAtPointer(
+    clientX: number,
+    clientY: number,
+  ): RepositoryTabDropTarget | null {
+    const tab = document
+      .elementFromPoint(clientX, clientY)
+      ?.closest<HTMLElement>("[data-repository-tab-id]");
+    const repositoryId = tab?.dataset.repositoryTabId;
+    if (!tab || !repositoryId) return null;
+    const bounds = tab.getBoundingClientRect();
+    const edge: RepositoryTabDropEdge =
+      clientX < bounds.left + bounds.width / 2 ? "before" : "after";
+    return {
+      repositoryId,
+      edge,
+    };
+  }
+
+  function resetRepositoryTabDrag() {
+    tabPointerDragRef.current = null;
+    setDraggedTabId(null);
+    setTabDropTarget(null);
+  }
+
+  function moveRepositoryTabWithKeyboard(repositoryId: string, direction: -1 | 1) {
+    if (!registry) return;
+    const sourceIndex = registry.openRepositoryIds.indexOf(repositoryId);
+    const targetId = registry.openRepositoryIds[sourceIndex + direction];
+    if (!targetId) return;
+    void persistRepositoryTabOrder(
+      repositoryId,
+      targetId,
+      direction < 0 ? "before" : "after",
+    );
+  }
+
   if (fatalError) {
     return (
       <>
@@ -835,7 +935,7 @@ function App() {
           aria-label="Open repositories"
           data-tauri-drag-region
         >
-          {openRepositories.map((repository) => {
+          {openRepositories.map((repository, tabIndex) => {
             const state = repositoryState(
               repository.id,
               registry.cachedProjections[repository.id],
@@ -844,9 +944,102 @@ function App() {
               errors,
             );
             const active = repository.id === selectedRepository?.id;
+            const dropEdge =
+              tabDropTarget?.repositoryId === repository.id
+                ? tabDropTarget.edge
+                : null;
             return (
-              <div className={`tab ${active ? "active" : ""}`} key={repository.id}>
-                <button type="button" onClick={() => void selectRepository(repository.id)}>
+              <div
+                className={[
+                  "tab",
+                  active ? "active" : "",
+                  draggedTabId === repository.id ? "dragging" : "",
+                  dropEdge ? `drop-${dropEdge}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                data-repository-tab-id={repository.id}
+                key={repository.id}
+              >
+                <button
+                  type="button"
+                  aria-label={`${repository.displayName} repository tab, position ${tabIndex + 1} of ${openRepositories.length}`}
+                  title="Drag to reorder · Alt+Shift+Left/Right"
+                  onClick={(event) => {
+                    if (suppressTabClickRef.current) {
+                      event.preventDefault();
+                      suppressTabClickRef.current = false;
+                      return;
+                    }
+                    void selectRepository(repository.id);
+                  }}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0 || openRepositories.length < 2) return;
+                    suppressTabClickRef.current = false;
+                    tabPointerDragRef.current = {
+                      repositoryId: repository.id,
+                      pointerId: event.pointerId,
+                      startX: event.clientX,
+                      startY: event.clientY,
+                      moved: false,
+                    };
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }}
+                  onPointerMove={(event) => {
+                    const drag = tabPointerDragRef.current;
+                    if (!drag || drag.pointerId !== event.pointerId) return;
+                    if (
+                      !drag.moved &&
+                      Math.hypot(
+                        event.clientX - drag.startX,
+                        event.clientY - drag.startY,
+                      ) < 5
+                    ) {
+                      return;
+                    }
+                    drag.moved = true;
+                    suppressTabClickRef.current = true;
+                    event.preventDefault();
+                    setDraggedTabId(drag.repositoryId);
+                    const target = repositoryTabAtPointer(
+                      event.clientX,
+                      event.clientY,
+                    );
+                    setTabDropTarget(
+                      target && target.repositoryId !== drag.repositoryId
+                        ? target
+                        : null,
+                    );
+                  }}
+                  onPointerUp={(event) => {
+                    const drag = tabPointerDragRef.current;
+                    if (!drag || drag.pointerId !== event.pointerId) return;
+                    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                      event.currentTarget.releasePointerCapture(event.pointerId);
+                    }
+                    const target = drag.moved
+                      ? repositoryTabAtPointer(event.clientX, event.clientY)
+                      : null;
+                    if (drag.moved) event.preventDefault();
+                    resetRepositoryTabDrag();
+                    if (target && target.repositoryId !== drag.repositoryId) {
+                      void persistRepositoryTabOrder(
+                        drag.repositoryId,
+                        target.repositoryId,
+                        target.edge,
+                      );
+                    }
+                  }}
+                  onPointerCancel={(event) => {
+                    if (
+                      tabPointerDragRef.current?.pointerId !== event.pointerId
+                    ) {
+                      return;
+                    }
+                    suppressTabClickRef.current = false;
+                    resetRepositoryTabDrag();
+                  }}
+                >
                   <StatusDot state={state} />
                   <span>{repository.displayName}</span>
                 </button>

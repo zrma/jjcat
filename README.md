@@ -22,9 +22,9 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 
 ## Current Status
 
-jjcat은 현재 **pre-alpha P3**다. local/SSH 저장소 등록, persistent tab과 quick switcher,
-cached background refresh, multi-lane history, bounded file diff와 editor/terminal handoff가
-동작한다.
+jjcat은 현재 **pre-alpha P3**다. local/SSH 저장소 등록, drag-reorder가 가능한 persistent
+tab과 quick switcher, cached background refresh, multi-lane history, bounded file diff와
+editor/terminal handoff가 동작한다.
 
 모든 repository mutation은 repository, exact target과 expected operation을 고정한 backend
 preview token을 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
@@ -53,7 +53,7 @@ SSH integration까지 확인하려면 `pnpm tauri dev`를 사용한다.
 
 1. **Local**에서 폴더를 고르거나 `~/...` 또는 absolute path를 입력한다.
 2. **SSH**에서 OpenSSH host alias를 선택하고 remote folder browser로 저장소를 고른다.
-3. tab 또는 quick switcher로 저장소를 전환한다.
+3. tab 또는 quick switcher로 저장소를 전환하고 tab을 끌어 순서를 정리한다.
 4. change와 file을 선택해 graph, metadata와 diff를 살펴본다.
 5. `Actions`에서 mutation을 고르거나 change를 다른 change 위에 끌어 rebase preview를 연다.
 6. toolbar의 **Undo/Redo** 또는 `⌘Z`/`⌘⇧Z` (`Ctrl+Z`/`Ctrl+Y`)로 한 operation씩 바로 이동한다.

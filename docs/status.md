@@ -33,7 +33,7 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - cat outline과 change DAG를 결합한 header/application identity asset
 - local, simulated SSH, local-only actual SSH 2-repository matrix와 native bundle smoke
 - v1→v2 persistent tab recovery와 legacy diff cache만 무효화하는 v2→v3 migration
-- keyboard/pointer quick switcher search, close와 reopen
+- keyboard/pointer quick switcher search, close/reopen과 persistent tab reorder
 - stable pinned/local/SSH repository grouping과 compact freshness/error state
 - working copy, workspace, conflict, operation과 last-fetched repository navigation
 - working copy, local/remote bookmark, conflict와 workspace 기준점을 중심으로 오래된
