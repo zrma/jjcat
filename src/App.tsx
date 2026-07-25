@@ -1312,7 +1312,9 @@ function App() {
                   >
                     {repository.location.kind === "local" ? <Database aria-hidden="true" /> : <Server aria-hidden="true" />}
                     <span>{repository.displayName}</span>
-                    <span className={`repository-state ${state}`}>{compactStateLabel(state)}</span>
+                    {state !== "ready" && state !== "cached" && (
+                      <span className={`repository-state ${state}`}>{compactStateLabel(state)}</span>
+                    )}
                     <StatusDot state={state} />
                   </button>
                 );

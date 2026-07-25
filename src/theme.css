@@ -1,0 +1,114 @@
+:root {
+  color-scheme: light;
+
+  /* Paper-white surfaces keep the dense desktop cockpit legible in daylight. */
+  --surface-canvas: #fafafa;
+  --surface-chrome: #f1f1f2;
+  --surface-sidebar: #f5f5f6;
+  --surface-panel: #ffffff;
+  --surface-raised: #f7f7f8;
+  --surface-hover: #eceef0;
+  --surface-pressed: #e1e4e7;
+  --surface-selected: #e5e7ea;
+  --surface-inset: #f3f4f5;
+
+  /* Structure should remain visible without competing with the graph. */
+  --border-row: #e1e3e5;
+  --border-subtle: #d8dade;
+  --border-default: #c7cbd0;
+  --border-strong: #aeb4ba;
+
+  /* Text hierarchy carries most of the information density. */
+  --text-primary: #202326;
+  --text-secondary: #4e5358;
+  --text-muted: #737980;
+  --text-disabled: #a0a5aa;
+
+  /* jjcat identity: cat cyan is reserved for the product and current state. */
+  --brand-primary: #087f79;
+  --brand-emphasis: #079a91;
+  --brand-faint: rgb(8 127 121 / 6%);
+  --brand-soft: rgb(8 127 121 / 10%);
+  --brand-node-fill: rgb(8 127 121 / 20%);
+  --brand-border: rgb(8 127 121 / 48%);
+  --brand-border-strong: rgb(8 127 121 / 74%);
+
+  /* Selection is a navigation state, separate from graph and reference colors. */
+  --selection-bg: #0869d1;
+  --selection-hover: #0a5fba;
+  --selection-text: #ffffff;
+  --selection-muted: #e2efff;
+
+  /* References, previews, and operational states must not share one hue. */
+  --reference-primary: #a96000;
+  --reference-soft: rgb(169 96 0 / 9%);
+  --reference-border: rgb(169 96 0 / 48%);
+  --preview-primary: #1676c8;
+  --preview-emphasis: #075fae;
+  --preview-soft: rgb(22 118 200 / 10%);
+  --preview-border: rgb(22 118 200 / 60%);
+  --preview-node-fill: #e7f2fb;
+  --state-success: #087f5b;
+  --state-success-soft: rgb(8 127 91 / 9%);
+  --state-warning: #a45b00;
+  --state-warning-soft: rgb(164 91 0 / 10%);
+  --state-danger: #bf3434;
+  --state-danger-soft: rgb(191 52 52 / 9%);
+  --state-info: #477887;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    /* Graphite surfaces keep the dense desktop cockpit quiet at night. */
+    --surface-canvas: #191a1c;
+    --surface-chrome: #1e2022;
+    --surface-sidebar: #202225;
+    --surface-panel: #242629;
+    --surface-raised: #2a2d30;
+    --surface-hover: #31353a;
+    --surface-pressed: #393d42;
+    --surface-selected: #35383d;
+    --surface-inset: #17191b;
+
+    --border-row: #2c2f33;
+    --border-subtle: #32353a;
+    --border-default: #41454a;
+    --border-strong: #53585f;
+
+    --text-primary: #f1f2f3;
+    --text-secondary: #c5c8cc;
+    --text-muted: #9da2a8;
+    --text-disabled: #73787f;
+
+    --brand-primary: #2cc8be;
+    --brand-emphasis: #5ad9d0;
+    --brand-faint: rgb(44 200 190 / 7%);
+    --brand-soft: rgb(44 200 190 / 12%);
+    --brand-node-fill: rgb(44 200 190 / 28%);
+    --brand-border: rgb(44 200 190 / 52%);
+    --brand-border-strong: rgb(44 200 190 / 78%);
+
+    --selection-bg: #0d5a9e;
+    --selection-hover: #1267b3;
+    --selection-text: #ffffff;
+    --selection-muted: #d9eafb;
+
+    --reference-primary: #ffc75b;
+    --reference-soft: rgb(255 199 91 / 12%);
+    --reference-border: rgb(255 199 91 / 58%);
+    --preview-primary: #6bb5ff;
+    --preview-emphasis: #3f92e5;
+    --preview-soft: rgb(63 146 229 / 15%);
+    --preview-border: rgb(107 181 255 / 72%);
+    --preview-node-fill: #162b3d;
+    --state-success: #57c99a;
+    --state-success-soft: rgb(87 201 154 / 11%);
+    --state-warning: #e79b45;
+    --state-warning-soft: rgb(231 155 69 / 12%);
+    --state-danger: #f17878;
+    --state-danger-soft: rgb(241 120 120 / 12%);
+    --state-info: #8ab6c7;
+  }
+}

@@ -100,8 +100,8 @@ const VIRTUALIZATION_THRESHOLD = 40;
 const HISTORY_ROW_HEIGHT = 20;
 const HISTORY_HEADER_HEIGHT = 21;
 const HISTORY_OVERSCAN = 6;
-const DAG_LANE_GAP = 14;
-const DAG_PADDING = 8;
+const DAG_LANE_GAP = 12;
+const DAG_PADDING = 5;
 const MAX_VISIBLE_DAG_LANES = 10;
 const MIN_HISTORY_HEIGHT = 140;
 const MIN_INSPECTOR_HEIGHT = 180;
@@ -620,7 +620,7 @@ function ChangeLog({
     Math.max(currentDag.maxLaneCount, displayDag.maxLaneCount),
     MAX_VISIBLE_DAG_LANES,
   );
-  const dagWidth = Math.max(42, DAG_PADDING * 2 + visibleLaneCount * DAG_LANE_GAP);
+  const dagWidth = Math.max(32, DAG_PADDING * 2 + visibleLaneCount * DAG_LANE_GAP);
   const graphStyle = { "--dag-width": `${dagWidth}px` } as CSSProperties;
 
   useLayoutEffect(() => {
@@ -686,12 +686,13 @@ function ChangeLog({
       }}
     >
       <div className="log-header" aria-hidden="true">
-        <span>Graph</span>
-        <span>Change</span>
-        <span>Description</span>
-        <span>Author</span>
+        <span className="col-graph" />
+        <span className="col-change">Change</span>
+        <span className="col-refs">Refs</span>
+        <span className="col-description">Description</span>
+        <span className="col-author">Author</span>
         <span className="col-commit">Commit</span>
-        <span>Updated</span>
+        <span className="col-updated">Updated</span>
       </div>
       <ChangeRows
         changes={changes}
@@ -1042,7 +1043,7 @@ function ChangeRows({
               moving={change.commitId === previewSourceCommitId}
             />
             <code className="change-id">{change.changeId}</code>
-            <span className="change-description">
+            <span className="change-refs">
               <BookmarkLabels
                 bookmarks={change.bookmarks}
                 limit={2}
@@ -1107,6 +1108,8 @@ function ChangeRows({
                   },
                 }}
               />
+            </span>
+            <span className="change-description">
               <span className="change-summary">{change.summary || "(no description)"}</span>
               {change.workingCopy && <strong>Working Copy</strong>}
               {!change.workingCopy && (change.workspaceCopies?.length ?? 0) > 0 && (
