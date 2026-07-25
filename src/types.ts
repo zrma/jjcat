@@ -69,6 +69,7 @@ export interface OperationLogProjection {
   repositoryId: RepositoryId;
   operations: OperationRow[];
   undoTarget: string | null;
+  redoTarget: string | null;
 }
 
 export interface BookmarkRef {
@@ -189,6 +190,7 @@ export type MutationIntent =
   | { kind: "pruneEmpty" }
   | { kind: "removeWorkspace"; name: string }
   | { kind: "undo"; operationId: string }
+  | { kind: "redo"; operationId: string }
   | { kind: "bookmarkMove"; name: string; targetCommitId: string }
   | { kind: "push"; name: string; remote: string };
 

@@ -237,6 +237,7 @@ pub struct OperationLogProjection {
     pub repository_id: RepositoryId,
     pub operations: Vec<OperationRow>,
     pub undo_target: Option<String>,
+    pub redo_target: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

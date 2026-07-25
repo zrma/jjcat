@@ -379,10 +379,14 @@ impl JjDriver {
             .iter()
             .find(|operation| operation.undo_eligible)
             .map(|operation| operation.id.clone());
+        let redo_target = redo_is_available(&operations)
+            .then(|| operations.first().map(|operation| operation.id.clone()))
+            .flatten();
         Ok(OperationLogProjection {
             repository_id: repository.id.clone(),
             operations,
             undo_target,
+            redo_target,
         })
     }
 
@@ -403,12 +407,15 @@ impl JjDriver {
             .await?;
         if let MutationIntent::Undo {
             operation_id: requested,
+        }
+        | MutationIntent::Redo {
+            operation_id: requested,
         } = intent
             && requested != &operation_id
         {
             return Err(DriverError {
                 kind: DriverErrorKind::StaleOperation,
-                message: "the selected undo target is no longer the current operation".into(),
+                message: "the selected history step is no longer the current operation".into(),
             });
         }
 
@@ -1496,6 +1503,7 @@ fn mutation_args(
             name.clone(),
         ],
         MutationIntent::Undo { .. } => vec!["undo".into()],
+        MutationIntent::Redo { .. } => vec!["redo".into()],
         MutationIntent::BookmarkMove {
             name,
             target_commit_id,
@@ -1693,7 +1701,6 @@ fn parse_operation_log(stdout: &[u8]) -> Result<Vec<OperationRow>, DriverError> 
                 .map_err(|_| invalid_output("operation log template returned invalid JSONL"))?;
             let current = index == 0;
             let undo_eligible = current
-                && !record.snapshot
                 && !record.description.trim().is_empty()
                 && !record.description.starts_with("initialize repo");
             Ok(OperationRow {
@@ -1706,6 +1713,31 @@ fn parse_operation_log(stdout: &[u8]) -> Result<Vec<OperationRow>, DriverError> 
             })
         })
         .collect()
+}
+
+fn redo_is_available(operations: &[OperationRow]) -> bool {
+    let Some(current) = operations.first() else {
+        return false;
+    };
+    if current
+        .description
+        .starts_with("undo: restore to operation ")
+    {
+        return true;
+    }
+    let Some(target) = current
+        .description
+        .strip_prefix("redo: restore to operation ")
+        .and_then(|description| description.split_whitespace().next())
+    else {
+        return false;
+    };
+    operations.iter().any(|operation| {
+        operation.id.starts_with(target)
+            && operation
+                .description
+                .starts_with("undo: restore to operation ")
+    })
 }
 
 fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
@@ -2405,7 +2437,7 @@ mod tests {
     }
 
     #[test]
-    fn operation_projection_only_marks_latest_non_snapshot_as_undo_eligible() {
+    fn operation_projection_marks_only_the_latest_meaningful_step_as_undo_eligible() {
         let operations = parse_operation_log(
             br#"{"id":"current","description":"new empty commit","started_at":"2026-01-02T03:04:05Z","snapshot":false}
 {"id":"snapshot","description":"snapshot working copy","started_at":"2026-01-02T03:03:05Z","snapshot":true}
@@ -2417,6 +2449,42 @@ mod tests {
         assert!(operations[0].undo_eligible);
         assert!(!operations[1].current);
         assert!(!operations[1].undo_eligible);
+
+        let latest_snapshot = parse_operation_log(
+            br#"{"id":"snapshot","description":"snapshot working copy","started_at":"2026-01-02T03:04:05Z","snapshot":true}
+{"id":"previous","description":"new empty commit","started_at":"2026-01-02T03:03:05Z","snapshot":false}
+"#,
+        )
+        .unwrap();
+        assert!(latest_snapshot[0].undo_eligible);
+    }
+
+    #[test]
+    fn operation_projection_exposes_editor_style_redo_steps() {
+        let after_undo = parse_operation_log(
+            br#"{"id":"undo-current","description":"undo: restore to operation previous","started_at":"2026-01-02T03:04:05Z","snapshot":false}
+{"id":"previous","description":"new empty commit","started_at":"2026-01-02T03:03:05Z","snapshot":false}
+"#,
+        )
+        .unwrap();
+        assert!(redo_is_available(&after_undo));
+
+        let after_partial_redo = parse_operation_log(
+            br#"{"id":"redo-current","description":"redo: restore to operation undo-step","started_at":"2026-01-02T03:04:05Z","snapshot":false}
+{"id":"undo-step","description":"undo: restore to operation previous","started_at":"2026-01-02T03:03:05Z","snapshot":false}
+{"id":"previous","description":"new empty commit","started_at":"2026-01-02T03:02:05Z","snapshot":false}
+"#,
+        )
+        .unwrap();
+        assert!(redo_is_available(&after_partial_redo));
+
+        let exhausted_redo = parse_operation_log(
+            br#"{"id":"redo-current","description":"redo: restore to operation previous","started_at":"2026-01-02T03:04:05Z","snapshot":false}
+{"id":"previous","description":"new empty commit","started_at":"2026-01-02T03:03:05Z","snapshot":false}
+"#,
+        )
+        .unwrap();
+        assert!(!redo_is_available(&exhausted_redo));
     }
 
     #[test]

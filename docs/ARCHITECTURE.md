@@ -169,8 +169,12 @@ outgoing과 behind는 network fetch를 실행하지 않고 local bookmark와 `gi
 ### Operation Inspection
 
 최근 operation은 `--at-op=@ --ignore-working-copy`를 강제한 local/SSH query로 최대 20개만
-읽는다. current non-snapshot operation만 undo eligibility target으로 분류하며 P3 UI는 exact
-current operation의 confirmed undo preview를 제공한다.
+읽는다. 의미 있는 current operation을 undo target으로 분류하고, `jj`가 기록한 undo/redo
+operation chain에서 다음 redo step을 판별한다. toolbar와 Operations inspector의
+Undo/Redo, `⌘Z`/`⌘⇧Z` 및 `Ctrl+Z`/`Ctrl+Y`는 모두 exact current operation을 고정한
+preview token을 내부에서 발급받아 별도 confirmation dialog 없이 즉시 한 step을 이동한다.
+같은 경로를 반복해 여러 step을 왕복하며 입력 field의 일반 text undo/redo는 가로채지
+않는다. 연속 입력은 repository별 단일 in-flight guard로 직렬화한다.
 
 ### Operation Queue
 
@@ -178,10 +182,13 @@ P3 mutation은 read-only preview와 confirmed execute를 분리한다. preview�
 current operation, exact target identity와 typed effect를 opaque token에 묶는다. execute는
 같은 token을 단 한 번만 받고 repository별 queue 안에서 current operation과 dynamic candidate
 set을 다시 검사한다. stale/duplicate/invalid request는 command를 실행하지 않는다.
+`jj undo`로 복원 가능한 local mutation preview는 pointer button 외에 `Enter`/`Y` 실행과
+`Esc`/`N` 취소를 제공한다. directory를 삭제하는 `removeWorkspace`와 remote state를
+변경하는 `push`는 이 decision shortcut을 등록하지 않고 명시적 button 조작만 허용한다.
 
 성공은 exit status만이 아니라 새 operation과 action별 fresh projection postcondition으로
 확인한다. 실패 뒤 operation이 바뀌었거나 divergent state가 관측되면 recovery-required로
-표시하고 operation log, refresh와 exact undo entrypoint를 제공한다. jjcat 외부 process와의
+표시하고 operation log, refresh와 exact undo/redo entrypoint를 제공한다. jjcat 외부 process와의
 operation race를 완전히 잠그는 CLI API는 없으므로 execute 직전 recheck와 postcondition
 detection의 한계를 사용자에게 숨기지 않는다.
 
@@ -199,6 +206,9 @@ preview와 단일 destructive 실행 버튼 외에 typed phrase나 추가 확인
 graph drag-and-drop과 keyboard shaping은 command를 직접 호출하지 않고 같은 rebase preview를
 연다. push는 별도 remote-write risk와 exact bookmark confirmation을 요구하며 force/delete
 option은 제공하지 않는다.
+local bookmark label은 change row와 독립된 drag source다. label을 다른 change에 drop하면
+local bookmark 존재 여부와 exact destination을 다시 확인한 `bookmarkMove` preview를 즉시
+열며, remote-only bookmark label은 이동 입력을 제공하지 않는다.
 pointer rebase는 hover 중 source의 parent relation만 client-side로 바꾸고 자식이 부모보다
 먼저 오도록 stable topological order를 다시 계산한다. 이 예상 topology는 command output이
 아니며 cycle target을 거부한다. drop 뒤에도 graph 위의 inline checkpoint를 유지하고,

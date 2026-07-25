@@ -7,11 +7,16 @@ import {
   GitPullRequestArrow,
   Network,
   RotateCcw,
+  RotateCw,
   Scissors,
   Trash2,
   X,
 } from "lucide-react";
 import { bridge } from "../bridge";
+import {
+  mutationDecisionForKey,
+  supportsMutationDecisionShortcuts,
+} from "../lib/mutationShortcuts";
 import type {
   AppError,
   ChangeRow,
@@ -26,7 +31,6 @@ interface MutationDialogProps {
   repositoryName: string;
   changes: ChangeRow[];
   selectedChange?: ChangeRow;
-  undoTarget: string | null;
   initialIntent: MutationIntent;
   previewImmediately: boolean;
   onClose: () => void;
@@ -45,6 +49,7 @@ const ACTION_LABELS: Record<MutationKind, string> = {
   pruneEmpty: "Prune empty changes",
   removeWorkspace: "Remove workspace",
   undo: "Undo current operation",
+  redo: "Redo last undone operation",
   bookmarkMove: "Move bookmark",
   push: "Push bookmark",
 };
@@ -67,7 +72,6 @@ export function MutationDialog({
   repositoryName,
   changes,
   selectedChange,
-  undoTarget,
   initialIntent,
   previewImmediately,
   onClose,
@@ -163,7 +167,8 @@ export function MutationDialog({
       case "removeWorkspace":
         return initialIntent.kind === "removeWorkspace" ? initialIntent : null;
       case "undo":
-        return undoTarget ? { kind, operationId: undoTarget } : null;
+      case "redo":
+        return initialIntent.kind === kind ? initialIntent : null;
       case "bookmarkMove":
         return { kind, name: bookmark.trim(), targetCommitId: target };
       case "push":
@@ -212,14 +217,6 @@ export function MutationDialog({
     }
   }, [changes, destinationCommitId, kind, sourceCommitId]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !executing) onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [executing, onClose]);
-
   async function execute() {
     if (!preview) return;
     setExecuting(true);
@@ -247,6 +244,34 @@ export function MutationDialog({
     (preview?.requiresTypedConfirmation &&
       typedConfirmation !== preview.confirmationPhrase) ||
     (preview?.kind === "pruneEmpty" && preview.candidates.length === 0);
+  const keyboardDecisionSupported =
+    preview !== null &&
+    supportsMutationDecisionShortcuts(preview.kind);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (executing) return;
+      if (!preview) {
+        if (event.key === "Escape") onClose();
+        return;
+      }
+      const decision = mutationDecisionForKey(
+        preview.kind,
+        event.key,
+        !executeDisabled,
+      );
+      if (decision === "execute") {
+        event.preventDefault();
+        void execute();
+      } else if (decision === "cancel") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [executeDisabled, executing, onClose, preview]);
+
   const executeLabel =
     preview?.kind === "pruneEmpty" && preview.candidates.length > 0
       ? `Prune ${preview.candidates.length} empty ${
@@ -379,16 +404,25 @@ export function MutationDialog({
               </div>
             )}
 
-            {kind === "undo" && (
+            {(kind === "undo" || kind === "redo") && (
               <div className="mutation-guidance">
-                <RotateCcw aria-hidden="true" />
+                {kind === "undo" ? (
+                  <RotateCcw aria-hidden="true" />
+                ) : (
+                  <RotateCw aria-hidden="true" />
+                )}
                 <span>
                   <strong>
-                    {undoTarget
-                      ? `Current operation ${shortId(undoTarget)}`
-                      : "Load Operations before undo"}
+                    Current operation{" "}
+                    {initialIntent.kind === kind
+                      ? shortId(initialIntent.operationId)
+                      : "unavailable"}
                   </strong>
-                  <small>Only the exact current non-snapshot operation is eligible.</small>
+                  <small>
+                    {kind === "undo"
+                      ? "Move one operation backward. Repeat after execution for earlier steps."
+                      : "Move one operation forward. Repeat after execution for later steps."}
+                  </small>
                 </span>
               </div>
             )}
@@ -503,34 +537,67 @@ export function MutationDialog({
               </p>
             )}
             <footer>
+              {configurable && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    setPreview(null);
+                    setError(null);
+                  }}
+                  disabled={executing}
+                >
+                  Back
+                </button>
+              )}
               <button
                 type="button"
                 className="secondary"
-                onClick={() => {
-                  if (configurable) {
-                    setPreview(null);
-                    setError(null);
-                  } else {
-                    onClose();
-                  }
-                }}
+                onClick={onClose}
                 disabled={executing}
+                aria-keyshortcuts={
+                  keyboardDecisionSupported ? "Escape N" : undefined
+                }
               >
-                {configurable ? "Back" : "Cancel"}
+                <span>Cancel</span>
+                {keyboardDecisionSupported && (
+                  <MutationButtonShortcuts keys={["Esc", "N"]} />
+                )}
               </button>
               <button
                 type="button"
                 className={preview.risk === "destructive" ? "danger" : "primary"}
                 disabled={executeDisabled}
                 onClick={() => void execute()}
+                aria-keyshortcuts={
+                  keyboardDecisionSupported && !executeDisabled
+                    ? "Enter Y"
+                    : undefined
+                }
               >
-                {executing ? "Executing…" : executeLabel}
+                <span>{executing ? "Executing…" : executeLabel}</span>
+                {keyboardDecisionSupported && !executeDisabled && (
+                  <MutationButtonShortcuts keys={["Enter", "Y"]} />
+                )}
               </button>
             </footer>
           </div>
         )}
       </section>
     </div>
+  );
+}
+
+function MutationButtonShortcuts({ keys }: { keys: [string, string] }) {
+  return (
+    <span
+      className="mutation-button-shortcuts"
+      aria-label={`Shortcut: ${keys[0]} or ${keys[1]}`}
+    >
+      <kbd>{keys[0]}</kbd>
+      <span aria-hidden="true">/</span>
+      <kbd>{keys[1]}</kbd>
+    </span>
   );
 }
 
@@ -576,6 +643,7 @@ function MutationRiskIcon({ kind }: { kind: MutationKind }) {
   if (kind === "push") return <Network aria-hidden="true" />;
   if (kind === "bookmarkMove") return <GitBranchPlus aria-hidden="true" />;
   if (kind === "undo") return <RotateCcw aria-hidden="true" />;
+  if (kind === "redo") return <RotateCw aria-hidden="true" />;
   if (kind === "abandon" || kind === "pruneEmpty") return <Trash2 aria-hidden="true" />;
   return <GitPullRequestArrow aria-hidden="true" />;
 }

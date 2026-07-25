@@ -26,10 +26,13 @@ jjcat은 현재 **pre-alpha P3**다. local/SSH 저장소 등록, persistent tab�
 cached background refresh, multi-lane history, bounded file diff와 editor/terminal handoff가
 동작한다.
 
-모든 repository mutation은 실행 전에 repository, exact target, expected operation과 risk를
-고정한 preview를 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
-protected empty-change pruning, undo, bookmark move와 explicit push를 제공하며 graph drag/drop과
-keyboard rebase도 같은 preview를 연다. package signing, updater와 release artifact는
+모든 repository mutation은 repository, exact target과 expected operation을 고정한 backend
+preview token을 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
+protected empty-change pruning, multi-step undo/redo, bookmark move와 explicit push를 제공한다.
+Undo/Redo는 별도 확인 dialog 없이 한 번의 입력으로 실행하고 나머지 shaping 작업은 실행 전
+preview를 보여준다. `jj undo`로 복원 가능한 local preview는 `Enter`/`Y`로 실행하고
+`Esc`/`N`으로 취소할 수 있다. directory를 삭제하는 workspace removal과 remote push는
+명시적 button 조작만 허용한다. package signing, updater와 release artifact는
 [P4 Distribution](docs/roadmap.md#p4-distribution)의 범위다.
 
 ## Quick Start
@@ -53,6 +56,8 @@ SSH integration까지 확인하려면 `pnpm tauri dev`를 사용한다.
 3. tab 또는 quick switcher로 저장소를 전환한다.
 4. change와 file을 선택해 graph, metadata와 diff를 살펴본다.
 5. `Actions`에서 mutation을 고르거나 change를 다른 change 위에 끌어 rebase preview를 연다.
+6. toolbar의 **Undo/Redo** 또는 `⌘Z`/`⌘⇧Z` (`Ctrl+Z`/`Ctrl+Y`)로 한 operation씩 바로 이동한다.
+7. 되돌릴 수 있는 local mutation preview에서는 `Enter`/`Y`로 실행하고 `Esc`/`N`으로 취소한다.
 
 SSH key와 agent는 jjcat이 저장하지 않고 사용자의 OpenSSH 설정을 그대로 사용한다.
 

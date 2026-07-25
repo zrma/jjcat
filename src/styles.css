@@ -902,6 +902,30 @@ body[data-runtime="tauri"] .brand-lockup {
   gap: 4px;
 }
 
+.history-step-controls {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 2px;
+  padding-right: 6px;
+  border-right: 1px solid #515359;
+}
+
+.history-step-button {
+  min-width: 55px;
+  justify-content: center;
+}
+
+.history-step-button:not(:disabled) {
+  border-color: #5a5c62;
+  background: #303135;
+}
+
+.history-step-button:not(:disabled):hover,
+.history-step-button:not(:disabled):focus-visible {
+  border-color: var(--accent);
+  color: #f1f4f5;
+}
+
 .sync-summary {
   display: flex;
   min-width: 0;
@@ -1584,6 +1608,31 @@ body.workspace-resizing {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+
+.bookmark-label.movable {
+  appearance: none;
+  font-family: inherit;
+  cursor: grab;
+  touch-action: none;
+}
+
+.bookmark-label.movable:hover,
+.bookmark-label.movable:focus-visible {
+  border-color: #7b8b93;
+  background: #344047;
+}
+
+.bookmark-label.movable:focus-visible {
+  outline: 1px solid #8bb9d8;
+  outline-offset: 1px;
+}
+
+.bookmark-label.movable.dragging {
+  border-color: #62a8e9;
+  background: #19344c;
+  color: #b9dcfa;
+  cursor: grabbing;
 }
 
 .bookmark-label.remote {
@@ -2793,23 +2842,58 @@ body.workspace-resizing {
   line-height: 1.4;
 }
 
-.operation-preview > button {
-  display: inline-flex;
-  align-self: flex-start;
-  height: 28px;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  border: 1px solid #34464f;
-  border-radius: 4px;
-  background: #172229;
-  color: #73838a;
-  font-size: 10px;
+.operation-history-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
-.operation-preview > button svg {
-  width: 12px;
-  height: 12px;
+.operation-history-actions > button {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid #4d5b62;
+  border-radius: 4px;
+  background: #202a30;
+  color: #dce4e7;
+  text-align: left;
+}
+
+.operation-history-actions > button:hover:not(:disabled),
+.operation-history-actions > button:focus-visible:not(:disabled) {
+  border-color: var(--accent);
+  background: #26363d;
+}
+
+.operation-history-actions > button:disabled {
+  border-color: #353d42;
+  background: #171e22;
+  color: #68767d;
+  opacity: 0.66;
+}
+
+.operation-history-actions svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.operation-history-actions span,
+.operation-history-actions strong,
+.operation-history-actions small {
+  display: block;
+}
+
+.operation-history-actions strong {
+  font-size: 11px;
+}
+
+.operation-history-actions small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
 }
 
 .empty-log {
@@ -3708,6 +3792,13 @@ body.workspace-resizing {
     inset 0 -1px 0 #4a99e3;
 }
 
+.change-row.bookmark-drop-target {
+  background: rgba(88, 216, 184, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(88, 216, 184, 0.78),
+    inset 0 -1px 0 rgba(88, 216, 184, 0.78);
+}
+
 .dag-cell .dag-layer.previous {
   opacity: 0.16;
   filter: grayscale(1);
@@ -3742,7 +3833,8 @@ body.workspace-resizing {
 }
 
 .change-description .rebase-position-label,
-.change-description .rebase-parent-label {
+.change-description .rebase-parent-label,
+.change-description .bookmark-target-label {
   border: 1px solid rgba(79, 157, 231, 0.68);
   background: transparent;
   color: #a8d2f5;
@@ -3757,6 +3849,16 @@ body.workspace-resizing {
 .change-description .rebase-parent-label {
   background: rgba(47, 130, 210, 0.16);
   color: #9fcdf3;
+}
+
+.change-description .bookmark-target-label {
+  max-width: 180px;
+  overflow: hidden;
+  border: 1px solid rgba(88, 216, 184, 0.68);
+  background: rgba(88, 216, 184, 0.11);
+  color: #a9ead9;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rebase-topology-card {
@@ -4066,9 +4168,40 @@ body.workspace-resizing {
 .mutation-form footer,
 .mutation-preview footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 7px;
   padding-top: 3px;
+}
+
+.mutation-preview footer button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mutation-button-shortcuts {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: currentColor;
+  font-size: 9px;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+.mutation-button-shortcuts kbd {
+  min-width: 18px;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.12);
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .mutation-form footer button,
@@ -4333,6 +4466,15 @@ body.workspace-resizing {
   }
 
   .handoff-button {
+    display: none;
+  }
+
+  .history-step-button {
+    min-width: 30px;
+    padding: 0;
+  }
+
+  .history-step-button span {
     display: none;
   }
 

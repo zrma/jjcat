@@ -131,6 +131,81 @@ async fn execute(
     (context.operation_id, after, context.candidates)
 }
 
+async fn working_copy_summary(driver: &JjDriver, repository: &RepositoryRecord) -> String {
+    projection(driver, repository)
+        .await
+        .changes
+        .into_iter()
+        .find(|change| change.working_copy)
+        .expect("working copy must be projected")
+        .summary
+}
+
+#[tokio::test]
+async fn multi_step_undo_redo_walks_operation_history() {
+    let directory = tempdir().unwrap();
+    let repository_path = directory.path().join("repository");
+    init_repository(&repository_path);
+    let driver = JjDriver::default();
+    let repository = local_record(&repository_path, "history fixture");
+
+    for message in ["first history step", "second history step"] {
+        let working_copy = projection(&driver, &repository)
+            .await
+            .changes
+            .into_iter()
+            .find(|change| change.working_copy)
+            .unwrap()
+            .commit_id;
+        execute(
+            &driver,
+            &repository,
+            &MutationIntent::Describe {
+                target_commit_id: working_copy,
+                message: message.into(),
+            },
+        )
+        .await;
+    }
+    assert_eq!(
+        working_copy_summary(&driver, &repository).await,
+        "second history step"
+    );
+
+    for expected in ["first history step", "feat: first fixture change"] {
+        let operation_id = driver
+            .current_operation_id(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        execute(&driver, &repository, &MutationIntent::Undo { operation_id }).await;
+        assert_eq!(working_copy_summary(&driver, &repository).await, expected);
+        let operation_log = driver
+            .operation_log(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert!(operation_log.undo_target.is_some());
+        assert!(operation_log.redo_target.is_some());
+    }
+
+    for (index, expected) in ["first history step", "second history step"]
+        .into_iter()
+        .enumerate()
+    {
+        let operation_id = driver
+            .current_operation_id(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        execute(&driver, &repository, &MutationIntent::Redo { operation_id }).await;
+        assert_eq!(working_copy_summary(&driver, &repository).await, expected);
+        let operation_log = driver
+            .operation_log(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert!(operation_log.undo_target.is_some());
+        assert_eq!(operation_log.redo_target.is_some(), index == 0);
+    }
+}
+
 #[tokio::test]
 async fn prune_protects_every_workspace_working_copy() {
     let directory = tempdir().unwrap();
@@ -703,6 +778,28 @@ async fn shaping_pruning_undo_and_remote_write_have_verified_postconditions() {
     )
     .await;
     assert_ne!(
+        projection(&driver, &repository)
+            .await
+            .changes
+            .iter()
+            .find(|change| change.working_copy)
+            .unwrap()
+            .summary,
+        "temporary undo fixture"
+    );
+    let redo_operation = driver
+        .current_operation_id(&repository, CancellationToken::new())
+        .await
+        .unwrap();
+    execute(
+        &driver,
+        &repository,
+        &MutationIntent::Redo {
+            operation_id: redo_operation,
+        },
+    )
+    .await;
+    assert_eq!(
         projection(&driver, &repository)
             .await
             .changes

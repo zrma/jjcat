@@ -31,7 +31,6 @@ import {
   type DagRowLayout,
 } from "../lib/dag";
 import {
-  canPreviewRebase,
   estimateRebaseTopology,
   type RebaseTopologyPreview,
 } from "../lib/rebaseTopology";
@@ -60,6 +59,10 @@ import { ChangeActionMenu } from "./ChangeActionMenu";
 import { DiffViewer } from "./DiffViewer";
 import { OperationLogPanel } from "./OperationLogPanel";
 import type { MutationLaunch } from "../lib/changeActions";
+import {
+  historyDropLaunch,
+  type HistoryDragIntent,
+} from "../lib/historyDrag";
 
 interface ChangeWorkspaceProps {
   changes: ChangeRow[];
@@ -85,9 +88,11 @@ interface ChangeWorkspaceProps {
   operationLog: OperationLogProjection | null;
   operationLoading: boolean;
   operationError: string | null;
+  historyStepExecuting: "undo" | "redo" | null;
   rebaseSourceCommitId: string | null;
   onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
   onRequestUndo: (operationId: string) => void;
+  onRequestRedo: (operationId: string) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
 }
 
@@ -127,9 +132,11 @@ export function ChangeWorkspace({
   operationLog,
   operationLoading,
   operationError,
+  historyStepExecuting,
   rebaseSourceCommitId,
   onRequestRebase,
   onRequestUndo,
+  onRequestRedo,
   onLaunchMutation,
 }: ChangeWorkspaceProps) {
   const contentGridRef = useRef<HTMLDivElement>(null);
@@ -285,6 +292,7 @@ export function ChangeWorkspace({
             y: Math.max(8, Math.min(y, window.innerHeight - 520)),
           });
         }}
+        onLaunchMutation={onLaunchMutation}
       />
       <div
         className="workspace-splitter"
@@ -406,8 +414,10 @@ export function ChangeWorkspace({
               projection={operationLog}
               loading={operationLoading}
               error={operationError}
+              executing={historyStepExecuting}
               onClose={() => onInspectorViewChange("overview")}
               onRequestUndo={onRequestUndo}
+              onRequestRedo={onRequestRedo}
             />
           ) : changeDetailsLoading ? (
             <aside className="details-empty" aria-live="polite">
@@ -536,6 +546,7 @@ function ChangeLog({
   onCancelStagedRebase,
   onReviewStagedRebase,
   onOpenActionMenu,
+  onLaunchMutation,
 }: {
   changes: ChangeRow[];
   compactHistory: boolean;
@@ -551,6 +562,7 @@ function ChangeLog({
   onCancelStagedRebase: () => void;
   onReviewStagedRebase: () => void;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
+  onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
@@ -700,6 +712,7 @@ function ChangeLog({
         onCancelStagedRebase={onCancelStagedRebase}
         onReviewStagedRebase={onReviewStagedRebase}
         onOpenActionMenu={onOpenActionMenu}
+        onLaunchMutation={onLaunchMutation}
         onRevealGap={(id, count) =>
           setRevealedByGap((current) => ({ ...current, [id]: count }))
         }
@@ -727,6 +740,7 @@ function ChangeRows({
   onCancelStagedRebase,
   onReviewStagedRebase,
   onOpenActionMenu,
+  onLaunchMutation,
   onRevealGap,
 }: {
   changes: ChangeRow[];
@@ -750,19 +764,22 @@ function ChangeRows({
   onCancelStagedRebase: () => void;
   onReviewStagedRebase: () => void;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
+  onLaunchMutation: (launch: MutationLaunch) => void;
   onRevealGap: (id: string, count: number) => void;
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [draggedCommitId, setDraggedCommitId] = useState<string | null>(null);
+  const [activeDrag, setActiveDrag] = useState<HistoryDragIntent | null>(null);
   const pointerDragRef = useRef<{
-    sourceCommitId: string;
+    intent: HistoryDragIntent;
     startX: number;
     startY: number;
     active: boolean;
   } | null>(null);
   const suppressClickRef = useRef(false);
   const previewSourceCommitId =
-    draggedCommitId ?? stagedRebase?.sourceCommitId ?? null;
+    (activeDrag?.kind === "rebase" ? activeDrag.sourceCommitId : null) ??
+    stagedRebase?.sourceCommitId ??
+    null;
   const previewDestinationCommitId =
     dropTarget ?? stagedRebase?.destinationCommitId ?? null;
   const hoverTopologyPreview = useMemo(
@@ -811,13 +828,13 @@ function ChangeRows({
       ?.dataset.commitId ?? null;
 
   const beginPointerDrag = (
-    sourceCommitId: string,
+    intent: HistoryDragIntent,
     clientX: number,
     clientY: number,
   ) => {
     if (pointerDragRef.current) return;
     pointerDragRef.current = {
-      sourceCommitId,
+      intent,
       startX: clientX,
       startY: clientY,
       active: false,
@@ -834,7 +851,7 @@ function ChangeRows({
       return false;
     }
     drag.active = true;
-    setDraggedCommitId(drag.sourceCommitId);
+    setActiveDrag(drag.intent);
     const scrollElement = scrollContainerRef.current;
     if (scrollElement) {
       const bounds = scrollElement.getBoundingClientRect();
@@ -850,11 +867,7 @@ function ChangeRows({
     const destinationCommitId = commitAtPoint(clientX, clientY);
     setDropTarget(
       destinationCommitId &&
-        canPreviewRebase(
-          changes,
-          drag.sourceCommitId,
-          destinationCommitId,
-        )
+        historyDropLaunch(changes, drag.intent, destinationCommitId)
         ? destinationCommitId
         : null,
     );
@@ -874,15 +887,20 @@ function ChangeRows({
       : commitAtPoint(clientX, clientY);
     pointerDragRef.current = null;
     setDropTarget(null);
-    setDraggedCommitId(null);
+    setActiveDrag(null);
 
     if (drag.active) suppressClickRef.current = true;
-    if (
-      drag.active &&
-      destinationCommitId &&
-      canPreviewRebase(changes, drag.sourceCommitId, destinationCommitId)
-    ) {
-      onStageRebase(drag.sourceCommitId, destinationCommitId);
+    const launch =
+      drag.active && destinationCommitId
+        ? historyDropLaunch(changes, drag.intent, destinationCommitId)
+        : null;
+    if (launch?.intent.kind === "rebase") {
+      onStageRebase(
+        launch.intent.sourceCommitId,
+        launch.intent.destinationCommitId,
+      );
+    } else if (launch) {
+      onLaunchMutation(launch);
     }
     return drag.active;
   };
@@ -924,10 +942,15 @@ function ChangeRows({
           );
         }
         const { change, sourceIndex } = item;
+        const bookmarkDrag =
+          activeDrag?.kind === "bookmarkMove" ? activeDrag : null;
+        const isBookmarkDropTarget =
+          bookmarkDrag !== null && change.commitId === dropTarget;
         return (
-          <button
-            type="button"
-            className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""} ${change.commitId === rebaseSourceCommitId ? "rebase-source" : ""} ${change.commitId === previewSourceCommitId ? "rebase-preview-source" : ""} ${change.commitId === previewDestinationCommitId ? "rebase-drop-target" : ""}`}
+          <div
+            role="row"
+            tabIndex={0}
+            className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""} ${change.commitId === rebaseSourceCommitId ? "rebase-source" : ""} ${change.commitId === previewSourceCommitId ? "rebase-preview-source" : ""} ${activeDrag?.kind !== "bookmarkMove" && change.commitId === previewDestinationCommitId ? "rebase-drop-target" : ""} ${isBookmarkDropTarget ? "bookmark-drop-target" : ""}`}
             style={virtualized ? { top: displayIndex * HISTORY_ROW_HEIGHT } : undefined}
             aria-posinset={displayIndex + 1}
             aria-setsize={items.length}
@@ -936,6 +959,11 @@ function ChangeRows({
                 suppressClickRef.current = false;
                 return;
               }
+              onSelect(change.changeId);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
               onSelect(change.changeId);
             }}
             onContextMenu={(event) => {
@@ -950,7 +978,8 @@ function ChangeRows({
             data-commit-id={change.commitId}
             aria-grabbed={
               change.commitId === rebaseSourceCommitId ||
-              change.commitId === draggedCommitId
+              (activeDrag?.kind === "rebase" &&
+                change.commitId === activeDrag.sourceCommitId)
             }
             title="Drag this change onto another change to preview a rebase"
             onPointerDown={(event) => {
@@ -961,7 +990,11 @@ function ChangeRows({
               ) {
                 return;
               }
-              beginPointerDrag(change.commitId, event.clientX, event.clientY);
+              beginPointerDrag(
+                { kind: "rebase", sourceCommitId: change.commitId },
+                event.clientX,
+                event.clientY,
+              );
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
@@ -987,22 +1020,6 @@ function ChangeRows({
                 event.currentTarget.releasePointerCapture(event.pointerId);
               }
             }}
-            onMouseDown={(event) => {
-              if (event.button !== 0 || /^0+$/.test(change.commitId)) return;
-              beginPointerDrag(change.commitId, event.clientX, event.clientY);
-            }}
-            onMouseMove={(event) => {
-              if (event.buttons !== 1) return;
-              if (updatePointerDrag(event.clientX, event.clientY)) {
-                event.preventDefault();
-              }
-            }}
-            onMouseUp={(event) => {
-              if (finishPointerDrag(event.clientX, event.clientY)) {
-                event.preventDefault();
-                event.stopPropagation();
-              }
-            }}
             key={`${change.changeId}-${change.commitId}`}
           >
             <DagCell
@@ -1026,7 +1043,70 @@ function ChangeRows({
             />
             <code className="change-id">{change.changeId}</code>
             <span className="change-description">
-              <BookmarkLabels bookmarks={change.bookmarks} limit={2} />
+              <BookmarkLabels
+                bookmarks={change.bookmarks}
+                limit={2}
+                localBookmarkDrag={{
+                  activeName:
+                    bookmarkDrag?.sourceCommitId === change.commitId
+                      ? bookmarkDrag.name
+                      : null,
+                  onPointerDown: (bookmark, event) => {
+                    if (event.button !== 0 || event.pointerType === "touch") {
+                      return;
+                    }
+                    event.stopPropagation();
+                    beginPointerDrag(
+                      {
+                        kind: "bookmarkMove",
+                        name: bookmark.name,
+                        sourceCommitId: change.commitId,
+                      },
+                      event.clientX,
+                      event.clientY,
+                    );
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  },
+                  onPointerMove: (event) => {
+                    event.stopPropagation();
+                    if (updatePointerDrag(event.clientX, event.clientY)) {
+                      event.preventDefault();
+                    }
+                  },
+                  onPointerUp: (event) => {
+                    event.stopPropagation();
+                    if (finishPointerDrag(event.clientX, event.clientY)) {
+                      event.preventDefault();
+                    }
+                    if (
+                      event.currentTarget.hasPointerCapture(event.pointerId)
+                    ) {
+                      event.currentTarget.releasePointerCapture(
+                        event.pointerId,
+                      );
+                    }
+                  },
+                  onPointerCancel: (event) => {
+                    event.stopPropagation();
+                    if (
+                      finishPointerDrag(
+                        event.clientX,
+                        event.clientY,
+                        true,
+                      )
+                    ) {
+                      event.preventDefault();
+                    }
+                    if (
+                      event.currentTarget.hasPointerCapture(event.pointerId)
+                    ) {
+                      event.currentTarget.releasePointerCapture(
+                        event.pointerId,
+                      );
+                    }
+                  },
+                }}
+              />
               <span className="change-summary">{change.summary || "(no description)"}</span>
               {change.workingCopy && <strong>Working Copy</strong>}
               {!change.workingCopy && (change.workspaceCopies?.length ?? 0) > 0 && (
@@ -1044,11 +1124,16 @@ function ChangeRows({
               {change.commitId === previewDestinationCommitId && (
                 <strong className="rebase-parent-label">New parent</strong>
               )}
+              {isBookmarkDropTarget && (
+                <strong className="bookmark-target-label">
+                  Move {bookmarkDrag.name} here
+                </strong>
+              )}
             </span>
             <span className="change-author">{change.author || "—"}</span>
             <code className="change-commit col-commit">{change.commitId}</code>
             <span className="change-updated">{relativeTime(change.updatedAt)}</span>
-          </button>
+          </div>
         );
       })}
       {stagedRebase && topologyPreview && (

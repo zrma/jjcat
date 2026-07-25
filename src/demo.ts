@@ -200,6 +200,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
 export class DemoBridge {
   private snapshot: RegistrySnapshot;
   private active = new Map<string, AbortController>();
+  private historyPhase = new Map<string, "normal" | "undone" | "redone">();
   private mutationPreviews = new Map<
     string,
     { repositoryId: string; intent: MutationIntent; preview: MutationPreview }
@@ -313,18 +314,52 @@ export class DemoBridge {
     }
     await new Promise((resolve) => window.setTimeout(resolve, 80));
     const now = Date.now();
+    const phase = this.historyPhase.get(repositoryId) ?? "normal";
+    const current =
+      phase === "undone"
+        ? {
+            id: "a1b2c3d4e5f6",
+            description: "undo: restore to operation e2d3c4b5a697",
+            startedAt: new Date(now - 10_000).toISOString(),
+            snapshot: false,
+            current: true,
+            undoEligible: true,
+          }
+        : phase === "redone"
+          ? {
+              id: "b2c3d4e5f6a7",
+              description: "redo: restore to operation f1e2d3c4b5a6",
+              startedAt: new Date(now - 10_000).toISOString(),
+              snapshot: false,
+              current: true,
+              undoEligible: true,
+            }
+          : {
+              id: "f1e2d3c4b5a6",
+              description: "describe commit fixture",
+              startedAt: new Date(now - 60_000).toISOString(),
+              snapshot: false,
+              current: true,
+              undoEligible: true,
+            };
     return {
       repositoryId,
-      undoTarget: "f1e2d3c4b5a6",
+      undoTarget: current.id,
+      redoTarget: phase === "undone" ? current.id : null,
       operations: [
-        {
-          id: "f1e2d3c4b5a6",
-          description: "describe commit fixture",
-          startedAt: new Date(now - 60_000).toISOString(),
-          snapshot: false,
-          current: true,
-          undoEligible: true,
-        },
+        current,
+        ...(phase === "undone" || phase === "redone"
+          ? [
+              {
+                id: "f1e2d3c4b5a6",
+                description: "describe commit fixture",
+                startedAt: new Date(now - 60_000).toISOString(),
+                snapshot: false,
+                current: false,
+                undoEligible: false,
+              },
+            ]
+          : []),
         {
           id: "e2d3c4b5a697",
           description: "snapshot working copy",
@@ -439,6 +474,14 @@ export class DemoBridge {
         )?.commitId
       : undefined;
     applyDemoMutation(cached.projection.changes, stored.intent, stored.preview.candidates);
+    this.historyPhase.set(
+      stored.repositoryId,
+      stored.intent.kind === "undo"
+        ? "undone"
+        : stored.intent.kind === "redo"
+          ? "redone"
+          : "normal",
+    );
     if (stored.intent.kind === "removeWorkspace") {
       const workspaceName = stored.intent.name;
       cached.projection.workspaces = cached.projection.workspaces.filter(
@@ -713,6 +756,11 @@ function mutationPreviewContent(
       effect: "Undo the exact current repository operation.",
       risk: "recovery",
     },
+    redo: {
+      title: "Redo operation",
+      effect: "Redo the most recently undone repository operation.",
+      risk: "recovery",
+    },
     bookmarkMove: {
       title: "Move bookmark",
       effect: "Move the local bookmark to the exact selected change.",
@@ -773,6 +821,7 @@ function mutationPreviewContent(
       break;
     }
     case "undo":
+    case "redo":
       targets = [{ label: "Operation", value: intent.operationId, commitId: null }];
       break;
     case "bookmarkMove":
@@ -878,6 +927,7 @@ function applyDemoMutation(
     case "fetch":
     case "split":
     case "undo":
+    case "redo":
       break;
   }
 }

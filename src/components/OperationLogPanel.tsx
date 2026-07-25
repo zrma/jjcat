@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { History, RotateCcw, X } from "lucide-react";
+import { History, RotateCcw, RotateCw, X } from "lucide-react";
 import { relativeTime } from "../lib/format";
 import type { OperationLogProjection } from "../types";
 
@@ -7,16 +7,20 @@ interface OperationLogPanelProps {
   projection: OperationLogProjection | null;
   loading: boolean;
   error: string | null;
+  executing: "undo" | "redo" | null;
   onClose: () => void;
   onRequestUndo: (operationId: string) => void;
+  onRequestRedo: (operationId: string) => void;
 }
 
 export function OperationLogPanel({
   projection,
   loading,
   error,
+  executing,
   onClose,
   onRequestUndo,
+  onRequestRedo,
 }: OperationLogPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   useEffect(() => setSelectedId(projection?.operations[0]?.id ?? null), [projection]);
@@ -67,7 +71,7 @@ export function OperationLogPanel({
               ))
             )}
           </section>
-          <section className="operation-preview" aria-label="Undo eligibility preview">
+          <section className="operation-preview" aria-label="Operation history actions">
             {selected && (
               <>
                 <div>
@@ -75,26 +79,44 @@ export function OperationLogPanel({
                   <strong>{selected.description || "(no description)"}</strong>
                   <code title={selected.id}>{selected.id.slice(0, 12)}</code>
                 </div>
-                <div className={`undo-preview ${selected.undoEligible ? "eligible" : ""}`}>
-                  <RotateCcw aria-hidden="true" />
+                <div className="undo-preview eligible">
+                  <History aria-hidden="true" />
                   <span>
-                    <strong>
-                      {selected.undoEligible ? "Latest operation can be previewed for undo" : "Not an undo target"}
-                    </strong>
+                    <strong>Step through repository history</strong>
                     <small>
-                      {selected.undoEligible
-                        ? `Target ${selected.id.slice(0, 12)}. Execution still requires an exact preview.`
-                        : "Only the current non-snapshot operation is eligible."}
+                      Undo and redo run immediately. Repeat either action to move
+                      through multiple steps.
                     </small>
                   </span>
                 </div>
-                <button
-                  type="button"
-                  disabled={!selected.undoEligible}
-                  onClick={() => onRequestUndo(selected.id)}
-                >
-                  <RotateCcw aria-hidden="true" /> Preview undo
-                </button>
+                <div className="operation-history-actions">
+                  <button
+                    type="button"
+                    disabled={!projection.undoTarget || executing !== null}
+                    onClick={() =>
+                      projection.undoTarget && onRequestUndo(projection.undoTarget)
+                    }
+                  >
+                    <RotateCcw aria-hidden="true" />
+                    <span>
+                      <strong>{executing === "undo" ? "Undoing…" : "Undo"}</strong>
+                      <small>⌘Z · Ctrl+Z</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!projection.redoTarget || executing !== null}
+                    onClick={() =>
+                      projection.redoTarget && onRequestRedo(projection.redoTarget)
+                    }
+                  >
+                    <RotateCw aria-hidden="true" />
+                    <span>
+                      <strong>{executing === "redo" ? "Redoing…" : "Redo"}</strong>
+                      <small>⌘⇧Z · Ctrl+Y</small>
+                    </span>
+                  </button>
+                </div>
               </>
             )}
           </section>

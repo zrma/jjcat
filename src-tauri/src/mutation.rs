@@ -51,6 +51,9 @@ pub enum MutationIntent {
     Undo {
         operation_id: String,
     },
+    Redo {
+        operation_id: String,
+    },
     BookmarkMove {
         name: String,
         target_commit_id: String,
@@ -106,7 +109,9 @@ impl MutationIntent {
             Self::Abandon { target_commit_ids } => validate_commit_ids(target_commit_ids, false),
             Self::PruneEmpty => Ok(()),
             Self::RemoveWorkspace { name } => validate_workspace_name(name),
-            Self::Undo { operation_id } => validate_operation_id(operation_id),
+            Self::Undo { operation_id } | Self::Redo { operation_id } => {
+                validate_operation_id(operation_id)
+            }
             Self::BookmarkMove {
                 name,
                 target_commit_id,
@@ -134,6 +139,7 @@ impl MutationIntent {
             Self::PruneEmpty => MutationKind::PruneEmpty,
             Self::RemoveWorkspace { .. } => MutationKind::RemoveWorkspace,
             Self::Undo { .. } => MutationKind::Undo,
+            Self::Redo { .. } => MutationKind::Redo,
             Self::BookmarkMove { .. } => MutationKind::BookmarkMove,
             Self::Push { .. } => MutationKind::Push,
         }
@@ -169,6 +175,7 @@ impl MutationIntent {
             | Self::PruneEmpty
             | Self::RemoveWorkspace { .. }
             | Self::Undo { .. }
+            | Self::Redo { .. }
             | Self::Push { .. } => Vec::new(),
         }
     }
@@ -188,6 +195,7 @@ pub enum MutationKind {
     PruneEmpty,
     RemoveWorkspace,
     Undo,
+    Redo,
     BookmarkMove,
     Push,
 }
@@ -414,7 +422,9 @@ pub fn verify_postcondition(
             })
             .then_some(())
             .ok_or("local and remote bookmark targets are not aligned after push"),
-        MutationIntent::Fetch { .. } | MutationIntent::Undo { .. } => Ok(()),
+        MutationIntent::Fetch { .. }
+        | MutationIntent::Undo { .. }
+        | MutationIntent::Redo { .. } => Ok(()),
     }
 }
 
@@ -588,7 +598,17 @@ fn preview_content(
         ),
         MutationIntent::Undo { operation_id } => (
             "Undo operation".into(),
-            "Restore the repository state before the current operation.".into(),
+            "Move one step backward through the repository operation history.".into(),
+            MutationRisk::Recovery,
+            vec![MutationTarget {
+                label: "Current operation".into(),
+                value: operation_id.clone(),
+                commit_id: None,
+            }],
+        ),
+        MutationIntent::Redo { operation_id } => (
+            "Redo operation".into(),
+            "Move one step forward through the repository operation history.".into(),
             MutationRisk::Recovery,
             vec![MutationTarget {
                 label: "Current operation".into(),
@@ -977,6 +997,15 @@ mod tests {
             ),
             (
                 serde_json::json!({
+                    "kind": "redo",
+                    "operationId": "operation-id",
+                }),
+                MutationIntent::Redo {
+                    operation_id: "operation-id".into(),
+                },
+            ),
+            (
+                serde_json::json!({
                     "kind": "bookmarkMove",
                     "name": "main",
                     "targetCommitId": SOURCE,
@@ -1119,6 +1148,9 @@ mod tests {
                 target_commit_ids: vec![SOURCE.into()],
             },
             MutationIntent::Undo {
+                operation_id: "abcdef0123456789".into(),
+            },
+            MutationIntent::Redo {
                 operation_id: "abcdef0123456789".into(),
             },
         ] {

@@ -56,7 +56,8 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - 긴 줄에서도 같은 폭과 항상 보이는 독립 가로 scrollbar를 유지하는
   unified/side-by-side renderer, whitespace mode와 binary/truncated fallback
 - cache freshness와 분리된 conflict 및 last-fetched outgoing/behind 상태
-- operation identity를 변경하지 않는 recent operation log와 disabled undo eligibility preview
+- operation identity를 변경하지 않는 recent operation log, 상단의 명확한 Undo/Redo button과
+  input-safe platform shortcut
 - opaque single-use preview token, repository별 mutation serialization, execute 직전
   operation/candidate stale recheck와 실패 뒤 recovery-required 분류
 - local/SSH `new`, `edit`, full-message `describe`와 explicit network `fetch`
@@ -64,9 +65,12 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - 모든 active workspace working copy, root, immutable change와 local/remote bookmark
   target을 보존하는 enumerated empty-change pruning
 - current/other workspace working copy를 구분하는 graph badge와 semantic node color
-- exact current operation `undo`, local bookmark move와 typed-confirmation remote push
-- local abandon/prune/undo는 exact-target preview와 explicit button confirmation만 사용
+- exact current operation을 고정하고 별도 confirmation dialog 없이 `jj` operation history를
+  여러 step 왕복하는 direct `undo`/`redo`, local bookmark move와 typed-confirmation remote push
+- `jj undo`로 복원 가능한 local mutation preview의 `Enter`/`Y` 실행과 `Esc`/`N` 취소;
+  directory를 삭제하는 workspace removal과 remote push는 명시적 button만 사용
 - graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path가 공유하는 rebase preview
+- local bookmark label drag/drop이 여는 exact-target bookmark move preview
 - pointer drag 중 cycle-safe 예상 DAG, source/new-parent label과 drop 뒤 inline
   Cancel/Review rebase checkpoint
 - 아래쪽 branch를 위쪽 parent로 옮길 때도 제안 change를 stable topological order로

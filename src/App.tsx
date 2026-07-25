@@ -20,6 +20,8 @@ import {
   PinOff,
   Plus,
   RefreshCw,
+  RotateCcw,
+  RotateCw,
   Search,
   Server,
   SquareTerminal,
@@ -40,6 +42,7 @@ import { isStale, locationLabel, relativeTime } from "./lib/format";
 import { repositoryNavigation as navigationForProjection } from "./lib/repositoryNavigation";
 import { groupRepositories } from "./lib/repositories";
 import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
+import { historyShortcutFor } from "./lib/historyShortcuts";
 import type {
   AppError,
   CachedProjection,
@@ -197,6 +200,9 @@ function App() {
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
   const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
   const [mutationDialog, setMutationDialog] = useState<MutationDialogState | null>(null);
+  const [historyStepExecuting, setHistoryStepExecuting] = useState<
+    "undo" | "redo" | null
+  >(null);
   const [rebaseSourceCommitId, setRebaseSourceCommitId] = useState<string | null>(null);
   const [mutationNotice, setMutationNotice] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -207,6 +213,7 @@ function App() {
   const changeDetailsRequestRef = useRef(0);
   const diffRequestRef = useRef(0);
   const operationRequestRef = useRef(0);
+  const historyStepExecutingRef = useRef(false);
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -371,9 +378,8 @@ function App() {
   }, [selectedChange, selectedFilePath, selectedRepository, whitespaceMode]);
 
   useEffect(() => {
-    if (inspectorView !== "operations" || !selectedRepository) return;
+    if (!selectedRepository) return;
     const request = ++operationRequestRef.current;
-    setOperationLog(null);
     setOperationLoading(true);
     setOperationError(null);
     bridge
@@ -390,7 +396,7 @@ function App() {
     return () => {
       if (request === operationRequestRef.current) operationRequestRef.current += 1;
     };
-  }, [inspectorView, selectedRepository]);
+  }, [selectedCache?.cachedAt, selectedRepository]);
 
   const selectRepository = useCallback(
     async (repositoryId: string) => {
@@ -514,6 +520,17 @@ function App() {
         event.preventDefault();
         setShowSwitcher(true);
       }
+      const historyShortcut =
+        !isTextEntry(event.target) && !mutationDialog
+          ? historyShortcutFor(event)
+          : null;
+      if (historyShortcut === "redo" && operationLog?.redoTarget) {
+        event.preventDefault();
+        void executeHistoryStep("redo", operationLog.redoTarget);
+      } else if (historyShortcut === "undo" && operationLog?.undoTarget) {
+        event.preventDefault();
+        void executeHistoryStep("undo", operationLog.undoTarget);
+      }
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
         const repositoryId = registry?.openRepositoryIds[Number(event.key) - 1];
         if (repositoryId) {
@@ -594,6 +611,8 @@ function App() {
     selectedRepository,
     visibleChanges,
     mutationDialog,
+    operationLog?.redoTarget,
+    operationLog?.undoTarget,
     rebaseSourceCommitId,
   ]);
 
@@ -708,6 +727,33 @@ function App() {
     setRebaseSourceCommitId(null);
     setMutationNotice(execution.message);
     setRepositoryActionError(null);
+  }
+
+  async function executeHistoryStep(
+    kind: "undo" | "redo",
+    operationId: string,
+  ) {
+    if (!selectedRepository || historyStepExecutingRef.current) return;
+    historyStepExecutingRef.current = true;
+    setHistoryStepExecuting(kind);
+    setRepositoryActionError(null);
+    try {
+      const preview = await bridge.previewMutation(selectedRepository.id, {
+        kind,
+        operationId,
+      });
+      const execution = await bridge.executeMutation({
+        token: preview.token,
+        confirmed: true,
+        confirmation: null,
+      });
+      mutationExecuted(execution);
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message);
+    } finally {
+      historyStepExecutingRef.current = false;
+      setHistoryStepExecuting(null);
+    }
   }
 
   async function closeTab(repositoryId: string) {
@@ -1018,6 +1064,36 @@ function App() {
                 />
               )}
               <div className="toolbar-controls">
+                <div className="history-step-controls" aria-label="Operation history">
+                  <button
+                    type="button"
+                    className="mutation-button history-step-button"
+                    title="Undo one repository operation (⌘Z / Ctrl+Z)"
+                    aria-label="Undo one repository operation"
+                    onClick={() => {
+                      if (!operationLog?.undoTarget) return;
+                      void executeHistoryStep("undo", operationLog.undoTarget);
+                    }}
+                    disabled={!operationLog?.undoTarget || historyStepExecuting !== null}
+                  >
+                    <RotateCcw aria-hidden="true" />
+                    <span>{historyStepExecuting === "undo" ? "Undoing…" : "Undo"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mutation-button history-step-button"
+                    title="Redo one repository operation (⌘⇧Z / Ctrl+Y)"
+                    aria-label="Redo one repository operation"
+                    onClick={() => {
+                      if (!operationLog?.redoTarget) return;
+                      void executeHistoryStep("redo", operationLog.redoTarget);
+                    }}
+                    disabled={!operationLog?.redoTarget || historyStepExecuting !== null}
+                  >
+                    <RotateCw aria-hidden="true" />
+                    <span>{historyStepExecuting === "redo" ? "Redoing…" : "Redo"}</span>
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="mutation-button"
@@ -1173,6 +1249,7 @@ function App() {
               operationLog={operationLog}
               operationLoading={operationLoading}
               operationError={operationError}
+              historyStepExecuting={historyStepExecuting}
               rebaseSourceCommitId={rebaseSourceCommitId}
               onRequestRebase={(sourceCommitId, destinationCommitId) => {
                 setMutationDialog({
@@ -1186,10 +1263,10 @@ function App() {
                 setRebaseSourceCommitId(null);
               }}
               onRequestUndo={(operationId) =>
-                setMutationDialog({
-                  initialIntent: { kind: "undo", operationId },
-                  previewImmediately: true,
-                })
+                void executeHistoryStep("undo", operationId)
+              }
+              onRequestRedo={(operationId) =>
+                void executeHistoryStep("redo", operationId)
               }
               onLaunchMutation={({ intent, previewImmediately }) =>
                 setMutationDialog({
@@ -1311,7 +1388,6 @@ function App() {
           repositoryName={selectedRepository.displayName}
           changes={selectedProjection?.changes ?? []}
           selectedChange={selectedChange}
-          undoTarget={operationLog?.undoTarget ?? null}
           initialIntent={mutationDialog.initialIntent}
           previewImmediately={mutationDialog.previewImmediately}
           onClose={() => setMutationDialog(null)}
