@@ -5,6 +5,8 @@ import {
   ArrowDownToLine,
   Cable,
   CircleX,
+  ChevronLeft,
+  ChevronRight,
   Code2,
   Database,
   FileDiff,
@@ -43,6 +45,11 @@ import { repositoryNavigation as navigationForProjection } from "./lib/repositor
 import { groupRepositories } from "./lib/repositories";
 import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
 import { historyShortcutFor } from "./lib/historyShortcuts";
+import {
+  tabOverflowState,
+  tabScrollPage,
+  type TabOverflowState,
+} from "./lib/tabOverflow";
 import {
   reorderRepositoryTabs,
   type RepositoryTabDropEdge,
@@ -224,7 +231,12 @@ function App() {
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const [tabDropTarget, setTabDropTarget] =
     useState<RepositoryTabDropTarget | null>(null);
+  const [tabOverflow, setTabOverflow] = useState<TabOverflowState>({
+    left: false,
+    right: false,
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const tabsRef = useRef<HTMLElement>(null);
   const refreshingRef = useRef<Record<string, string>>({});
   const failureCountsRef = useRef<Record<string, number>>({});
   const cancelledRefreshesRef = useRef<Set<string>>(new Set());
@@ -235,6 +247,19 @@ function App() {
   const tabOrderSavingRef = useRef(false);
   const tabPointerDragRef = useRef<RepositoryTabPointerDrag | null>(null);
   const suppressTabClickRef = useRef(false);
+
+  const updateTabOverflow = useCallback(() => {
+    const tabs = tabsRef.current;
+    if (!tabs) return;
+    const next = tabOverflowState(
+      tabs.scrollLeft,
+      tabs.clientWidth,
+      tabs.scrollWidth,
+    );
+    setTabOverflow((current) =>
+      current.left === next.left && current.right === next.right ? current : next,
+    );
+  }, []);
 
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
@@ -524,6 +549,49 @@ function App() {
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [failureCounts, refreshRepository, registry]);
+
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    if (!tabs) return;
+
+    const observer = new ResizeObserver(updateTabOverflow);
+    observer.observe(tabs);
+    tabs.addEventListener("scroll", updateTabOverflow, { passive: true });
+    const frame = window.requestAnimationFrame(updateTabOverflow);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      tabs.removeEventListener("scroll", updateTabOverflow);
+      observer.disconnect();
+    };
+  }, [registry?.openRepositoryIds, updateTabOverflow]);
+
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    const repositoryId = registry?.selectedRepository;
+    if (!tabs || !repositoryId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const selectedTab = Array.from(
+        tabs.querySelectorAll<HTMLElement>("[data-repository-tab-id]"),
+      ).find((tab) => tab.dataset.repositoryTabId === repositoryId);
+      if (!selectedTab) return;
+
+      const tabLeft = selectedTab.offsetLeft;
+      const tabRight = tabLeft + selectedTab.offsetWidth;
+      if (tabLeft < tabs.scrollLeft) {
+        tabs.scrollTo({ left: tabLeft, behavior: "smooth" });
+      } else if (tabRight > tabs.scrollLeft + tabs.clientWidth) {
+        tabs.scrollTo({
+          left: tabRight - tabs.clientWidth,
+          behavior: "smooth",
+        });
+      }
+      updateTabOverflow();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [registry?.openRepositoryIds, registry?.selectedRepository, updateTabOverflow]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -874,6 +942,15 @@ function App() {
     );
   }
 
+  function scrollRepositoryTabs(direction: -1 | 1) {
+    const tabs = tabsRef.current;
+    if (!tabs) return;
+    tabs.scrollBy({
+      left: direction * tabScrollPage(tabs.clientWidth),
+      behavior: "smooth",
+    });
+  }
+
   if (fatalError) {
     return (
       <>
@@ -930,12 +1007,23 @@ function App() {
           <span />
         </div>
         <Brand />
-        <nav
-          className="tabs"
-          aria-label="Open repositories"
+        <div
+          className={[
+            "tabs-shell",
+            tabOverflow.left ? "has-overflow-left" : "",
+            tabOverflow.right ? "has-overflow-right" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           data-tauri-drag-region
         >
-          {openRepositories.map((repository, tabIndex) => {
+          <nav
+            ref={tabsRef}
+            className="tabs"
+            aria-label="Open repositories"
+            data-tauri-drag-region
+          >
+            {openRepositories.map((repository, tabIndex) => {
             const state = repositoryState(
               repository.id,
               registry.cachedProjections[repository.id],
@@ -1053,8 +1141,31 @@ function App() {
                 </button>
               </div>
             );
-          })}
-        </nav>
+            })}
+          </nav>
+          {tabOverflow.left ? (
+            <button
+              type="button"
+              className="tab-scroll-control tab-scroll-left"
+              aria-label="Scroll repository tabs left"
+              title="More repository tabs to the left"
+              onClick={() => scrollRepositoryTabs(-1)}
+            >
+              <ChevronLeft aria-hidden="true" />
+            </button>
+          ) : null}
+          {tabOverflow.right ? (
+            <button
+              type="button"
+              className="tab-scroll-control tab-scroll-right"
+              aria-label="Scroll repository tabs right"
+              title="More repository tabs to the right"
+              onClick={() => scrollRepositoryTabs(1)}
+            >
+              <ChevronRight aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </header>
 
       <aside className="repository-rail">
