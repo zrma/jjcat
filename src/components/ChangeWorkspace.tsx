@@ -19,7 +19,6 @@ import {
   GitCommitHorizontal,
   GitFork,
   History,
-  Info,
   Minus,
   UserRound,
   X,
@@ -46,6 +45,7 @@ import {
   splitterSizeForPointer,
 } from "../lib/splitter";
 import { virtualRange } from "../lib/virtualization";
+import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
 import type {
   ChangedFile,
   ChangeRow,
@@ -105,7 +105,7 @@ const DAG_LANE_GAP = 12;
 const DAG_PADDING = 5;
 const MAX_VISIBLE_DAG_LANES = 10;
 const MIN_HISTORY_HEIGHT = 140;
-const MIN_INSPECTOR_HEIGHT = 180;
+const MIN_INSPECTOR_HEIGHT = 350;
 const SPLITTER_SIZE = 5;
 const SPLITTER_KEY_STEP = 24;
 
@@ -171,7 +171,7 @@ export function ChangeWorkspace({
       Math.round(contentHeight * 0.4),
     bounds,
   );
-  const gridStyle = inspectorHeight === null
+  const gridStyle = contentHeight === 0
     ? undefined
     : ({ "--inspector-track": `${currentInspectorHeight}px` } as CSSProperties);
   splitterBoundsRef.current = bounds;
@@ -368,15 +368,9 @@ export function ChangeWorkspace({
         <nav className="inspector-tabs" aria-label="Inspector views">
           <button
             type="button"
-            className={inspectorView === "overview" ? "selected" : ""}
-            onClick={() => onInspectorViewChange("overview")}
-          >
-            <Info aria-hidden="true" />
-            Overview
-          </button>
-          <button
-            type="button"
-            className={inspectorView === "changes" ? "selected" : ""}
+            className={`inspector-changes-tab ${
+              inspectorView === "changes" ? "selected" : ""
+            }`}
             onClick={() => onInspectorViewChange("changes")}
           >
             <Files aria-hidden="true" />
@@ -421,29 +415,32 @@ export function ChangeWorkspace({
             <ChevronDown aria-hidden="true" />
           </button>
         </nav>
-        <div className="inspector-panel">
+        <div
+          className="inspector-panel"
+          aria-busy={inspectorView !== "operations" && changeDetailsLoading}
+        >
+          {inspectorView !== "operations" && changeDetailsLoading && (
+            <span className="sr-only" role="status">
+              Loading selected change details
+            </span>
+          )}
           {inspectorView === "operations" ? (
             <OperationLogPanel
               projection={operationLog}
               loading={operationLoading}
               error={operationError}
               executing={historyStepExecuting}
-              onClose={() => onInspectorViewChange("overview")}
+              onClose={() => onInspectorViewChange("changes")}
               onRequestUndo={onRequestUndo}
               onRequestRedo={onRequestRedo}
             />
-          ) : changeDetailsLoading ? (
-            <aside className="details-empty" aria-live="polite">
-              <FolderGit2 aria-hidden="true" />
-              <p>Loading selected change details…</p>
-            </aside>
           ) : changeDetailsError ? (
             <aside className="details-empty detail-error" role="alert">
               <FolderGit2 aria-hidden="true" />
               <p>{changeDetailsError}</p>
             </aside>
-          ) : inspectorView === "changes" ? (
-            <ChangeFiles
+          ) : (
+            <ChangeInspector
               change={selectedChange}
               selectedFilePath={selectedFilePath}
               diff={diff}
@@ -455,8 +452,6 @@ export function ChangeWorkspace({
               onDiffViewModeChange={onDiffViewModeChange}
               onWhitespaceModeChange={onWhitespaceModeChange}
             />
-          ) : (
-            <ChangeOverview change={selectedChange} onSelectFile={onSelectFile} />
           )}
         </div>
       </section>
@@ -691,8 +686,22 @@ function ChangeLog({
       className="change-log"
       aria-label="Change history"
       aria-rowcount={foldItems.length}
+      data-keyboard-navigation="graph"
+      tabIndex={-1}
       ref={scrollRef}
       style={graphStyle}
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest(
+            ".change-row, button, input, select, textarea, summary, a",
+          )
+        ) {
+          return;
+        }
+        event.currentTarget.focus({ preventScroll: true });
+      }}
       onScroll={(event) => {
         const scrollTop = event.currentTarget.scrollTop;
         setViewport((current) => ({ ...current, scrollTop }));
@@ -997,6 +1006,15 @@ function ChangeRows({
             }
             title="Drag this change onto another change to preview a rebase"
             onPointerDown={(event) => {
+              const target = event.target;
+              if (
+                !(
+                  target instanceof Element &&
+                  target.closest("button, input, select, textarea, summary, a")
+                )
+              ) {
+                event.currentTarget.focus({ preventScroll: true });
+              }
               if (
                 event.button !== 0 ||
                 /^0+$/.test(change.commitId) ||
@@ -1388,13 +1406,49 @@ function DagSvg({
   );
 }
 
-function ChangeOverview({
+function ChangeInspector({
   change,
+  selectedFilePath,
+  diff,
+  diffLoading,
+  diffError,
+  diffViewMode,
+  whitespaceMode,
   onSelectFile,
+  onDiffViewModeChange,
+  onWhitespaceModeChange,
 }: {
   change?: ChangeRow;
+  selectedFilePath: string | null;
+  diff: FileDiffProjection | null;
+  diffLoading: boolean;
+  diffError: string | null;
+  diffViewMode: DiffViewMode;
+  whitespaceMode: WhitespaceMode;
   onSelectFile: (path: string) => void;
+  onDiffViewModeChange: (mode: DiffViewMode) => void;
+  onWhitespaceModeChange: (mode: WhitespaceMode) => void;
 }) {
+  return (
+    <div className="change-inspector">
+      <ChangeOverview change={change} />
+      <ChangeFiles
+        change={change}
+        selectedFilePath={selectedFilePath}
+        diff={diff}
+        diffLoading={diffLoading}
+        diffError={diffError}
+        diffViewMode={diffViewMode}
+        whitespaceMode={whitespaceMode}
+        onSelectFile={onSelectFile}
+        onDiffViewModeChange={onDiffViewModeChange}
+        onWhitespaceModeChange={onWhitespaceModeChange}
+      />
+    </div>
+  );
+}
+
+function ChangeOverview({ change }: { change?: ChangeRow }) {
   if (!change) {
     return (
       <aside className="change-overview details-empty">
@@ -1404,7 +1458,11 @@ function ChangeOverview({
     );
   }
 
-  const description = (change.description || change.summary || "(no description)").trimEnd();
+  const description = (
+    change.description ||
+    change.summary ||
+    "(no description)"
+  ).trimEnd();
   const [subject, ...messageLines] = description.split("\n");
   const messageBody = messageLines.join("\n").replace(/^\n/, "");
   const authorTimestamp = change.authorTimestamp || change.updatedAt;
@@ -1412,9 +1470,23 @@ function ChangeOverview({
 
   return (
     <aside className="change-overview" aria-label="Selected change overview">
-      <div className="overview-content">
-        <div className="overview-main">
-          <section className="identity-grid" aria-label="Commit identities">
+      <div className="overview-main">
+        <section className="commit-message" aria-label="Full commit message">
+          <header>
+            <span>Commit message</span>
+            {(change.workingCopy || change.conflict || change.empty) && (
+              <span className="commit-state" aria-label="Change state">
+                {change.workingCopy && <span className="working">Working copy</span>}
+                {change.conflict && <span className="conflict">Conflicted</span>}
+                {change.empty && <span>Empty change</span>}
+              </span>
+            )}
+          </header>
+          <h2>{subject || "(no description)"}</h2>
+          {messageBody && <pre>{messageBody}</pre>}
+        </section>
+        <div className="overview-summary-grid">
+          <section className="identity-stack" aria-label="Commit identities">
             <Identity
               label="Author"
               icon={<UserRound aria-hidden="true" />}
@@ -1447,45 +1519,7 @@ function ChangeOverview({
               }
             />
           </section>
-          <section className="commit-message" aria-label="Full commit message">
-            <header>
-              <span>Commit message</span>
-              {(change.workingCopy || change.conflict || change.empty) && (
-                <span className="commit-state" aria-label="Change state">
-                  {change.workingCopy && <span className="working">Working copy</span>}
-                  {change.conflict && <span className="conflict">Conflicted</span>}
-                  {change.empty && <span>Empty change</span>}
-                </span>
-              )}
-            </header>
-            <h2>{subject || "(no description)"}</h2>
-            {messageBody && <pre>{messageBody}</pre>}
-          </section>
         </div>
-        <section className="overview-files" aria-label="Files changed by this change">
-          <header>
-            <Files aria-hidden="true" />
-            <strong>Changed files</strong>
-            <span>{change.files.length}</span>
-          </header>
-          {change.files.length === 0 ? (
-            <p>No files changed</p>
-          ) : (
-            <ul>
-              {change.files.map((file) => (
-                <li key={`${file.status}-${file.path}`}>
-                  <button type="button" onClick={() => onSelectFile(file.path)}>
-                    <File aria-hidden="true" />
-                    <span title={file.displayPath || file.path}>
-                      {file.displayPath || file.path}
-                    </span>
-                    <code>{file.status}</code>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </div>
     </aside>
   );
@@ -1525,7 +1559,62 @@ function ChangeFiles({
 
   return (
     <aside className="change-details" aria-label="Selected change details">
-      <section className="detail-files">
+      <section
+        className="detail-files"
+        data-keyboard-navigation="files"
+        tabIndex={0}
+        onPointerDown={(event) => {
+          const target = event.target;
+          const fileButton =
+            target instanceof Element
+              ? target.closest<HTMLButtonElement>("button[data-file-path]")
+              : null;
+          if (fileButton) {
+            fileButton.focus({ preventScroll: true });
+            return;
+          }
+          if (
+            target instanceof Element &&
+            target.closest("button, input, select, textarea, summary, a")
+          ) {
+            return;
+          }
+          event.currentTarget.focus({ preventScroll: true });
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+          const buttons = Array.from(
+            event.currentTarget.querySelectorAll<HTMLButtonElement>(
+              "button[data-file-path]",
+            ),
+          ).filter((button) => button.getClientRects().length > 0);
+          const focusedButton =
+            document.activeElement instanceof Element
+              ? document.activeElement.closest<HTMLButtonElement>(
+                  "button[data-file-path]",
+                )
+              : null;
+          const currentIndex = focusedButton
+            ? buttons.indexOf(focusedButton)
+            : buttons.findIndex(
+                (button) => button.dataset.filePath === selectedFilePath,
+              );
+          const nextIndex = adjacentNavigationIndex(
+            buttons.length,
+            currentIndex,
+            event.key === "ArrowDown" ? 1 : -1,
+          );
+          const nextButton = buttons[nextIndex];
+          const nextPath = nextButton?.dataset.filePath;
+          if (!nextButton || !nextPath) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (nextIndex === currentIndex) return;
+          onSelectFile(nextPath);
+          nextButton.focus({ preventScroll: true });
+          nextButton.scrollIntoView({ block: "nearest" });
+        }}
+      >
         <header>
           <Files aria-hidden="true" />
           <h2>Files ({change.files.length})</h2>
@@ -1639,7 +1728,11 @@ function FileTreeBranch({
           type="button"
           className={selectedFilePath === node.file.path ? "selected" : ""}
           style={{ "--tree-depth": depth } as CSSProperties}
+          onPointerDown={(event) =>
+            event.currentTarget.focus({ preventScroll: true })
+          }
           onClick={() => onSelectFile(node.file!.path)}
+          data-file-path={node.file.path}
         >
           <File aria-hidden="true" />
           <span title={node.file.displayPath || node.file.path}>{node.name}</span>
@@ -1712,12 +1805,16 @@ function Identity({
     <article className="identity-card">
       <span className="identity-icon">{icon}</span>
       <div>
-        <span className="identity-label">{label}</span>
-        <strong>{name}</strong>
-        {email && <code>{email}</code>}
-        <time dateTime={timestamp} title={absoluteTime(timestamp)}>
-          {absoluteTime(timestamp)} · {relativeTime(timestamp)}
-        </time>
+        <span className="identity-heading">
+          <span className="identity-label">{label}</span>
+          <strong>{name}</strong>
+        </span>
+        <span className="identity-meta">
+          {email && <code>{email}</code>}
+          <time dateTime={timestamp} title={absoluteTime(timestamp)}>
+            {absoluteTime(timestamp)} · {relativeTime(timestamp)}
+          </time>
+        </span>
       </div>
     </article>
   );

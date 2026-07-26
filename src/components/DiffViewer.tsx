@@ -35,8 +35,40 @@ export function DiffViewer({
   onWhitespaceModeChange,
 }: DiffViewerProps) {
   const displayPath = projection?.file.displayPath || projection?.file.path;
+  const contentRef = useRef<HTMLDivElement>(null);
   return (
-    <section className="diff-viewer" aria-label="Selected file diff">
+    <section
+      className="diff-viewer"
+      aria-label="Selected file diff"
+      data-keyboard-navigation="diff"
+      tabIndex={0}
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest("button, input, select, textarea, [role='scrollbar']")
+        ) {
+          return;
+        }
+        event.currentTarget.focus({ preventScroll: true });
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest("button, input, select, textarea")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        contentRef.current?.scrollBy({
+          top: event.key === "ArrowDown" ? 40 : -40,
+          behavior: "auto",
+        });
+      }}
+    >
       <header className="diff-toolbar">
         <div className="diff-title">
           <strong title={displayPath}>{displayPath ?? "File diff"}</strong>
@@ -81,7 +113,7 @@ export function DiffViewer({
           </label>
         </div>
       </header>
-      <div className="diff-content" aria-busy={loading}>
+      <div className="diff-content" aria-busy={loading} ref={contentRef}>
         {loading && <p className="diff-state">Loading the selected file…</p>}
         {!loading && error && <p className="diff-state error">{error}</p>}
         {!loading && !error && projection?.binary && (

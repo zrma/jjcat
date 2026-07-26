@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { History, RotateCcw, RotateCw, X } from "lucide-react";
 import { relativeTime } from "../lib/format";
+import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
 import type { OperationLogProjection } from "../types";
 
 interface OperationLogPanelProps {
@@ -29,7 +30,11 @@ export function OperationLogPanel({
     projection?.operations[0];
 
   return (
-    <aside className="operation-log-panel" aria-label="Repository operation log">
+    <aside
+      className="operation-log-panel"
+      aria-label="Repository operation log"
+      data-keyboard-navigation="operations"
+    >
       <header>
         <div>
           <History aria-hidden="true" />
@@ -44,7 +49,48 @@ export function OperationLogPanel({
       {!loading && error && <p className="operation-state error">{error}</p>}
       {!loading && !error && projection && (
         <div className="operation-content">
-          <section className="operation-list" aria-label="Recent operations">
+          <section
+            className="operation-list"
+            aria-label="Recent operations"
+            tabIndex={0}
+            onPointerDown={(event) => {
+              const target = event.target;
+              const operationButton =
+                target instanceof Element
+                  ? target.closest<HTMLButtonElement>(
+                      "button[data-operation-id]",
+                    )
+                  : null;
+              if (operationButton) {
+                operationButton.focus({ preventScroll: true });
+                return;
+              }
+              event.currentTarget.focus({ preventScroll: true });
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+              const operations = projection.operations;
+              const currentIndex = operations.findIndex(
+                (operation) => operation.id === selected?.id,
+              );
+              const nextIndex = adjacentNavigationIndex(
+                operations.length,
+                currentIndex,
+                event.key === "ArrowDown" ? 1 : -1,
+              );
+              const next = operations[nextIndex];
+              if (!next) return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (nextIndex === currentIndex) return;
+              setSelectedId(next.id);
+              const button = event.currentTarget.querySelector<HTMLButtonElement>(
+                `button[data-operation-id="${CSS.escape(next.id)}"]`,
+              );
+              button?.focus({ preventScroll: true });
+              button?.scrollIntoView({ block: "nearest" });
+            }}
+          >
             {projection.operations.length === 0 ? (
               <p>No operations reported.</p>
             ) : (
@@ -52,7 +98,11 @@ export function OperationLogPanel({
                 <button
                   type="button"
                   className={operation.id === selected?.id ? "selected" : ""}
+                  onPointerDown={(event) =>
+                    event.currentTarget.focus({ preventScroll: true })
+                  }
                   onClick={() => setSelectedId(operation.id)}
+                  data-operation-id={operation.id}
                   key={operation.id}
                 >
                   <span className="operation-node" aria-hidden="true" />

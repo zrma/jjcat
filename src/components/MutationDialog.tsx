@@ -34,7 +34,9 @@ interface MutationDialogProps {
   initialIntent: MutationIntent;
   previewImmediately: boolean;
   onClose: () => void;
-  onExecuted: (execution: MutationExecution) => void;
+  onExecutionStarted: (title: string, kind: MutationKind) => string;
+  onExecutionFailed: (activityId: string) => void;
+  onExecuted: (execution: MutationExecution, activityId: string) => void;
 }
 
 const ACTION_LABELS: Record<MutationKind, string> = {
@@ -75,6 +77,8 @@ export function MutationDialog({
   initialIntent,
   previewImmediately,
   onClose,
+  onExecutionStarted,
+  onExecutionFailed,
   onExecuted,
 }: MutationDialogProps) {
   const fallback = selectedChange ?? changes[0];
@@ -219,6 +223,7 @@ export function MutationDialog({
 
   async function execute() {
     if (!preview) return;
+    const activityId = onExecutionStarted(preview.title, preview.kind);
     setExecuting(true);
     setError(null);
     try {
@@ -229,9 +234,10 @@ export function MutationDialog({
           ? typedConfirmation
           : null,
       });
-      onExecuted(execution);
+      onExecuted(execution, activityId);
     } catch (executionError) {
       setError((executionError as AppError).message);
+      onExecutionFailed(activityId);
     } finally {
       setExecuting(false);
     }

@@ -34,15 +34,23 @@ import {
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { bridge, isTauriRuntime } from "./bridge";
+import { ActivityCenter } from "./components/ActivityCenter";
 import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
+import { adjacentNavigationIndex } from "./lib/keyboardNavigation";
 import { AddRepositorySourceDialog } from "./components/AddRepositorySourceDialog";
 import { MutationDialog } from "./components/MutationDialog";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
 import { RepositorySourceTree } from "./components/RepositorySourceTree";
 import { WorkspaceManager } from "./components/WorkspaceManager";
 import { filterChanges, type HistoryView } from "./lib/changeFilters";
+import {
+  appendActivity,
+  finishActivity,
+  type ActivityCategory,
+  type ActivityEntry,
+} from "./lib/activity";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import { repositoryNavigation as navigationForProjection } from "./lib/repositoryNavigation";
 import { repositoryTabPresentations } from "./lib/repositories";
@@ -72,6 +80,7 @@ import type {
   OperationLogProjection,
   MutationExecution,
   MutationIntent,
+  MutationKind,
   Registry,
   RepositoryDraft,
   RepositoryRecord,
@@ -124,6 +133,23 @@ const RESIZE_DIRECTIONS: ResizeDirection[] = [
   "West",
   "NorthWest",
 ];
+
+const MUTATION_ACTIVITY_DETAILS: Record<MutationKind, string> = {
+  new: "Create a new working-copy change",
+  edit: "Move the working copy to the selected change",
+  describe: "Update the selected change description",
+  fetch: "Contact the selected Git remote",
+  rebase: "Rebase the selected change onto a new parent",
+  squash: "Squash the selected change into its destination",
+  split: "Split selected paths into a new change",
+  abandon: "Abandon the selected change",
+  pruneEmpty: "Prune eligible empty changes",
+  removeWorkspace: "Remove the selected workspace and directory",
+  undo: "Restore the previous repository operation",
+  redo: "Restore the next repository operation",
+  bookmarkMove: "Move the selected bookmark",
+  push: "Push the selected bookmark",
+};
 
 function isTextEntry(target: EventTarget | null) {
   return (
@@ -218,7 +244,7 @@ function App() {
   const [diffError, setDiffError] = useState<string | null>(null);
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>("unified");
   const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>("preserve");
-  const [inspectorView, setInspectorView] = useState<InspectorView>("overview");
+  const [inspectorView, setInspectorView] = useState<InspectorView>("changes");
   const [operationLog, setOperationLog] = useState<OperationLogProjection | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -244,7 +270,11 @@ function App() {
     "undo" | "redo" | null
   >(null);
   const [rebaseSourceCommitId, setRebaseSourceCommitId] = useState<string | null>(null);
-  const [mutationNotice, setMutationNotice] = useState<string | null>(null);
+  const [rebaseSelectionNotice, setRebaseSelectionNotice] = useState<string | null>(
+    null,
+  );
+  const [activities, setActivities] = useState<ActivityEntry[]>([]);
+  const [activityCenterOpen, setActivityCenterOpen] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const [tabDropTarget, setTabDropTarget] =
@@ -261,6 +291,7 @@ function App() {
   const refreshingRef = useRef<Record<string, string>>({});
   const failureCountsRef = useRef<Record<string, number>>({});
   const cancelledRefreshesRef = useRef<Set<string>>(new Set());
+  const refreshActivityIdsRef = useRef<Record<string, string>>({});
   const changeDetailsRequestRef = useRef(0);
   const diffRequestRef = useRef(0);
   const operationRequestRef = useRef(0);
@@ -268,6 +299,58 @@ function App() {
   const tabOrderSavingRef = useRef(false);
   const tabPointerDragRef = useRef<RepositoryTabPointerDrag | null>(null);
   const suppressTabClickRef = useRef(false);
+
+  const startActivity = useCallback(
+    ({
+      repositoryId,
+      repositoryName,
+      title,
+      detail,
+      category,
+      cancellable = false,
+      requestId = null,
+    }: {
+      repositoryId: string;
+      repositoryName: string;
+      title: string;
+      detail: string;
+      category: ActivityCategory;
+      cancellable?: boolean;
+      requestId?: string | null;
+    }) => {
+      const id = crypto.randomUUID();
+      const entry: ActivityEntry = {
+        id,
+        repositoryId,
+        repositoryName,
+        title,
+        detail,
+        category,
+        state: "running",
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        outcome: null,
+        cancellable,
+        requestId,
+      };
+      setActivities((current) => appendActivity(current, entry));
+      return id;
+    },
+    [],
+  );
+
+  const completeActivity = useCallback(
+    (
+      id: string,
+      state: "success" | "failed" | "cancelled",
+      outcome: string,
+    ) => {
+      setActivities((current) =>
+        finishActivity(current, id, state, outcome, new Date().toISOString()),
+      );
+    },
+    [],
+  );
 
   const updateTabOverflow = useCallback(() => {
     const tabs = tabsRef.current;
@@ -333,7 +416,7 @@ function App() {
     setSearchQuery("");
     setHistoryView("all");
     setShowWorkspaceManager(false);
-    setInspectorView("overview");
+    setInspectorView("changes");
     setMutationDialog(null);
     setRebaseSourceCommitId(null);
   }, [selectedRepository?.id]);
@@ -480,17 +563,44 @@ function App() {
   );
 
   const refreshRepository = useCallback(
-    async (repositoryId: string, cancelActive = true) => {
+    async (
+      repositoryId: string,
+      cancelActive = true,
+      category: ActivityCategory = "user",
+    ) => {
       if (!registry) return;
       const activeRequest = refreshingRef.current[repositoryId];
       if (activeRequest) {
         if (cancelActive) {
           cancelledRefreshesRef.current.add(activeRequest);
+          const activityId = refreshActivityIdsRef.current[activeRequest];
+          if (activityId) {
+            completeActivity(
+              activityId,
+              "cancelled",
+              "Repository refresh was cancelled.",
+            );
+            delete refreshActivityIdsRef.current[activeRequest];
+          }
           await bridge.cancelRefresh(activeRequest);
         }
         return;
       }
+      const repository = registry.repositories.find(
+        (candidate) => candidate.id === repositoryId,
+      );
+      if (!repository) return;
       const requestId = crypto.randomUUID();
+      const activityId = startActivity({
+        repositoryId,
+        repositoryName: repository.displayName,
+        title: "Refresh repository",
+        detail: "Refresh the local repository projection",
+        category,
+        cancellable: true,
+        requestId,
+      });
+      refreshActivityIdsRef.current[requestId] = activityId;
       refreshingRef.current[repositoryId] = requestId;
       setRefreshing((current) => ({ ...current, [repositoryId]: requestId }));
       setErrors((current) => {
@@ -520,6 +630,11 @@ function App() {
           delete next[repositoryId];
           return next;
         });
+        completeActivity(
+          activityId,
+          "success",
+          "Repository projection refreshed.",
+        );
       } catch (error) {
         if (cancelledRefreshesRef.current.delete(requestId)) return;
         const appError = error as AppError;
@@ -531,7 +646,13 @@ function App() {
           ...current,
           [repositoryId]: Date.now() + failureBackoffMs(nextFailureCount),
         }));
+        completeActivity(
+          activityId,
+          "failed",
+          "Repository refresh failed. See the repository notice for details.",
+        );
       } finally {
+        delete refreshActivityIdsRef.current[requestId];
         if (refreshingRef.current[repositoryId] === requestId) {
           delete refreshingRef.current[repositoryId];
         }
@@ -542,7 +663,22 @@ function App() {
         });
       }
     },
-    [registry],
+    [completeActivity, registry, startActivity],
+  );
+
+  const cancelActivity = useCallback(
+    async (entry: ActivityEntry) => {
+      if (!entry.requestId || entry.state !== "running") return;
+      cancelledRefreshesRef.current.add(entry.requestId);
+      completeActivity(
+        entry.id,
+        "cancelled",
+        "Repository refresh was cancelled.",
+      );
+      delete refreshActivityIdsRef.current[entry.requestId];
+      await bridge.cancelRefresh(entry.requestId);
+    },
+    [completeActivity],
   );
 
   useEffect(() => {
@@ -554,7 +690,7 @@ function App() {
     ) {
       return;
     }
-    void refreshRepository(selectedRepository.id, false);
+    void refreshRepository(selectedRepository.id, false, "background");
   }, [errors, refreshRepository, selectedCache, selectedRepository]);
 
   useEffect(() => {
@@ -566,7 +702,10 @@ function App() {
       failureCounts,
       Date.now(),
     ).map(({ repositoryId, delayMs }) =>
-      window.setTimeout(() => void refreshRepository(repositoryId, false), delayMs),
+      window.setTimeout(
+        () => void refreshRepository(repositoryId, false, "background"),
+        delayMs,
+      ),
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [failureCounts, refreshRepository, registry]);
@@ -662,6 +801,7 @@ function App() {
         );
       }
       if (
+        !event.defaultPrevented &&
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
@@ -673,7 +813,7 @@ function App() {
       ) {
         event.preventDefault();
         setRebaseSourceCommitId(selectedChange.commitId);
-        setMutationNotice(
+        setRebaseSelectionNotice(
           `Rebase source ${selectedChange.changeId}. Select a destination and press Enter.`,
         );
       }
@@ -698,24 +838,28 @@ function App() {
       }
       if (event.key === "Escape" && rebaseSourceCommitId && !mutationDialog) {
         setRebaseSourceCommitId(null);
-        setMutationNotice(null);
+        setRebaseSelectionNotice(null);
       }
       if (
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
         (event.key === "ArrowUp" || event.key === "ArrowDown") &&
-        !isTextEntry(event.target)
+        !isTextEntry(event.target) &&
+        !(
+          event.target instanceof Element &&
+          event.target.closest(
+            '[data-keyboard-navigation="files"], [data-keyboard-navigation="diff"], [data-keyboard-navigation="operations"]',
+          )
+        )
       ) {
         const currentIndex = visibleChanges.findIndex(
           (change) => change.changeId === selectedChange?.changeId,
         );
-        const nextIndex = Math.max(
-          0,
-          Math.min(
-            visibleChanges.length - 1,
-            currentIndex + (event.key === "ArrowDown" ? 1 : -1),
-          ),
+        const nextIndex = adjacentNavigationIndex(
+          visibleChanges.length,
+          currentIndex,
+          event.key === "ArrowDown" ? 1 : -1,
         );
         const next = visibleChanges[nextIndex];
         if (next && nextIndex !== currentIndex) {
@@ -812,6 +956,16 @@ function App() {
   }
 
   async function scanRepositorySource(sourceId: string) {
+    const source = registry?.repositorySources.find(
+      (candidate) => candidate.id === sourceId,
+    );
+    const activityId = startActivity({
+      repositoryId: sourceId,
+      repositoryName: source?.displayName ?? "Repository source",
+      title: "Scan repository source",
+      detail: "Discover repositories below the registered source",
+      category: "user",
+    });
     setScanningSources((current) => new Set(current).add(sourceId));
     setSourceErrors((current) => {
       const next = { ...current };
@@ -822,11 +976,21 @@ function App() {
       const snapshot = await bridge.scanRepositorySource(sourceId);
       setRegistry(snapshot.registry);
       setRecoveryNotice(snapshot.recoveryNotice);
+      completeActivity(
+        activityId,
+        "success",
+        "Repository source scan completed.",
+      );
     } catch (error) {
       setSourceErrors((current) => ({
         ...current,
         [sourceId]: (error as AppError).message,
       }));
+      completeActivity(
+        activityId,
+        "failed",
+        "Repository source scan failed. Review the source notice for details.",
+      );
     } finally {
       setScanningSources((current) => {
         const next = new Set(current);
@@ -939,7 +1103,10 @@ function App() {
     }
   }
 
-  function mutationExecuted(execution: MutationExecution) {
+  function mutationExecuted(
+    execution: MutationExecution,
+    activityId?: string,
+  ) {
     const cached: CachedProjection = {
       cachedAt: execution.projection.refreshedAt,
       projection: execution.projection,
@@ -964,8 +1131,11 @@ function App() {
     setSelectedChangeId(workingCopy?.changeId ?? null);
     setMutationDialog(null);
     setRebaseSourceCommitId(null);
-    setMutationNotice(execution.message);
+    setRebaseSelectionNotice(null);
     setRepositoryActionError(null);
+    if (activityId) {
+      completeActivity(activityId, "success", execution.message);
+    }
   }
 
   async function executeHistoryStep(
@@ -976,6 +1146,13 @@ function App() {
     historyStepExecutingRef.current = true;
     setHistoryStepExecuting(kind);
     setRepositoryActionError(null);
+    const activityId = startActivity({
+      repositoryId: selectedRepository.id,
+      repositoryName: selectedRepository.displayName,
+      title: kind === "undo" ? "Undo operation" : "Redo operation",
+      detail: MUTATION_ACTIVITY_DETAILS[kind],
+      category: "user",
+    });
     try {
       const preview = await bridge.previewMutation(selectedRepository.id, {
         kind,
@@ -986,9 +1163,14 @@ function App() {
         confirmed: true,
         confirmation: null,
       });
-      mutationExecuted(execution);
+      mutationExecuted(execution, activityId);
     } catch (error) {
       setRepositoryActionError((error as AppError).message);
+      completeActivity(
+        activityId,
+        "failed",
+        `${kind === "undo" ? "Undo" : "Redo"} failed. See the repository notice for details.`,
+      );
     } finally {
       historyStepExecutingRef.current = false;
       setHistoryStepExecuting(null);
@@ -1139,6 +1321,186 @@ function App() {
     ? repositoryState(selectedRepository.id, selectedCache, freshIds, refreshing, errors)
     : "empty";
   const tabPresentations = repositoryTabPresentations(openRepositories);
+  const repositoryCommandBand = selectedRepository ? (
+    <div className="repository-command-row">
+      <div className="repository-activity-slot">
+        <ActivityCenter
+          entries={activities}
+          selectedRepositoryId={selectedRepository.id}
+          open={activityCenterOpen}
+          onOpenChange={setActivityCenterOpen}
+          onCancel={(entry) => void cancelActivity(entry)}
+          onClearCompleted={() =>
+            setActivities((current) =>
+              current.filter((entry) => entry.state === "running"),
+            )
+          }
+          fallback={
+            <div className="repository-center-context">
+              <strong>{selectedRepository.displayName}</strong>
+              <small>
+                <BookmarkLabels
+                  bookmarks={selectedChange?.bookmarks ?? []}
+                  limit={1}
+                  emptyLabel="@"
+                />
+                <span aria-hidden="true">·</span>
+                {locationLabel(selectedRepository.location.kind)}
+              </small>
+            </div>
+          }
+        />
+      </div>
+      <div className="toolbar-primary-controls">
+        <div className="history-step-controls" aria-label="Operation history">
+          <button
+            type="button"
+            className="mutation-button history-step-button"
+            title="Undo one repository operation (⌘Z / Ctrl+Z)"
+            aria-label="Undo one repository operation"
+            onClick={() => {
+              if (!operationLog?.undoTarget) return;
+              void executeHistoryStep("undo", operationLog.undoTarget);
+            }}
+            disabled={!operationLog?.undoTarget || historyStepExecuting !== null}
+          >
+            <RotateCcw aria-hidden="true" />
+            <span>{historyStepExecuting === "undo" ? "Undoing…" : "Undo"}</span>
+          </button>
+          <button
+            type="button"
+            className="mutation-button history-step-button"
+            title="Redo one repository operation (⌘⇧Z / Ctrl+Y)"
+            aria-label="Redo one repository operation"
+            onClick={() => {
+              if (!operationLog?.redoTarget) return;
+              void executeHistoryStep("redo", operationLog.redoTarget);
+            }}
+            disabled={!operationLog?.redoTarget || historyStepExecuting !== null}
+          >
+            <RotateCw aria-hidden="true" />
+            <span>{historyStepExecuting === "redo" ? "Redoing…" : "Redo"}</span>
+          </button>
+        </div>
+        <button
+          type="button"
+          className="mutation-button"
+          title="Create a new change on the selected change"
+          onClick={() => {
+            setShowWorkspaceManager(false);
+            if (!selectedChange) return;
+            setMutationDialog({
+              initialIntent: {
+                kind: "new",
+                parentCommitIds: [selectedChange.commitId],
+              },
+              previewImmediately: true,
+            });
+          }}
+          disabled={!selectedChange}
+        >
+          <Plus aria-hidden="true" /> New
+        </button>
+        <button
+          type="button"
+          className="mutation-button"
+          title="Preview a network fetch"
+          onClick={() =>
+            setMutationDialog({
+              initialIntent: { kind: "fetch", remote: "origin" },
+              previewImmediately: true,
+            })
+          }
+        >
+          <ArrowDownToLine aria-hidden="true" /> Fetch
+        </button>
+        <button
+          type="button"
+          className="mutation-button compact-prune-button"
+          title="Prune empty changes"
+          onClick={() =>
+            setMutationDialog({
+              initialIntent: { kind: "pruneEmpty" },
+              previewImmediately: true,
+            })
+          }
+        >
+          <ListX aria-hidden="true" /> Prune
+        </button>
+      </div>
+      <div className="toolbar-secondary-controls">
+        {selectedProjection ? (
+          <div className="repository-sync-slot">
+            <SyncSummary
+              sync={selectedProjection.syncStatus}
+              conflicts={selectedProjection.conflicts}
+            />
+          </div>
+        ) : null}
+        <div className="toolbar-handoff-controls">
+          <button
+            type="button"
+            className="handoff-button"
+            title="Inspect read-only operation log"
+            aria-label="Inspect operation log"
+            onClick={() => {
+              setHistoryView("all");
+              setInspectorView("operations");
+            }}
+          >
+            <History aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="handoff-button"
+            title={`Open ${selectedRepository.displayName} in VS Code`}
+            onClick={() => void launchHandoff("editor")}
+          >
+            <Code2 aria-hidden="true" />
+            <span className="sr-only">Open in VS Code</span>
+          </button>
+          <button
+            type="button"
+            className="handoff-button"
+            title={`Open terminal for ${selectedRepository.displayName}`}
+            onClick={() => void launchHandoff("terminal")}
+          >
+            <SquareTerminal aria-hidden="true" />
+            <span className="sr-only">Open terminal</span>
+          </button>
+        </div>
+        {!showWorkspaceManager && historyView !== "working-copy" && (
+          <label className="history-search">
+            <Search aria-hidden="true" />
+            <span className="sr-only">Filter changes</span>
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Filter changes"
+            />
+            <kbd>⌘F</kbd>
+          </label>
+        )}
+        <button
+          type="button"
+          className={`refresh-button ${selectedState === "refreshing" ? "active" : ""}`}
+          onClick={() => void refreshRepository(selectedRepository.id)}
+        >
+          {selectedState === "refreshing" ? (
+            <X aria-hidden="true" />
+          ) : (
+            <RefreshCw aria-hidden="true" />
+          )}
+          {selectedState === "refreshing" ? "Cancel" : "Refresh"}
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div className="repository-command-row repository-command-empty">
+      <span>Open a repository to start</span>
+    </div>
+  );
 
   return (
     <main className="app-shell">
@@ -1154,6 +1516,7 @@ function App() {
           <span />
         </div>
         <Brand />
+        {repositoryCommandBand}
         <div
           className={[
             "tabs-shell",
@@ -1414,7 +1777,7 @@ function App() {
               onClick={() => {
                 setShowWorkspaceManager(false);
                 setHistoryView("working-copy");
-                setInspectorView("overview");
+                setInspectorView("changes");
               }}
               disabled={!selectedRepository}
             >
@@ -1427,7 +1790,7 @@ function App() {
               className={showWorkspaceManager ? "selected" : ""}
               onClick={() => {
                 setShowWorkspaceManager(true);
-                setInspectorView("overview");
+                setInspectorView("changes");
               }}
               disabled={!selectedRepository}
             >
@@ -1441,7 +1804,7 @@ function App() {
               onClick={() => {
                 setShowWorkspaceManager(false);
                 setHistoryView("all");
-                setInspectorView("overview");
+                setInspectorView("changes");
               }}
               disabled={!selectedRepository}
             >
@@ -1457,7 +1820,7 @@ function App() {
               onClick={() => {
                 setShowWorkspaceManager(false);
                 setHistoryView("conflicts");
-                setInspectorView("overview");
+                setInspectorView("changes");
               }}
               disabled={!selectedRepository}
             >
@@ -1567,9 +1930,9 @@ function App() {
             {handoffNotice}
           </div>
         )}
-        {mutationNotice && (
-          <div className="notice mutation-notice" role="status">
-            <GitPullRequestArrow aria-hidden="true" /> {mutationNotice}
+        {rebaseSelectionNotice && (
+          <div className="notice rebase-selection-notice" role="status">
+            <GitPullRequestArrow aria-hidden="true" /> {rebaseSelectionNotice}
           </div>
         )}
         {recoveryNotice && (
@@ -1581,156 +1944,6 @@ function App() {
           <EmptyRepository onAdd={() => setShowAdd(true)} />
         ) : (
           <>
-            <header className="repository-toolbar">
-              <div className="repository-title">
-                <FolderGit2 aria-hidden="true" />
-                <strong>{selectedRepository.displayName}</strong>
-                <span className="divider" />
-                <GitBranch aria-hidden="true" />
-                <BookmarkLabels bookmarks={selectedChange?.bookmarks ?? []} limit={1} emptyLabel="@" />
-                <span className="divider" />
-                {selectedRepository.location.kind === "local" ? (
-                  <Laptop aria-hidden="true" />
-                ) : (
-                  <Server aria-hidden="true" />
-                )}
-                <span>{locationLabel(selectedRepository.location.kind)}</span>
-              </div>
-              {selectedProjection && (
-                <SyncSummary
-                  sync={selectedProjection.syncStatus}
-                  conflicts={selectedProjection.conflicts}
-                />
-              )}
-              <div className="toolbar-controls">
-                <div className="history-step-controls" aria-label="Operation history">
-                  <button
-                    type="button"
-                    className="mutation-button history-step-button"
-                    title="Undo one repository operation (⌘Z / Ctrl+Z)"
-                    aria-label="Undo one repository operation"
-                    onClick={() => {
-                      if (!operationLog?.undoTarget) return;
-                      void executeHistoryStep("undo", operationLog.undoTarget);
-                    }}
-                    disabled={!operationLog?.undoTarget || historyStepExecuting !== null}
-                  >
-                    <RotateCcw aria-hidden="true" />
-                    <span>{historyStepExecuting === "undo" ? "Undoing…" : "Undo"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="mutation-button history-step-button"
-                    title="Redo one repository operation (⌘⇧Z / Ctrl+Y)"
-                    aria-label="Redo one repository operation"
-                    onClick={() => {
-                      if (!operationLog?.redoTarget) return;
-                      void executeHistoryStep("redo", operationLog.redoTarget);
-                    }}
-                    disabled={!operationLog?.redoTarget || historyStepExecuting !== null}
-                  >
-                    <RotateCw aria-hidden="true" />
-                    <span>{historyStepExecuting === "redo" ? "Redoing…" : "Redo"}</span>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="mutation-button"
-                  title="Create a new change on the selected change"
-                  onClick={() => {
-                    setShowWorkspaceManager(false);
-                    if (!selectedChange) return;
-                    setMutationDialog({
-                      initialIntent: {
-                        kind: "new",
-                        parentCommitIds: [selectedChange.commitId],
-                      },
-                      previewImmediately: true,
-                    });
-                  }}
-                  disabled={!selectedChange}
-                >
-                  <Plus aria-hidden="true" /> New
-                </button>
-                <button
-                  type="button"
-                  className="mutation-button"
-                  title="Preview a network fetch"
-                  onClick={() =>
-                    setMutationDialog({
-                      initialIntent: { kind: "fetch", remote: "origin" },
-                      previewImmediately: true,
-                    })
-                  }
-                >
-                  <ArrowDownToLine aria-hidden="true" /> Fetch
-                </button>
-                <button
-                  type="button"
-                  className="mutation-button compact-prune-button"
-                  title="Prune empty changes"
-                  onClick={() =>
-                    setMutationDialog({
-                      initialIntent: { kind: "pruneEmpty" },
-                      previewImmediately: true,
-                    })
-                  }
-                >
-                  <ListX aria-hidden="true" /> Prune
-                </button>
-                <button
-                  type="button"
-                  className="handoff-button"
-                  title="Inspect read-only operation log"
-                  aria-label="Inspect operation log"
-                  onClick={() => {
-                    setHistoryView("all");
-                    setInspectorView("operations");
-                  }}
-                >
-                  <History aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="handoff-button"
-                  title={`Open ${selectedRepository.displayName} in VS Code`}
-                  onClick={() => void launchHandoff("editor")}
-                >
-                  <Code2 aria-hidden="true" />
-                  <span className="sr-only">Open in VS Code</span>
-                </button>
-                <button
-                  type="button"
-                  className="handoff-button"
-                  title={`Open terminal for ${selectedRepository.displayName}`}
-                  onClick={() => void launchHandoff("terminal")}
-                >
-                  <SquareTerminal aria-hidden="true" />
-                  <span className="sr-only">Open terminal</span>
-                </button>
-                {!showWorkspaceManager && historyView !== "working-copy" && (
-                  <label className="history-search">
-                    <Search aria-hidden="true" />
-                    <span className="sr-only">Filter changes</span>
-                    <input
-                      ref={searchInputRef}
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Filter changes"
-                    />
-                    <kbd>⌘F</kbd>
-                  </label>
-                )}
-                <button
-                  type="button"
-                  className={`refresh-button ${selectedState === "refreshing" ? "active" : ""}`}
-                  onClick={() => void refreshRepository(selectedRepository.id)}
-                >
-                  {selectedState === "refreshing" ? <X aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
-                  {selectedState === "refreshing" ? "Cancel" : "Refresh"}
-                </button>
-              </div>
-            </header>
             {errors[selectedRepository.id] && (
               <div className="notice error-notice" role="status">
                 <AlertTriangle aria-hidden="true" />
@@ -1749,7 +1962,7 @@ function App() {
                 onReviewChange={(workspace) => {
                   setShowWorkspaceManager(false);
                   setHistoryView("all");
-                  setInspectorView("overview");
+                  setInspectorView("changes");
                   setSelectedChangeId(workspace.changeId);
                 }}
                 onRemove={(workspace) =>
@@ -1946,6 +2159,22 @@ function App() {
           initialIntent={mutationDialog.initialIntent}
           previewImmediately={mutationDialog.previewImmediately}
           onClose={() => setMutationDialog(null)}
+          onExecutionStarted={(title, kind) =>
+            startActivity({
+              repositoryId: selectedRepository.id,
+              repositoryName: selectedRepository.displayName,
+              title,
+              detail: MUTATION_ACTIVITY_DETAILS[kind],
+              category: "user",
+            })
+          }
+          onExecutionFailed={(activityId) =>
+            completeActivity(
+              activityId,
+              "failed",
+              "Repository operation failed. Review the dialog for details.",
+            )
+          }
           onExecuted={mutationExecuted}
         />
       )}

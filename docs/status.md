@@ -27,7 +27,8 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - flat native-style tabs와 separators, selected-row hierarchy, draggable/resizable desktop shell
 - 전체 commit message/trailer, author/committer, full commit/parent identity를 보여주는 overview
 - 최대 200개/1 MiB graph projection과 분리된 4 MiB selected-change metadata/file detail 조회
-- 하단 overview/file-tree/diff/operation inspector와 change metadata search/filter
+- overview와 file-tree/diff를 위아래로 합친 하단 changes inspector, 별도 operations
+  inspector와 change metadata search/filter
 - pointer/keyboard로 높이를 조절하고 double-click으로 초기화하는 history/inspector splitter
 - 통합 Add dialog의 native local picker, OpenSSH alias/dropdown 및 bounded remote folder browser
 - VisualJJ 방식의 local/remote inline bookmark label, source identity와 overflow

@@ -40,7 +40,7 @@ export interface ChangedFile {
 
 export type WhitespaceMode = "preserve" | "ignoreAll";
 export type DiffViewMode = "unified" | "sideBySide";
-export type InspectorView = "overview" | "changes" | "operations";
+export type InspectorView = "changes" | "operations";
 export type DiffLineKind = "context" | "addition" | "deletion" | "metadata";
 
 export interface DiffLine {
