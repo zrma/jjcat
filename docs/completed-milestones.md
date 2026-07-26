@@ -145,3 +145,16 @@ implementation은 다음 P0 milestone로 넘겼다.
   노출하고 제안 topology만 별도 stable order로 계산한다.
 - workspace inventory에서 fallible root metadata를 분리하고 exact-name best-effort lookup을
   추가해 path가 유실된 legacy registration도 전체 refresh를 막지 않게 했다.
+
+## 2026-07-26: Local and SSH Repository Sources
+
+- direct single-repository add를 유지하면서 local 또는 OpenSSH folder를 source로 등록하고
+  bounded depth에서 Jujutsu repository를 찾는 discovery contract를 추가했다.
+- source별 collapsible folder/repository tree, deterministic ordering, rescan과
+  double-click/`Enter` persistent-tab open을 repository rail과 quick switcher에 연결했다.
+- local discovery는 symlink, hidden/generated directory와 repository 내부를 다시 탐색하지
+  않고, SSH discovery는 source별 한 session의 NUL-safe path stream과 기존 timeout/output
+  boundary를 사용한다.
+- registry schema v4와 v3 migration, source/catalog validation, local 및 simulated SSH
+  discovery test를 추가했다. source 제거는 catalog만 정리하고 repository, open tab과
+  filesystem content를 보존한다.

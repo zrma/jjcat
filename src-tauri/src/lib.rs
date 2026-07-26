@@ -1,4 +1,5 @@
 mod commands;
+mod discovery;
 pub mod domain;
 pub mod driver;
 mod handoff;
@@ -28,6 +29,10 @@ pub fn run() {
             commands::preview_mutation,
             commands::execute_mutation,
             commands::register_repository,
+            commands::register_repository_source,
+            commands::scan_repository_source,
+            commands::open_discovered_repository,
+            commands::remove_repository_source,
             commands::select_repository,
             commands::update_open_repositories,
             commands::set_repository_pinned,

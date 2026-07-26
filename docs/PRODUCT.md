@@ -15,11 +15,12 @@ change graph, diff와 안전한 history shaping을 하나의 지속적인 sessio
 
 ## Primary Jobs
 
-1. 등록한 모든 저장소의 변화와 conflict를 한눈에 확인한다.
-2. 순서를 직접 정리할 수 있는 탭과 quick switcher로 저장소를 즉시 전환한다.
-3. change graph와 diff를 읽고 작업의 위치와 내용을 이해한다.
-4. 실행될 `jj` mutation과 영향을 확인한 뒤 안전하게 수행하거나 undo한다.
-5. 선택한 저장소를 editor 또는 terminal에서 연다.
+1. local 또는 SSH folder source에서 `jj` 저장소를 찾아 한 tree에서 검토한다.
+2. 등록한 모든 저장소의 변화와 conflict를 한눈에 확인한다.
+3. 순서를 직접 정리할 수 있는 탭과 quick switcher로 저장소를 즉시 전환한다.
+4. change graph와 diff를 읽고 작업의 위치와 내용을 이해한다.
+5. 실행될 `jj` mutation과 영향을 확인한 뒤 안전하게 수행하거나 undo한다.
+6. 선택한 저장소를 editor 또는 terminal에서 연다.
 
 ## Experience Principles
 
@@ -34,6 +35,7 @@ change graph, diff와 안전한 history shaping을 하나의 지속적인 sessio
 
 ## MVP Surface
 
+- local/SSH 단일 repository 등록과 bounded folder-source discovery tree
 - host별 repository registry와 drag-reorder 가능한 persistent tabs
 - repository status badge: working-copy change, conflict, outgoing, behind, refresh state
 - read-only change DAG와 revision details

@@ -4,6 +4,7 @@ import type {
   CachedProjection,
   RegistrySnapshot,
   RepositoryDraft,
+  RepositorySourceDraft,
   RepositoryRecord,
   HandoffTarget,
   FileDiffRequest,
@@ -16,9 +17,12 @@ import type {
   ChangeRow,
   WorkspaceRow,
 } from "./types";
+import { repositoryLocationKey } from "./lib/repositorySources";
 
 const LOCAL_ID = "e21c6676-690c-5847-b407-137074516f66";
 const SSH_ID = "60223841-0e65-5848-9ba8-35f071629176";
+const LOCAL_SOURCE_ID = "source-local-fixtures";
+const SSH_SOURCE_ID = "source-ssh-fixtures";
 
 function change(
   changeId: string,
@@ -212,7 +216,7 @@ export class DemoBridge {
     this.snapshot = {
       recoveryNotice: null,
       registry: {
-        schemaVersion: 3,
+        schemaVersion: 4,
         selectedRepository: LOCAL_ID,
         openRepositoryIds: [LOCAL_ID, SSH_ID],
         repositories: [
@@ -234,6 +238,62 @@ export class DemoBridge {
         cachedProjections: {
           [LOCAL_ID]: projection(LOCAL_ID, now),
           [SSH_ID]: projection(SSH_ID, stale),
+        },
+        repositorySources: [
+          {
+            id: LOCAL_SOURCE_ID,
+            displayName: "Local projects",
+            location: { kind: "local", path: "/fixtures" },
+            scanDepth: 3,
+          },
+          {
+            id: SSH_SOURCE_ID,
+            displayName: "Fixture host",
+            location: { kind: "ssh", host: "fixture-host", path: "~/fixtures" },
+            scanDepth: 3,
+          },
+        ],
+        sourceCatalogs: {
+          [LOCAL_SOURCE_ID]: {
+            sourceId: LOCAL_SOURCE_ID,
+            scannedAt: now,
+            repositories: [
+              {
+                relativePath: "jjcat",
+                displayName: "jjcat",
+                location: { kind: "local", path: "/fixtures/jjcat" },
+              },
+              {
+                relativePath: "products/example-app",
+                displayName: "example-app",
+                location: { kind: "local", path: "/fixtures/products/example-app" },
+              },
+            ],
+          },
+          [SSH_SOURCE_ID]: {
+            sourceId: SSH_SOURCE_ID,
+            scannedAt: stale,
+            repositories: [
+              {
+                relativePath: "infra-lab",
+                displayName: "infra-lab",
+                location: {
+                  kind: "ssh",
+                  host: "fixture-host",
+                  path: "~/fixtures/infra-lab",
+                },
+              },
+              {
+                relativePath: "products/service-api",
+                displayName: "service-api",
+                location: {
+                  kind: "ssh",
+                  host: "fixture-host",
+                  path: "~/fixtures/products/service-api",
+                },
+              },
+            ],
+          },
         },
       },
     };
@@ -527,6 +587,84 @@ export class DemoBridge {
     this.snapshot.registry.repositories.push(repository);
     this.snapshot.registry.selectedRepository = repository.id;
     this.snapshot.registry.openRepositoryIds.push(repository.id);
+    return this.loadRegistry();
+  }
+
+  async registerRepositorySource(draft: RepositorySourceDraft) {
+    const locationKey = repositoryLocationKey(draft.location);
+    let source = this.snapshot.registry.repositorySources.find(
+      (source) => repositoryLocationKey(source.location) === locationKey,
+    );
+    if (source) {
+      source.displayName = draft.displayName;
+      source.scanDepth = draft.scanDepth;
+    } else {
+      source = {
+        id: crypto.randomUUID(),
+        displayName: draft.displayName,
+        location: draft.location,
+        scanDepth: draft.scanDepth,
+      };
+      this.snapshot.registry.repositorySources.push(source);
+    }
+    const existingCatalog = this.snapshot.registry.sourceCatalogs[source.id];
+    this.snapshot.registry.sourceCatalogs[source.id] = {
+      sourceId: source.id,
+      scannedAt: new Date().toISOString(),
+      repositories: existingCatalog?.repositories ?? [],
+    };
+    return this.loadRegistry();
+  }
+
+  async scanRepositorySource(sourceId: string) {
+    const source = this.snapshot.registry.repositorySources.find(
+      (candidate) => candidate.id === sourceId,
+    );
+    if (!source) {
+      throw { kind: "notFound", message: "Repository source is not registered." } satisfies AppError;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 220));
+    const existing = this.snapshot.registry.sourceCatalogs[sourceId];
+    this.snapshot.registry.sourceCatalogs[sourceId] = {
+      sourceId,
+      scannedAt: new Date().toISOString(),
+      repositories: existing?.repositories ?? [],
+    };
+    return this.loadRegistry();
+  }
+
+  async openDiscoveredRepository(sourceId: string, relativePath: string) {
+    const discovered = this.snapshot.registry.sourceCatalogs[sourceId]?.repositories.find(
+      (candidate) => candidate.relativePath === relativePath,
+    );
+    if (!discovered) {
+      throw { kind: "notFound", message: "Discovered repository is not available." } satisfies AppError;
+    }
+    let repository = this.snapshot.registry.repositories.find(
+      (candidate) =>
+        JSON.stringify(candidate.location) === JSON.stringify(discovered.location),
+    );
+    if (!repository) {
+      repository = {
+        id: crypto.randomUUID(),
+        displayName: discovered.displayName,
+        location: discovered.location,
+        pinned: false,
+        lastOpenedAt: new Date().toISOString(),
+      };
+      this.snapshot.registry.repositories.push(repository);
+    }
+    return this.selectRepository(repository.id);
+  }
+
+  async removeRepositorySource(sourceId: string) {
+    const previousLength = this.snapshot.registry.repositorySources.length;
+    this.snapshot.registry.repositorySources =
+      this.snapshot.registry.repositorySources.filter((source) => source.id !== sourceId);
+    if (this.snapshot.registry.repositorySources.length === previousLength) {
+      throw { kind: "notFound", message: "Repository source is not registered." } satisfies AppError;
+    }
+    delete this.snapshot.registry.sourceCatalogs[sourceId];
     return this.loadRegistry();
   }
 

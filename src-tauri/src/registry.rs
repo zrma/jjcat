@@ -97,6 +97,7 @@ fn parse_registry(source: &str) -> Result<Registry, RegistryError> {
     let envelope: Envelope = serde_json::from_str(source)?;
     let registry = match envelope.schema_version {
         REGISTRY_SCHEMA_VERSION => serde_json::from_str(source)?,
+        3 => migrate_v3(serde_json::from_str(source)?)?,
         2 => migrate_v2(serde_json::from_str(source)?)?,
         1 => migrate_v1(serde_json::from_str(source)?)?,
         0 => migrate_v0(serde_json::from_str(source)?)?,
@@ -129,6 +130,15 @@ struct RegistryV2 {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RegistryV3 {
+    selected_repository: Option<crate::domain::RepositoryId>,
+    open_repository_ids: Vec<crate::domain::RepositoryId>,
+    repositories: Vec<RepositoryRecord>,
+    cached_projections: BTreeMap<crate::domain::RepositoryId, crate::domain::CachedProjection>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RegistryV1 {
     selected_repository: Option<crate::domain::RepositoryId>,
     repositories: Vec<RepositoryRecord>,
@@ -143,6 +153,18 @@ fn migrate_v2(legacy: RegistryV2) -> Result<Registry, DomainError> {
         // Schema v2 stored display-formatted rename paths in projections. They are
         // not valid exact fileset selectors, so refresh them under the v3 contract.
         cached_projections: BTreeMap::new(),
+        ..Registry::default()
+    };
+    registry.validate()?;
+    Ok(registry)
+}
+
+fn migrate_v3(legacy: RegistryV3) -> Result<Registry, DomainError> {
+    let registry = Registry {
+        selected_repository: legacy.selected_repository,
+        open_repository_ids: legacy.open_repository_ids,
+        repositories: legacy.repositories,
+        cached_projections: legacy.cached_projections,
         ..Registry::default()
     };
     registry.validate()?;
@@ -283,6 +305,17 @@ mod tests {
         );
         assert!(migrated.repositories[0].pinned);
         assert!(migrated.cached_projections.is_empty());
+    }
+
+    #[test]
+    fn version_three_fixture_adds_empty_repository_source_state() {
+        let migrated = parse_registry(include_str!("../tests/fixtures/registry-v3.json")).unwrap();
+
+        assert_eq!(migrated.schema_version, REGISTRY_SCHEMA_VERSION);
+        assert_eq!(migrated.repositories.len(), 1);
+        assert_eq!(migrated.cached_projections.len(), 1);
+        assert!(migrated.repository_sources.is_empty());
+        assert!(migrated.source_catalogs.is_empty());
     }
 
     #[test]

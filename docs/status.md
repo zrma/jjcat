@@ -17,6 +17,9 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - colocated Jujutsu/Git repository
 - Tauri 2 + Rust 2024 + React/TypeScript/Vite desktop runtime
 - stable local/SSH repository identity와 schema-versioned JSON registry
+- schema v4의 local/SSH repository source, bounded discovery catalog과 v3→v4 migration
+- source별 collapsible folder/repository tree, rescan과 double-click/`Enter` tab open
+- direct single-repository add와 source catalog removal의 filesystem-safe 분리
 - `jj` capability, machine-readable status/log/file projection
 - bounded timeout/cancellation과 redacted error를 갖춘 OpenSSH stdio driver
 - repository rail, tabs, DAG, change inspector와 cached/stale/disconnected UI

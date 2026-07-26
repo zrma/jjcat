@@ -7,9 +7,11 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+use crate::discovery::RepositoryDiscovery;
 use crate::domain::{
     CachedProjection, ChangeRow, FileDiffProjection, OperationLogProjection, Registry,
-    RemoteDirectoryListing, RepositoryId, RepositoryLocation, RepositoryRecord, WhitespaceMode,
+    RemoteDirectoryListing, RepositoryId, RepositoryLocation, RepositoryRecord, RepositorySourceId,
+    RepositorySourceRecord, SourceCatalog, WhitespaceMode,
 };
 use crate::driver::{DriverError, DriverErrorKind, JjDriver};
 use crate::handoff::{self, HandoffPreview, HandoffTarget};
@@ -23,6 +25,7 @@ use crate::ssh_config::explicit_host_aliases;
 pub struct AppState {
     store: Mutex<RegistryStore>,
     driver: JjDriver,
+    discovery: RepositoryDiscovery,
     active_refreshes: Mutex<ActiveRefreshes>,
     active_mutations: Mutex<ActiveMutations>,
     mutation_previews: Mutex<MutationPreviews>,
@@ -174,6 +177,7 @@ impl AppState {
         Self {
             store: Mutex::new(RegistryStore::new(registry_path)),
             driver: JjDriver::default(),
+            discovery: RepositoryDiscovery::default(),
             active_refreshes: Mutex::new(ActiveRefreshes::default()),
             active_mutations: Mutex::new(ActiveMutations::default()),
             mutation_previews: Mutex::new(MutationPreviews::default()),
@@ -193,6 +197,14 @@ pub struct RegistrySnapshot {
 pub struct RepositoryDraft {
     display_name: String,
     location: RepositoryLocation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositorySourceDraft {
+    display_name: String,
+    location: RepositoryLocation,
+    scan_depth: u8,
 }
 
 #[derive(Debug, Deserialize)]
@@ -648,6 +660,163 @@ pub async fn register_repository(
 }
 
 #[tauri::command]
+pub async fn register_repository_source(
+    draft: RepositorySourceDraft,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let home_dir = app.path().home_dir().map_err(|_| AppError {
+        kind: AppErrorKind::Storage,
+        message: "home directory could not be resolved".into(),
+    })?;
+    let source = RepositorySourceRecord::from_user_input(
+        draft.display_name,
+        draft.location,
+        draft.scan_depth,
+        &home_dir,
+    )
+    .map_err(domain_input_error)?;
+    let repositories = state
+        .discovery
+        .discover(&source, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    let source_id = source.id.clone();
+    registry.upsert_repository_source(source);
+    registry
+        .set_source_catalog(SourceCatalog {
+            source_id,
+            scanned_at: current_timestamp(),
+            repositories,
+        })
+        .map_err(domain_error)?;
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
+pub async fn scan_repository_source(
+    source_id: RepositorySourceId,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let source = {
+        let store = state.store.lock().await;
+        let loaded = store.load().map_err(storage_error)?;
+        loaded
+            .registry
+            .repository_sources
+            .into_iter()
+            .find(|source| source.id == source_id)
+            .ok_or_else(|| AppError {
+                kind: AppErrorKind::NotFound,
+                message: "repository source is not registered".into(),
+            })?
+    };
+    let repositories = state
+        .discovery
+        .discover(&source, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    if !registry
+        .repository_sources
+        .iter()
+        .any(|candidate| candidate.id == source.id)
+    {
+        return Err(AppError {
+            kind: AppErrorKind::Stale,
+            message: "repository source was removed while it was being scanned".into(),
+        });
+    }
+    registry
+        .set_source_catalog(SourceCatalog {
+            source_id: source.id,
+            scanned_at: current_timestamp(),
+            repositories,
+        })
+        .map_err(domain_error)?;
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
+pub async fn open_discovered_repository(
+    source_id: RepositorySourceId,
+    relative_path: String,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    let discovered = registry
+        .source_catalogs
+        .get(&source_id)
+        .and_then(|catalog| {
+            catalog
+                .repositories
+                .iter()
+                .find(|repository| repository.relative_path == relative_path)
+        })
+        .cloned()
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::NotFound,
+            message: "discovered repository is not present in the latest source catalog".into(),
+        })?;
+    let repository = RepositoryRecord::new(discovered.display_name, discovered.location)
+        .map_err(domain_input_error)?;
+    let repository_id = repository.id.clone();
+    if let Some(existing) = registry
+        .repositories
+        .iter_mut()
+        .find(|existing| existing.id == repository.id)
+    {
+        existing.display_name = repository.display_name;
+    } else {
+        registry.repositories.push(repository);
+    }
+    registry
+        .open_repository(&repository_id, current_timestamp())
+        .map_err(domain_error)?;
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
+pub async fn remove_repository_source(
+    source_id: RepositorySourceId,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    if !registry.remove_repository_source(&source_id) {
+        return Err(AppError {
+            kind: AppErrorKind::NotFound,
+            message: "repository source is not registered".into(),
+        });
+    }
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
 pub async fn select_repository(
     repository_id: RepositoryId,
     state: State<'_, AppState>,
@@ -879,6 +1048,13 @@ fn storage_error(error: RegistryError) -> AppError {
 }
 
 fn domain_error(error: crate::domain::DomainError) -> AppError {
+    AppError {
+        kind: AppErrorKind::InvalidInput,
+        message: error.to_string(),
+    }
+}
+
+fn domain_input_error(error: crate::domain::DomainError) -> AppError {
     AppError {
         kind: AppErrorKind::InvalidInput,
         message: error.to_string(),

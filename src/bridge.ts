@@ -7,6 +7,7 @@ import type {
   RegistrySnapshot,
   RemoteDirectoryListing,
   RepositoryDraft,
+  RepositorySourceDraft,
   HandoffPreview,
   HandoffTarget,
   FileDiffProjection,
@@ -21,6 +22,10 @@ import type {
 interface Bridge {
   loadRegistry(): Promise<RegistrySnapshot>;
   registerRepository(draft: RepositoryDraft): Promise<RegistrySnapshot>;
+  registerRepositorySource(draft: RepositorySourceDraft): Promise<RegistrySnapshot>;
+  scanRepositorySource(sourceId: string): Promise<RegistrySnapshot>;
+  openDiscoveredRepository(sourceId: string, relativePath: string): Promise<RegistrySnapshot>;
+  removeRepositorySource(sourceId: string): Promise<RegistrySnapshot>;
   removeRepository(repositoryId: string): Promise<RegistrySnapshot>;
   listSshHosts(): Promise<string[]>;
   listRemoteDirectories(host: string, path: string): Promise<RemoteDirectoryListing>;
@@ -54,6 +59,25 @@ class TauriBridge implements Bridge {
 
   registerRepository(draft: RepositoryDraft) {
     return invoke<RegistrySnapshot>("register_repository", { draft }).catch(normalizeError);
+  }
+
+  registerRepositorySource(draft: RepositorySourceDraft) {
+    return invoke<RegistrySnapshot>("register_repository_source", { draft }).catch(normalizeError);
+  }
+
+  scanRepositorySource(sourceId: string) {
+    return invoke<RegistrySnapshot>("scan_repository_source", { sourceId }).catch(normalizeError);
+  }
+
+  openDiscoveredRepository(sourceId: string, relativePath: string) {
+    return invoke<RegistrySnapshot>("open_discovered_repository", {
+      sourceId,
+      relativePath,
+    }).catch(normalizeError);
+  }
+
+  removeRepositorySource(sourceId: string) {
+    return invoke<RegistrySnapshot>("remove_repository_source", { sourceId }).catch(normalizeError);
   }
 
   removeRepository(repositoryId: string) {

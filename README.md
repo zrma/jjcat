@@ -22,9 +22,9 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 
 ## Current Status
 
-jjcat은 현재 **pre-alpha P3**다. local/SSH 저장소 등록, drag-reorder가 가능한 persistent
-tab과 quick switcher, cached background refresh, multi-lane history, bounded file diff와
-editor/terminal handoff가 동작한다.
+jjcat은 현재 **pre-alpha P3**다. local/SSH 저장소 직접 등록과 folder source discovery,
+drag-reorder가 가능한 persistent tab과 quick switcher, cached background refresh,
+multi-lane history, bounded file diff와 editor/terminal handoff가 동작한다.
 
 모든 repository mutation은 repository, exact target과 expected operation을 고정한 backend
 preview token을 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
@@ -49,17 +49,24 @@ pnpm tauri dev
 `pnpm dev`는 Vite frontend만 브라우저에서 실행한다. native folder picker, local process와
 SSH integration까지 확인하려면 `pnpm tauri dev`를 사용한다.
 
-앱이 열리면 repository rail의 `+`에서 다음 흐름으로 시작한다.
+앱이 열리면 repository rail의 `+`에서 다음 두 흐름 중 하나로 시작한다.
 
-1. **Local**에서 폴더를 고르거나 `~/...` 또는 absolute path를 입력한다.
-2. **SSH**에서 OpenSSH host alias를 선택하고 remote folder browser로 저장소를 고른다.
-3. tab 또는 quick switcher로 저장소를 전환하고 tab을 끌어 순서를 정리한다.
-4. change와 file을 선택해 graph, metadata와 diff를 살펴본다.
-5. `Actions`에서 mutation을 고르거나 change를 다른 change 위에 끌어 rebase preview를 연다.
-6. toolbar의 **Undo/Redo** 또는 `⌘Z`/`⌘⇧Z` (`Ctrl+Z`/`Ctrl+Y`)로 한 operation씩 바로 이동한다.
-7. 되돌릴 수 있는 local mutation preview에서는 `Enter`/`Y`로 실행하고 `Esc`/`N`으로 취소한다.
+1. 저장소 하나만 열려면 **Open repository…**에서 local 폴더를 고르거나 OpenSSH host와
+   remote folder를 선택한다. local은 `~/...` 또는 absolute path 직접 입력도 허용한다.
+2. 여러 저장소의 상위 폴더를 관리하려면 **Add repository source…**에서 local 또는 SSH
+   source folder와 bounded scan depth를 정한다.
+3. source 아래에서 발견한 저장소를 double-click하거나 `Enter`로 열면 기존 tab을
+   재사용하거나 새 persistent tab을 연다. source의 rescan과 registry-only removal도
+   같은 tree에서 수행한다.
+4. tab 또는 quick switcher로 저장소를 전환하고 tab을 끌어 순서를 정리한다.
+5. change와 file을 선택해 graph, metadata와 diff를 살펴본다.
+6. `Change` 메뉴를 사용하거나 change를 다른 change 위에 끌어 mutation preview를 연다.
+7. toolbar의 **Undo/Redo** 또는 `⌘Z`/`⌘⇧Z` (`Ctrl+Z`/`Ctrl+Y`)로 한 operation씩 바로 이동한다.
+8. 되돌릴 수 있는 local mutation preview에서는 `Enter`/`Y`로 실행하고 `Esc`/`N`으로 취소한다.
 
 SSH key와 agent는 jjcat이 저장하지 않고 사용자의 OpenSSH 설정을 그대로 사용한다.
+Repository source를 제거해도 source folder, 발견한 repository 또는 이미 연 tab의
+filesystem content는 삭제하지 않는다.
 
 ## Product Principles
 

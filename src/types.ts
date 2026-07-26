@@ -1,4 +1,5 @@
 export type RepositoryId = string;
+export type RepositorySourceId = string;
 
 export type RepositoryLocation =
   | { kind: "local"; path: string }
@@ -10,6 +11,25 @@ export interface RepositoryRecord {
   location: RepositoryLocation;
   pinned: boolean;
   lastOpenedAt: string | null;
+}
+
+export interface RepositorySourceRecord {
+  id: RepositorySourceId;
+  displayName: string;
+  location: RepositoryLocation;
+  scanDepth: number;
+}
+
+export interface DiscoveredRepository {
+  relativePath: string;
+  displayName: string;
+  location: RepositoryLocation;
+}
+
+export interface SourceCatalog {
+  sourceId: RepositorySourceId;
+  scannedAt: string;
+  repositories: DiscoveredRepository[];
 }
 
 export interface ChangedFile {
@@ -147,6 +167,8 @@ export interface Registry {
   openRepositoryIds: RepositoryId[];
   repositories: RepositoryRecord[];
   cachedProjections: Record<RepositoryId, CachedProjection>;
+  repositorySources: RepositorySourceRecord[];
+  sourceCatalogs: Record<RepositorySourceId, SourceCatalog>;
 }
 
 export interface RegistrySnapshot {
@@ -157,6 +179,12 @@ export interface RegistrySnapshot {
 export interface RepositoryDraft {
   displayName: string;
   location: RepositoryLocation;
+}
+
+export interface RepositorySourceDraft {
+  displayName: string;
+  location: RepositoryLocation;
+  scanDepth: number;
 }
 
 export interface RemoteDirectoryListing {

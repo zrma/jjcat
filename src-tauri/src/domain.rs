@@ -5,10 +5,15 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const REPOSITORY_NAMESPACE: Uuid = Uuid::from_u128(0xa851f5bc_59be_4a98_a18a_9598116b7b9d);
+const REPOSITORY_SOURCE_NAMESPACE: Uuid = Uuid::from_u128(0x8ef8c0fc_0186_4798_a27f_e8dbc376c303);
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RepositoryId(pub String);
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RepositorySourceId(pub String);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -153,6 +158,150 @@ impl RepositoryRecord {
         }
         Ok(())
     }
+}
+
+fn default_source_scan_depth() -> u8 {
+    3
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositorySourceRecord {
+    pub id: RepositorySourceId,
+    pub display_name: String,
+    pub location: RepositoryLocation,
+    #[serde(default = "default_source_scan_depth")]
+    pub scan_depth: u8,
+}
+
+impl RepositorySourceRecord {
+    pub fn from_user_input(
+        display_name: impl Into<String>,
+        location: RepositoryLocation,
+        scan_depth: u8,
+        home_dir: &Path,
+    ) -> Result<Self, DomainError> {
+        Self::new(
+            display_name,
+            location.into_normalized_user_input(home_dir)?,
+            scan_depth,
+        )
+    }
+
+    pub fn new(
+        display_name: impl Into<String>,
+        location: RepositoryLocation,
+        scan_depth: u8,
+    ) -> Result<Self, DomainError> {
+        location.validate()?;
+        let display_name = display_name.into();
+        let display_name = display_name.trim();
+        if display_name.is_empty() || display_name.chars().count() > 80 {
+            return Err(DomainError::InvalidDisplayName);
+        }
+        if !(1..=6).contains(&scan_depth) {
+            return Err(DomainError::InvalidSourceScanDepth);
+        }
+        let id = RepositorySourceId(
+            Uuid::new_v5(
+                &REPOSITORY_SOURCE_NAMESPACE,
+                location.identity_seed().as_bytes(),
+            )
+            .to_string(),
+        );
+        Ok(Self {
+            id,
+            display_name: display_name.to_owned(),
+            location,
+            scan_depth,
+        })
+    }
+
+    pub fn validate(&self) -> Result<(), DomainError> {
+        let rebuilt = Self::new(
+            self.display_name.clone(),
+            self.location.clone(),
+            self.scan_depth,
+        )?;
+        if rebuilt.id != self.id {
+            return Err(DomainError::RepositorySourceIdentityMismatch);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredRepository {
+    pub relative_path: String,
+    pub display_name: String,
+    pub location: RepositoryLocation,
+}
+
+impl DiscoveredRepository {
+    pub fn validate(&self, source: &RepositorySourceRecord) -> Result<(), DomainError> {
+        if self.relative_path.is_empty()
+            || self.relative_path.starts_with('/')
+            || self.relative_path.chars().any(char::is_control)
+            || self
+                .relative_path
+                .split('/')
+                .any(|component| component.is_empty() || component == "." || component == "..")
+        {
+            return Err(DomainError::InvalidDiscoveredRepository);
+        }
+        if self.display_name.trim().is_empty() || self.display_name.chars().count() > 80 {
+            return Err(DomainError::InvalidDiscoveredRepository);
+        }
+        self.location.validate()?;
+        if !location_is_descendant(&source.location, &self.location, &self.relative_path) {
+            return Err(DomainError::InvalidDiscoveredRepository);
+        }
+        Ok(())
+    }
+}
+
+fn location_is_descendant(
+    source: &RepositoryLocation,
+    repository: &RepositoryLocation,
+    relative_path: &str,
+) -> bool {
+    match (source, repository) {
+        (
+            RepositoryLocation::Local { path: source_path },
+            RepositoryLocation::Local {
+                path: repository_path,
+            },
+        ) => {
+            Path::new(source_path).join(relative_path).to_string_lossy() == repository_path.as_str()
+        }
+        (
+            RepositoryLocation::Ssh {
+                host: source_host,
+                path: source_path,
+            },
+            RepositoryLocation::Ssh {
+                host: repository_host,
+                path: repository_path,
+            },
+        ) => {
+            source_host.eq_ignore_ascii_case(repository_host)
+                && join_remote_path(source_path, relative_path) == *repository_path
+        }
+        _ => false,
+    }
+}
+
+fn join_remote_path(root: &str, relative_path: &str) -> String {
+    format!("{}/{}", root.trim_end_matches('/'), relative_path)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceCatalog {
+    pub source_id: RepositorySourceId,
+    pub scanned_at: String,
+    pub repositories: Vec<DiscoveredRepository>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -383,7 +532,7 @@ pub struct CachedProjection {
     pub projection: RepositoryProjection,
 }
 
-pub const REGISTRY_SCHEMA_VERSION: u32 = 3;
+pub const REGISTRY_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -393,6 +542,8 @@ pub struct Registry {
     pub open_repository_ids: Vec<RepositoryId>,
     pub repositories: Vec<RepositoryRecord>,
     pub cached_projections: BTreeMap<RepositoryId, CachedProjection>,
+    pub repository_sources: Vec<RepositorySourceRecord>,
+    pub source_catalogs: BTreeMap<RepositorySourceId, SourceCatalog>,
 }
 
 impl Default for Registry {
@@ -403,6 +554,8 @@ impl Default for Registry {
             open_repository_ids: Vec::new(),
             repositories: Vec::new(),
             cached_projections: BTreeMap::new(),
+            repository_sources: Vec::new(),
+            source_catalogs: BTreeMap::new(),
         }
     }
 }
@@ -488,6 +641,45 @@ impl Registry {
         true
     }
 
+    pub fn upsert_repository_source(&mut self, source: RepositorySourceRecord) {
+        if let Some(existing) = self
+            .repository_sources
+            .iter_mut()
+            .find(|existing| existing.id == source.id)
+        {
+            *existing = source;
+        } else {
+            self.repository_sources.push(source);
+        }
+    }
+
+    pub fn set_source_catalog(&mut self, catalog: SourceCatalog) -> Result<(), DomainError> {
+        let source = self
+            .repository_sources
+            .iter()
+            .find(|source| source.id == catalog.source_id)
+            .ok_or(DomainError::UnknownRepositorySource)?;
+        for repository in &catalog.repositories {
+            repository.validate(source)?;
+        }
+        self.source_catalogs
+            .insert(catalog.source_id.clone(), catalog);
+        Ok(())
+    }
+
+    pub fn remove_repository_source(&mut self, source_id: &RepositorySourceId) -> bool {
+        let Some(index) = self
+            .repository_sources
+            .iter()
+            .position(|source| &source.id == source_id)
+        else {
+            return false;
+        };
+        self.repository_sources.remove(index);
+        self.source_catalogs.remove(source_id);
+        true
+    }
+
     pub fn validate(&self) -> Result<(), DomainError> {
         if self.schema_version != REGISTRY_SCHEMA_VERSION {
             return Err(DomainError::UnsupportedRegistrySchema(self.schema_version));
@@ -530,6 +722,30 @@ impl Registry {
         {
             return Err(DomainError::UnknownCachedRepository);
         }
+        for source in &self.repository_sources {
+            source.validate()?;
+        }
+        let unique_sources = self
+            .repository_sources
+            .iter()
+            .map(|source| &source.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        if unique_sources.len() != self.repository_sources.len() {
+            return Err(DomainError::DuplicateRepositorySource);
+        }
+        for (source_id, catalog) in &self.source_catalogs {
+            if source_id != &catalog.source_id || !unique_sources.contains(source_id) {
+                return Err(DomainError::UnknownRepositorySource);
+            }
+            let source = self
+                .repository_sources
+                .iter()
+                .find(|source| &source.id == source_id)
+                .ok_or(DomainError::UnknownRepositorySource)?;
+            for repository in &catalog.repositories {
+                repository.validate(source)?;
+            }
+        }
         Ok(())
     }
 }
@@ -544,8 +760,14 @@ pub enum DomainError {
     InvalidRemotePath,
     #[error("repository display names must contain between 1 and 80 characters")]
     InvalidDisplayName,
+    #[error("repository source scan depth must be between 1 and 6")]
+    InvalidSourceScanDepth,
     #[error("repository identity does not match its location")]
     RepositoryIdentityMismatch,
+    #[error("repository source identity does not match its location")]
+    RepositorySourceIdentityMismatch,
+    #[error("discovered repository is outside its source or contains invalid metadata")]
+    InvalidDiscoveredRepository,
     #[error("repository registry contains duplicate identities")]
     DuplicateRepository,
     #[error("selected repository is not registered")]
@@ -556,6 +778,10 @@ pub enum DomainError {
     DuplicateOpenRepository,
     #[error("cached projection belongs to an unregistered repository")]
     UnknownCachedRepository,
+    #[error("repository source registry contains duplicate identities")]
+    DuplicateRepositorySource,
+    #[error("source catalog belongs to an unknown repository source")]
+    UnknownRepositorySource,
     #[error("registry schema {0} is newer than this version of jjcat")]
     UnsupportedRegistrySchema(u32),
 }

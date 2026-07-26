@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   ArrowUp,
@@ -36,15 +37,22 @@ import { bridge, isTauriRuntime } from "./bridge";
 import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
+import { AddRepositorySourceDialog } from "./components/AddRepositorySourceDialog";
 import { MutationDialog } from "./components/MutationDialog";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
+import { RepositorySourceTree } from "./components/RepositorySourceTree";
 import { WorkspaceManager } from "./components/WorkspaceManager";
 import { filterChanges, type HistoryView } from "./lib/changeFilters";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import { repositoryNavigation as navigationForProjection } from "./lib/repositoryNavigation";
-import { groupRepositories } from "./lib/repositories";
+import { repositoryTabPresentations } from "./lib/repositories";
+import { standaloneRepositories } from "./lib/repositorySources";
 import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
 import { historyShortcutFor } from "./lib/historyShortcuts";
+import {
+  anchoredPopupPosition,
+  type PopupPosition,
+} from "./lib/popupPosition";
 import {
   tabOverflowState,
   tabScrollPage,
@@ -67,6 +75,8 @@ import type {
   Registry,
   RepositoryDraft,
   RepositoryRecord,
+  RepositorySourceDraft,
+  RepositorySourceRecord,
   SyncStatus,
   WhitespaceMode,
 } from "./types";
@@ -216,9 +226,17 @@ function App() {
   const [showWorkspaceManager, setShowWorkspaceManager] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [railAddMenuPosition, setRailAddMenuPosition] =
+    useState<PopupPosition | null>(null);
+  const [showAddSource, setShowAddSource] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [contextMenu, setContextMenu] = useState<RepositoryContextMenu | null>(null);
   const [removeTarget, setRemoveTarget] = useState<RepositoryRecord | null>(null);
+  const [removeSourceTarget, setRemoveSourceTarget] =
+    useState<RepositorySourceRecord | null>(null);
+  const [scanningSources, setScanningSources] = useState<Set<string>>(new Set());
+  const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({});
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
   const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
   const [mutationDialog, setMutationDialog] = useState<MutationDialogState | null>(null);
@@ -236,6 +254,9 @@ function App() {
     right: false,
   });
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const railAddMenuRef = useRef<HTMLDivElement>(null);
+  const railAddButtonRef = useRef<HTMLButtonElement>(null);
+  const railAddPopupRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLElement>(null);
   const refreshingRef = useRef<Record<string, string>>({});
   const failureCountsRef = useRef<Record<string, number>>({});
@@ -734,6 +755,50 @@ function App() {
     };
   }, [contextMenu]);
 
+  useEffect(() => {
+    if (!showAddMenu) return;
+    const updatePosition = () => {
+      const anchor = railAddButtonRef.current?.getBoundingClientRect();
+      if (!anchor) return;
+      setRailAddMenuPosition(
+        anchoredPopupPosition({
+          anchor: {
+            left: anchor.left,
+            top: anchor.top,
+            bottom: anchor.bottom,
+          },
+          popupWidth: 242,
+          popupHeight: 108,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        }),
+      );
+    };
+    const closeOutside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !railAddMenuRef.current?.contains(event.target) &&
+        !railAddPopupRef.current?.contains(event.target)
+      ) {
+        setShowAddMenu(false);
+      }
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowAddMenu(false);
+    };
+    updatePosition();
+    window.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("keydown", closeWithEscape);
+    window.addEventListener("resize", updatePosition);
+    document.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("keydown", closeWithEscape);
+      window.removeEventListener("resize", updatePosition);
+      document.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [showAddMenu]);
+
   async function registerRepository(draft: RepositoryDraft) {
     try {
       const snapshot = await bridge.registerRepository(draft);
@@ -743,6 +808,78 @@ function App() {
       setRepositoryActionError(null);
     } catch (error) {
       throw error as AppError;
+    }
+  }
+
+  async function scanRepositorySource(sourceId: string) {
+    setScanningSources((current) => new Set(current).add(sourceId));
+    setSourceErrors((current) => {
+      const next = { ...current };
+      delete next[sourceId];
+      return next;
+    });
+    try {
+      const snapshot = await bridge.scanRepositorySource(sourceId);
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+    } catch (error) {
+      setSourceErrors((current) => ({
+        ...current,
+        [sourceId]: (error as AppError).message,
+      }));
+    } finally {
+      setScanningSources((current) => {
+        const next = new Set(current);
+        next.delete(sourceId);
+        return next;
+      });
+    }
+  }
+
+  async function registerRepositorySource(draft: RepositorySourceDraft) {
+    try {
+      const snapshot = await bridge.registerRepositorySource(draft);
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setShowAddSource(false);
+      setRepositoryActionError(null);
+    } catch (error) {
+      throw error as AppError;
+    }
+  }
+
+  async function openDiscoveredRepository(
+    sourceId: string,
+    relativePath: string,
+  ) {
+    try {
+      const snapshot = await bridge.openDiscoveredRepository(
+        sourceId,
+        relativePath,
+      );
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message);
+    }
+  }
+
+  async function removeRepositorySource(source: RepositorySourceRecord) {
+    try {
+      const snapshot = await bridge.removeRepositorySource(source.id);
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setSourceErrors((current) => {
+        const next = { ...current };
+        delete next[source.id];
+        return next;
+      });
+      setRemoveSourceTarget(null);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setRemoveSourceTarget(null);
+      setRepositoryActionError((error as AppError).message);
     }
   }
 
@@ -989,9 +1126,19 @@ function App() {
   const openRepositories = registry.openRepositoryIds
     .map((id) => registry.repositories.find((repository) => repository.id === id))
     .filter((repository): repository is RepositoryRecord => Boolean(repository));
+  const standalone = standaloneRepositories(
+    registry.repositories,
+    registry.repositorySources,
+  ).sort((left, right) =>
+    left.displayName.localeCompare(right.displayName, undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }),
+  );
   const selectedState = selectedRepository
     ? repositoryState(selectedRepository.id, selectedCache, freshIds, refreshing, errors)
     : "empty";
+  const tabPresentations = repositoryTabPresentations(openRepositories);
 
   return (
     <main className="app-shell">
@@ -1036,11 +1183,15 @@ function App() {
               tabDropTarget?.repositoryId === repository.id
                 ? tabDropTarget.edge
                 : null;
+            const tabPresentation = tabPresentations.get(repository.id);
+            const TransportIcon =
+              repository.location.kind === "local" ? Laptop : Server;
             return (
               <div
                 className={[
                   "tab",
                   active ? "active" : "",
+                  tabPresentation?.duplicateName ? "duplicate-name" : "",
                   draggedTabId === repository.id ? "dragging" : "",
                   dropEdge ? `drop-${dropEdge}` : "",
                 ]
@@ -1051,8 +1202,8 @@ function App() {
               >
                 <button
                   type="button"
-                  aria-label={`${repository.displayName} repository tab, position ${tabIndex + 1} of ${openRepositories.length}`}
-                  title="Drag to reorder · Alt+Shift+Left/Right"
+                  aria-label={`${tabPresentation?.accessibleName ?? repository.displayName} repository tab, position ${tabIndex + 1} of ${openRepositories.length}`}
+                  title={`${tabPresentation?.tooltip ?? repository.displayName}\nDrag to reorder · Alt+Shift+Left/Right`}
                   onClick={(event) => {
                     if (suppressTabClickRef.current) {
                       event.preventDefault();
@@ -1129,12 +1280,18 @@ function App() {
                   }}
                 >
                   <StatusDot state={state} />
-                  <span>{repository.displayName}</span>
+                  <TransportIcon className="tab-transport-icon" aria-hidden="true" />
+                  <span className="tab-identity">
+                    <span className="tab-name">{repository.displayName}</span>
+                    {tabPresentation?.duplicateName ? (
+                      <small className="tab-context">{tabPresentation.context}</small>
+                    ) : null}
+                  </span>
                 </button>
                 <button
                   type="button"
                   className="tab-close"
-                  aria-label={`Close ${repository.displayName} tab`}
+                  aria-label={`Close ${tabPresentation?.accessibleName ?? repository.displayName} tab`}
                   onClick={() => void closeTab(repository.id)}
                 >
                   <X aria-hidden="true" />
@@ -1171,13 +1328,81 @@ function App() {
       <aside className="repository-rail">
         <div className="rail-heading">
           <h2>Repositories</h2>
-          <div className="rail-actions">
+          <div className="rail-actions" ref={railAddMenuRef}>
             <button type="button" aria-label="Switch repository" title="Switch repository (⌘K)" onClick={() => setShowSwitcher(true)}>
               <Search aria-hidden="true" />
             </button>
-            <button type="button" aria-label="Add repository" onClick={() => setShowAdd(true)}>
+            <button
+              ref={railAddButtonRef}
+              type="button"
+              aria-label="Add repository or repository source"
+              aria-haspopup="menu"
+              aria-expanded={showAddMenu}
+              onClick={() => {
+                if (!showAddMenu) {
+                  const anchor =
+                    railAddButtonRef.current?.getBoundingClientRect();
+                  if (anchor) {
+                    setRailAddMenuPosition(
+                      anchoredPopupPosition({
+                        anchor: {
+                          left: anchor.left,
+                          top: anchor.top,
+                          bottom: anchor.bottom,
+                        },
+                        popupWidth: 242,
+                        popupHeight: 108,
+                        viewportWidth: window.innerWidth,
+                        viewportHeight: window.innerHeight,
+                      }),
+                    );
+                  }
+                }
+                setShowAddMenu((visible) => !visible);
+              }}
+            >
               <Plus aria-hidden="true" />
             </button>
+            {showAddMenu &&
+              railAddMenuPosition &&
+              createPortal(
+                <div
+                  ref={railAddPopupRef}
+                  className="rail-add-menu"
+                  role="menu"
+                  style={railAddMenuPosition}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowAddMenu(false);
+                      setShowAdd(true);
+                    }}
+                  >
+                    <FolderGit2 aria-hidden="true" />
+                    <span>
+                      <strong>Open repository…</strong>
+                      <small>Add one local or SSH repository</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowAddMenu(false);
+                      setShowAddSource(true);
+                    }}
+                  >
+                    <FolderOpen aria-hidden="true" />
+                    <span>
+                      <strong>Add repository source…</strong>
+                      <small>Scan a folder into a repository tree</small>
+                    </span>
+                  </button>
+                </div>,
+                document.body,
+              )}
           </div>
         </div>
         <nav className="repository-navigation" aria-label="Repository views">
@@ -1284,10 +1509,18 @@ function App() {
             </section>
           )}
         </nav>
-        {groupRepositories(registry.repositories).map((group) => (
-          <section className="repository-group" key={group.label}>
-            <h3>{group.label}</h3>
-            {group.repositories.map((repository) => {
+        <RepositorySourceTree
+          registry={registry}
+          scanning={scanningSources}
+          errors={sourceErrors}
+          onOpen={openDiscoveredRepository}
+          onRescan={scanRepositorySource}
+          onRemove={setRemoveSourceTarget}
+        />
+        {standalone.length > 0 && (
+          <section className="repository-group">
+            <h3>Standalone</h3>
+            {standalone.map((repository) => {
                 const state = repositoryState(
                   repository.id,
                   registry.cachedProjections[repository.id],
@@ -1320,7 +1553,7 @@ function App() {
                 );
               })}
           </section>
-        ))}
+        )}
       </aside>
 
       <section className="workspace">
@@ -1636,11 +1869,20 @@ function App() {
       {showAdd && (
         <AddRepositoryDialog onClose={() => setShowAdd(false)} onSubmit={registerRepository} />
       )}
+      {showAddSource && (
+        <AddRepositorySourceDialog
+          onClose={() => setShowAddSource(false)}
+          onSubmit={registerRepositorySource}
+        />
+      )}
       {showSwitcher && (
         <RepositoryQuickSwitcher
           repositories={registry.repositories}
+          repositorySources={registry.repositorySources}
+          sourceCatalogs={registry.sourceCatalogs}
           openRepositoryIds={registry.openRepositoryIds}
           onSelect={selectRepository}
+          onOpenDiscovered={openDiscoveredRepository}
           onClose={() => setShowSwitcher(false)}
         />
       )}
@@ -1686,6 +1928,13 @@ function App() {
           repository={removeTarget}
           onClose={() => setRemoveTarget(null)}
           onConfirm={() => void removeRepository(removeTarget)}
+        />
+      )}
+      {removeSourceTarget && (
+        <RemoveRepositorySourceDialog
+          source={removeSourceTarget}
+          onClose={() => setRemoveSourceTarget(null)}
+          onConfirm={() => void removeRepositorySource(removeSourceTarget)}
         />
       )}
       {mutationDialog && selectedRepository && (
@@ -2164,6 +2413,51 @@ function RemoveRepositoryDialog({
         <footer>
           <button type="button" className="secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="danger" onClick={onConfirm}>Remove from jjcat</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function RemoveRepositorySourceDialog({
+  source,
+  onClose,
+  onConfirm,
+}: {
+  source: RepositorySourceRecord;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="dialog-backdrop confirm-backdrop"
+      role="presentation"
+      onMouseDown={onClose}
+    >
+      <section
+        className="confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="remove-source-title"
+        aria-describedby="remove-source-description"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <Trash2 aria-hidden="true" />
+          <h2 id="remove-source-title">Remove {source.displayName}?</h2>
+        </header>
+        <p id="remove-source-description">
+          This removes only the source and its discovered tree from jjcat.
+          Repositories already opened in tabs stay registered, and no local or
+          remote files are deleted.
+        </p>
+        <footer>
+          <button type="button" className="secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="danger" onClick={onConfirm}>
+            Remove source
+          </button>
         </footer>
       </section>
     </div>

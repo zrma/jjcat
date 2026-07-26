@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { RepositoryRecord } from "../types";
-import { filterRepositories, groupRepositories, repositoryLocationText } from "./repositories";
+import {
+  filterRepositories,
+  groupRepositories,
+  repositoryLocationText,
+  repositoryTabPresentations,
+} from "./repositories";
 
 const repositories: RepositoryRecord[] = [
   {
@@ -36,6 +41,39 @@ describe("repository search", () => {
   it("formats transport-specific location text", () => {
     expect(repositoryLocationText(repositories[0])).toBe("/fixtures/product-app");
     expect(repositoryLocationText(repositories[1])).toBe("fixture-host:~/fixtures/infra");
+  });
+
+  it("disambiguates duplicate tab names with transport context", () => {
+    const duplicateLocal = {
+      ...repositories[0],
+      id: "local-shared",
+      displayName: "Shared",
+    };
+    const duplicateRemote = {
+      ...repositories[1],
+      id: "remote-shared",
+      displayName: "shared",
+    };
+
+    const presentations = repositoryTabPresentations([
+      duplicateLocal,
+      duplicateRemote,
+      repositories[0],
+    ]);
+
+    expect(presentations.get("local-shared")).toEqual({
+      context: "Local",
+      duplicateName: true,
+      tooltip: "Shared · Local\n/fixtures/product-app",
+      accessibleName: "Shared, Local",
+    });
+    expect(presentations.get("remote-shared")).toEqual({
+      context: "fixture-host",
+      duplicateName: true,
+      tooltip: "shared · SSH fixture-host\nfixture-host:~/fixtures/infra",
+      accessibleName: "shared, SSH fixture-host",
+    });
+    expect(presentations.get(repositories[0].id)?.duplicateName).toBe(false);
   });
 
   it("keeps the rail stable by grouping only pinned and transport repositories", () => {

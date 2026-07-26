@@ -15,6 +15,7 @@
 
 - [x] compact graph/history baseline, bottom inspector와 local `~/...` registration
 - [x] stable pinned/local/SSH repository sidebar와 last-opened metadata
+- [x] local/SSH folder source discovery와 collapsible repository tree
 - [x] persistent repository tabs와 quick switcher
 - [x] cached status badge와 asynchronous refresh
 - [x] local/remote editor 및 terminal open action

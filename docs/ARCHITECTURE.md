@@ -10,6 +10,9 @@ Tauri 2 + Rust 2024 core, frontend는 React + TypeScript + Vite로 확정했다.
 ```text
 Desktop Shell
   -> Repository Registry
+  -> Repository Source Discovery
+       -> Local bounded directory walk
+       -> SSH bounded directory walk over one OpenSSH session
   -> Repository Session
        -> Local Driver -> jj CLI
        -> SSH Driver   -> OpenSSH stdio -> jj CLI or jjcat-agent
@@ -31,19 +34,27 @@ OpenSSH config의 explicit host alias를 선택한 뒤 bounded stdio directory m
 remote folder를 탐색한다. 선택된 경로는 기존 registry validation과 canonical identity
 흐름으로 넘기며 folder basename은 사용자가 이름을 직접 수정하기 전까지만 display name
 제안으로 사용한다.
+Add repository source dialog도 같은 local/SSH folder selection을 사용하되, 선택한 폴더를
+저장소 자체가 아니라 발견 범위로 등록한다. rail은 source별 folder/repository tree를
+안정된 이름 순서로 표시하고 발견한 repository의 double-click/`Enter`를 기존 canonical
+repository identity와 persistent tab 흐름으로 연결한다. direct single-repository add는
+별도 진입점으로 유지한다.
 
 ### Repository Registry
 
-host reference, repository path, display name, pinning과 last-opened metadata를 local application data로
-저장한다. private host inventory와 실제 path는 tracked repository artifact에 넣지 않는다.
-현재 schema v3 JSON은 repository, selected/open repository ordering, pinning/last-opened metadata와
-cached projection을 저장하며 credential과 source content는 저장하지 않는다. invalid JSON은
-별도 corrupt copy로 보존하고 빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
-v2→v3 migration은 repository, selected/open ordering, pinning과 last-opened metadata를
-보존하고 display-formatted rename path를 포함할 수 있는 legacy projection cache만
-무효화한다.
+host reference, repository path, display name, pinning과 last-opened metadata를 local application
+data로 저장한다. private host inventory와 실제 path는 tracked repository artifact에 넣지
+않는다. 현재 schema v4 JSON은 repository, selected/open repository ordering,
+pinning/last-opened metadata, cached projection, repository source와 마지막 bounded discovery
+catalog을 저장하며 credential과 source content는 저장하지 않는다. invalid JSON은 별도
+corrupt copy로 보존하고 빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
+v2→v3 migration은 display-formatted rename path를 포함할 수 있는 legacy projection cache만
+무효화하고, v3→v4 migration은 기존 repository/tab/cache를 보존한 채 빈 source catalog을
+추가한다.
 repository remove는 registry entry, cached projection과 shell의 open tab만 제거하며 local
 directory, remote directory와 Jujutsu metadata에는 delete command를 실행하지 않는다.
+repository source remove도 source와 discovery catalog만 제거하며 발견한 repository,
+이미 연 tab 또는 local/remote directory를 제거하지 않는다.
 
 local repository 입력은 absolute path와 `~/...`를 허용한다. `~/...`는 Tauri가 제공하는
 user home을 기준으로 lexical normalization한 absolute path로 바꾼 뒤 identity를 계산하고
@@ -53,6 +64,16 @@ registry에 저장한다. process working directory 기준 relative path는 허�
 
 local과 SSH 구현이 공유하는 typed request/result contract다. command invocation, capability,
 status/log/diff projection과 mutation result를 추상화한다.
+
+### Repository Source Discovery
+
+source root부터 사용자가 고른 1–6 folder depth만 탐색하고 최대 500개 repository를
+name/path 기준의 deterministic order로 반환한다. `.jj`가 있는 directory를 발견하면 그
+하위로 내려가지 않는다. hidden directory, `.git`, `.jj`, dependency/build output와 symlink는
+탐색하지 않는다. local은 filesystem metadata API를 사용하고 SSH는 한 OpenSSH stdio
+session의 NUL-safe path stream을 사용한다. 발견 결과는 repository identity가 아니라
+source-relative catalog이며, 사용자가 repository를 열 때 canonical identity를 계산하고
+이미 등록된 repository/tab이 있으면 재사용한다.
 
 ### SSH Driver
 
@@ -64,7 +85,8 @@ stdin script를 사용하고, repository path는 UTF-8 hex로 전달해 remote s
 고정 순서로 조회하며 탐지된 경로를 UI나 tracked evidence에 노출하지 않는다.
 remote folder browse도 같은 OpenSSH argv/timeout/output limit boundary를 사용하고 directory
 path metadata만 반환한다. source file content, credential과 전체 host inventory는 projection
-또는 registry에 저장하지 않는다.
+또는 registry에 저장하지 않는다. source discovery도 별도 SSH connection을 repository마다
+만들지 않고 source 하나당 bounded session 하나를 사용한다.
 
 ### jjcat-agent
 
