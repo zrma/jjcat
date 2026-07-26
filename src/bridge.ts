@@ -50,7 +50,8 @@ interface Bridge {
   launchRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
 }
 
-export const isTauriRuntime = "__TAURI_INTERNALS__" in window;
+export const isTauriRuntime =
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 class TauriBridge implements Bridge {
   loadRegistry() {

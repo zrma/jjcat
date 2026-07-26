@@ -6,8 +6,8 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::{DiscoveredRepository, RepositoryLocation, RepositorySourceRecord};
-use crate::driver::{DriverError, DriverErrorKind};
-use crate::process::{CommandPlan, run_command};
+use crate::driver::{DriverError, DriverErrorKind, redact_error};
+use crate::process::{CommandPlan, run_remote_command};
 
 const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_DISCOVERED_REPOSITORIES: usize = 500;
@@ -79,7 +79,7 @@ impl RepositoryDiscovery {
             current_dir: None,
             stdin: Some(remote_discovery_script(root, scan_depth).into_bytes()),
         };
-        let output = run_command(plan, self.timeout, cancellation)
+        let output = run_remote_command(plan, self.timeout, cancellation)
             .await
             .map_err(|_| transport_error("SSH repository discovery could not be started"))?;
         if output.truncated {
@@ -89,9 +89,17 @@ impl RepositoryDiscovery {
             });
         }
         if output.exit_code != Some(0) {
+            let location = RepositoryLocation::Ssh {
+                host: host.to_owned(),
+                path: root.to_owned(),
+            };
+            let raw = String::from_utf8_lossy(&output.stderr);
             return Err(DriverError {
                 kind: DriverErrorKind::CommandFailed,
-                message: "SSH repository discovery failed".into(),
+                message: format!(
+                    "SSH repository discovery failed: {}",
+                    compact_error(&redact_error(raw.trim(), &location))
+                ),
             });
         }
         parse_remote_discovery(&output.stdout, host, root)
@@ -327,6 +335,17 @@ fn transport_error(message: &str) -> DriverError {
     }
 }
 
+fn compact_error(message: &str) -> String {
+    const MAX_CHARS: usize = 240;
+    let compact = message.split_whitespace().collect::<Vec<_>>().join(" ");
+    if compact.chars().count() <= MAX_CHARS {
+        return compact;
+    }
+    let mut bounded = compact.chars().take(MAX_CHARS - 1).collect::<String>();
+    bounded.push('…');
+    bounded
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -390,6 +409,16 @@ mod tests {
 
         assert!(!script.contains(path));
         assert!(script.contains(&encode_hex(path)));
+    }
+
+    #[test]
+    fn remote_discovery_errors_are_compact_and_bounded() {
+        let noisy = format!("{}\n{}", "permission denied ".repeat(30), "retry later");
+        let compact = compact_error(&noisy);
+
+        assert!(!compact.contains('\n'));
+        assert!(compact.chars().count() <= 240);
+        assert!(compact.ends_with('…'));
     }
 
     #[allow(dead_code)]

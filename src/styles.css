@@ -2763,7 +2763,10 @@ body.workspace-resizing {
 }
 
 .detail-files {
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--border-default);
+  overflow: hidden;
 }
 
 .detail-files > header,
@@ -2771,10 +2774,74 @@ body.workspace-resizing {
   display: flex;
   align-items: center;
   gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
   height: 34px;
   padding: 0 12px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-inset);
+}
+
+.detail-files > header {
+  flex: 0 0 34px;
+  position: relative;
+  top: auto;
+  min-width: 0;
+  overflow: visible;
+}
+
+.detail-files > header h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.detail-file-tree-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.detail-files > header .quick-look-trigger {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.detail-files > header .quick-look-trigger:hover:not(:disabled) {
+  border-color: var(--border-subtle);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.detail-files > header .quick-look-trigger:disabled {
+  opacity: 0.4;
+}
+
+.detail-files > header .quick-look-trigger svg {
+  width: 12px;
+  height: 12px;
+}
+
+.detail-files > header .quick-look-trigger kbd {
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 15px;
+  padding: 0 4px;
 }
 
 .detail-files header svg {
@@ -2791,7 +2858,7 @@ body.workspace-resizing {
   font-weight: 600;
 }
 
-.detail-files > p {
+.detail-file-tree-scroll > p {
   margin: 14px;
   color: var(--text-muted);
   font-size: 12px;
@@ -2889,6 +2956,151 @@ body.workspace-resizing {
 .detail-files .file-tree li button {
   min-height: 27px;
   padding-left: calc(12px + var(--tree-depth, 0) * 14px);
+}
+
+.diff-quick-look-window {
+  display: grid;
+  grid-template-rows: 38px minmax(0, 1fr);
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface-inset);
+}
+
+.diff-quick-look-window-header {
+  display: grid;
+  grid-template-columns: 15px minmax(180px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-chrome);
+}
+
+.diff-quick-look-window-header > svg {
+  width: 15px;
+  height: 15px;
+  color: var(--text-secondary);
+}
+
+.diff-quick-look-window-header strong,
+.diff-quick-look-window-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-quick-look-window-header strong {
+  color: var(--text-primary);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.diff-quick-look-window-header span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.diff-quick-look-window-error {
+  padding: 18px;
+  color: var(--state-danger);
+  font-size: 12px;
+}
+
+.diff-quick-look-body {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.diff-quick-look-files {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--border-default);
+  background: var(--surface-inset);
+}
+
+.diff-quick-look-files > header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
+}
+
+.diff-quick-look-files > header svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-secondary);
+}
+
+.diff-quick-look-files > header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.diff-quick-look-files .file-tree li button {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 12px 0 calc(12px + var(--tree-depth, 0) * 14px);
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: left;
+}
+
+.diff-quick-look-files .file-tree li button:hover {
+  background: var(--surface-hover);
+}
+
+.diff-quick-look-files .file-tree li button.selected {
+  background: var(--selection-bg);
+  box-shadow: inset 2px 0 0 var(--brand-primary);
+  color: var(--selection-text);
+}
+
+.diff-quick-look-files .file-tree li button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.diff-quick-look-files .file-tree li button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-quick-look-files .file-tree li button code {
+  color: inherit;
+  font-size: 10px;
+}
+
+.diff-quick-look-files .file-tree details > summary {
+  min-height: 28px;
+}
+
+.diff-quick-look-body > .diff-viewer {
+  height: 100%;
 }
 
 .change-overview {
@@ -3240,6 +3452,41 @@ body.workspace-resizing {
 .diff-controls {
   flex: 0 0 auto;
   gap: 8px;
+}
+
+.diff-window-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 23px;
+  padding: 0 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.diff-window-trigger:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.diff-window-trigger svg {
+  width: 12px;
+  height: 12px;
+}
+
+.diff-window-trigger kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 9px;
 }
 
 .segmented-control {

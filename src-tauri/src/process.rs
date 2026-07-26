@@ -5,9 +5,12 @@ use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
+use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 pub const DEFAULT_OUTPUT_LIMIT: usize = 1024 * 1024;
+const REMOTE_COMMAND_CONCURRENCY: usize = 3;
+static REMOTE_COMMAND_SLOTS: Semaphore = Semaphore::const_new(REMOTE_COMMAND_CONCURRENCY);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommandPlan {
@@ -46,6 +49,38 @@ pub async fn run_command(
     cancellation: CancellationToken,
 ) -> Result<CommandOutput, ProcessError> {
     run_command_with_limit(plan, timeout, cancellation, DEFAULT_OUTPUT_LIMIT).await
+}
+
+pub async fn run_remote_command(
+    plan: CommandPlan,
+    timeout: Duration,
+    cancellation: CancellationToken,
+) -> Result<CommandOutput, ProcessError> {
+    run_remote_command_with_limit(plan, timeout, cancellation, DEFAULT_OUTPUT_LIMIT).await
+}
+
+pub async fn run_remote_command_with_limit(
+    plan: CommandPlan,
+    timeout: Duration,
+    cancellation: CancellationToken,
+    output_limit: usize,
+) -> Result<CommandOutput, ProcessError> {
+    let wait_cancellation = cancellation.clone();
+    let permit = tokio::select! {
+        permit = REMOTE_COMMAND_SLOTS.acquire() => permit.map_err(|_| ProcessError {
+            kind: ProcessFailureKind::Wait,
+            detail: Some("remote command scheduler is unavailable".into()),
+        })?,
+        _ = wait_cancellation.cancelled() => {
+            return Err(ProcessError {
+                kind: ProcessFailureKind::Cancelled,
+                detail: None,
+            });
+        }
+    };
+    let result = run_command_with_limit(plan, timeout, cancellation, output_limit).await;
+    drop(permit);
+    result
 }
 
 pub async fn run_command_with_limit(

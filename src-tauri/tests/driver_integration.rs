@@ -103,9 +103,27 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     )
     .unwrap();
     let fake_ssh = directory.path().join("ssh-fixture");
+    let ssh_slots = directory.path().join("ssh-slot");
     let script = format!(
-        "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nshift\nexport HOME='{}'\nexec \"$@\"\n",
-        fake_home.display()
+        "#!/bin/sh\n\
+         while [ \"$1\" != \"--\" ]; do shift; done\n\
+         shift\n\
+         shift\n\
+         export HOME='{}'\n\
+         active=''\n\
+         for slot in 1 2 3; do\n\
+           candidate='{}-'\"$slot\"\n\
+           if mkdir \"$candidate\" 2>/dev/null; then active=\"$candidate\"; break; fi\n\
+         done\n\
+         if [ -z \"$active\" ]; then\n\
+           printf '%s\\n' 'too many concurrent SSH commands' >&2\n\
+           exit 96\n\
+         fi\n\
+         trap 'rmdir \"$active\"' EXIT HUP INT TERM\n\
+         sleep 0.03\n\
+         \"$@\"\n",
+        fake_home.display(),
+        ssh_slots.display()
     );
     fs::write(&fake_ssh, script).unwrap();
     let mut permissions = fs::metadata(&fake_ssh).unwrap().permissions();

@@ -1,11 +1,19 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { DiffQuickLookWindow } from "./components/DiffQuickLookWindow";
+import { parseDiffQuickLookRequest } from "./lib/diffQuickLook";
 import "./theme.css";
 import "./styles.css";
 
+const quickLookRequest = parseDiffQuickLookRequest(window.location.search);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    {quickLookRequest ? (
+      <DiffQuickLookWindow request={quickLookRequest} />
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 );

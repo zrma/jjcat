@@ -17,7 +17,7 @@ use crate::domain::{
 use crate::mutation::{MutationCandidate, MutationIntent, MutationValidationError};
 use crate::process::{
     CommandOutput, CommandPlan, DEFAULT_OUTPUT_LIMIT, ProcessError, ProcessFailureKind,
-    run_command, run_command_with_limit,
+    run_command, run_command_with_limit, run_remote_command, run_remote_command_with_limit,
 };
 
 pub const MINIMUM_JJ_VERSION: &str = "0.30.0";
@@ -251,7 +251,7 @@ impl JjDriver {
         };
         let repository = RepositoryRecord::new("remote folder browser", location.clone())
             .expect("validated remote browser location must form a repository identity");
-        let output = run_command(plan, self.timeout, cancellation)
+        let output = run_remote_command(plan, self.timeout, cancellation)
             .await
             .map_err(|error| process_error(&repository, error))?;
         if output.truncated {
@@ -295,9 +295,16 @@ impl JjDriver {
             whitespace_mode,
         };
         let plan = self.command_plan(repository, query);
-        let output = run_command_with_limit(plan, self.timeout, cancellation, DIFF_OUTPUT_LIMIT)
-            .await
-            .map_err(|error| process_error(repository, error))?;
+        let output = match repository.location {
+            RepositoryLocation::Local { .. } => {
+                run_command_with_limit(plan, self.timeout, cancellation, DIFF_OUTPUT_LIMIT).await
+            }
+            RepositoryLocation::Ssh { .. } => {
+                run_remote_command_with_limit(plan, self.timeout, cancellation, DIFF_OUTPUT_LIMIT)
+                    .await
+            }
+        }
+        .map_err(|error| process_error(repository, error))?;
         if output.exit_code != Some(0) {
             let raw = String::from_utf8_lossy(&output.stderr);
             return Err(DriverError {
@@ -612,9 +619,11 @@ impl JjDriver {
         } else {
             self.timeout
         };
-        let output = run_command(plan, timeout, cancellation)
-            .await
-            .map_err(|error| process_error(repository, error))?;
+        let output = match repository.location {
+            RepositoryLocation::Local { .. } => run_command(plan, timeout, cancellation).await,
+            RepositoryLocation::Ssh { .. } => run_remote_command(plan, timeout, cancellation).await,
+        }
+        .map_err(|error| process_error(repository, error))?;
         if output.truncated {
             return Err(DriverError {
                 kind: DriverErrorKind::OutputLimit,
@@ -743,9 +752,13 @@ impl JjDriver {
         plan: CommandPlan,
         cancellation: CancellationToken,
     ) -> Result<(), DriverError> {
-        let output = run_command(plan, self.timeout, cancellation)
-            .await
-            .map_err(|error| process_error(repository, error))?;
+        let output = match repository.location {
+            RepositoryLocation::Local { .. } => run_command(plan, self.timeout, cancellation).await,
+            RepositoryLocation::Ssh { .. } => {
+                run_remote_command(plan, self.timeout, cancellation).await
+            }
+        }
+        .map_err(|error| process_error(repository, error))?;
         if output.truncated {
             return Err(DriverError {
                 kind: DriverErrorKind::OutputLimit,
@@ -828,9 +841,15 @@ impl JjDriver {
     ) -> Result<CommandOutput, DriverError> {
         let output_label = query.output_label();
         let plan = self.command_plan(repository, query);
-        let output = run_command_with_limit(plan, self.timeout, cancellation, output_limit)
-            .await
-            .map_err(|error| process_error(repository, error))?;
+        let output = match repository.location {
+            RepositoryLocation::Local { .. } => {
+                run_command_with_limit(plan, self.timeout, cancellation, output_limit).await
+            }
+            RepositoryLocation::Ssh { .. } => {
+                run_remote_command_with_limit(plan, self.timeout, cancellation, output_limit).await
+            }
+        }
+        .map_err(|error| process_error(repository, error))?;
         if output.truncated {
             return Err(DriverError {
                 kind: DriverErrorKind::OutputLimit,
@@ -2021,7 +2040,7 @@ fn process_error(repository: &RepositoryRecord, error: ProcessError) -> DriverEr
     DriverError { kind, message }
 }
 
-fn redact_error(message: &str, location: &RepositoryLocation) -> String {
+pub(crate) fn redact_error(message: &str, location: &RepositoryLocation) -> String {
     let mut redacted = message.to_owned();
     match location {
         RepositoryLocation::Local { path } => {

@@ -39,6 +39,7 @@ import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { adjacentNavigationIndex } from "./lib/keyboardNavigation";
+import { toggleDiffQuickLookWindow } from "./lib/diffQuickLook";
 import { AddRepositorySourceDialog } from "./components/AddRepositorySourceDialog";
 import { MutationDialog } from "./components/MutationDialog";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
@@ -245,6 +246,9 @@ function App() {
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>("unified");
   const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>("preserve");
   const [inspectorView, setInspectorView] = useState<InspectorView>("changes");
+  const keyboardNavigationZoneRef = useRef<
+    "graph" | "files" | "diff" | "operations"
+  >("graph");
   const [operationLog, setOperationLog] = useState<OperationLogProjection | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -754,6 +758,35 @@ function App() {
   }, [registry?.openRepositoryIds, registry?.selectedRepository, updateTabOverflow]);
 
   useEffect(() => {
+    const rememberKeyboardNavigationZone = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const zone = target
+        .closest<HTMLElement>("[data-keyboard-navigation]")
+        ?.dataset.keyboardNavigation;
+      if (
+        zone === "graph" ||
+        zone === "files" ||
+        zone === "diff" ||
+        zone === "operations"
+      ) {
+        keyboardNavigationZoneRef.current = zone;
+      }
+    };
+    window.addEventListener(
+      "pointerdown",
+      rememberKeyboardNavigationZone,
+      true,
+    );
+    return () =>
+      window.removeEventListener(
+        "pointerdown",
+        rememberKeyboardNavigationZone,
+        true,
+      );
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "r") {
         event.preventDefault();
@@ -799,6 +832,39 @@ function App() {
           selectedRepository.id,
           event.key === "ArrowLeft" ? -1 : 1,
         );
+      }
+      if (
+        !event.defaultPrevented &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        (event.key === " " ||
+          event.key === "Spacebar" ||
+          event.code === "Space") &&
+        keyboardNavigationZoneRef.current === "files" &&
+        selectedRepository &&
+        selectedChange &&
+        selectedFilePath &&
+        inspectorView === "changes" &&
+        !isTextEntry(event.target) &&
+        !mutationDialog
+      ) {
+        event.preventDefault();
+        void toggleDiffQuickLookWindow({
+          repositoryId: selectedRepository.id,
+          repositoryName: selectedRepository.displayName,
+          changeId: selectedChange.changeId,
+          commitId: selectedChange.commitId,
+          selectedFilePath,
+          viewMode: diffViewMode,
+          whitespaceMode,
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          setErrors((current) => ({
+            ...current,
+            [selectedRepository.id]: message,
+          }));
+        });
       }
       if (
         !event.defaultPrevented &&
@@ -875,12 +941,17 @@ function App() {
     registry?.openRepositoryIds,
     selectRepository,
     selectedChange?.changeId,
+    selectedChange?.commitId,
+    selectedFilePath,
     selectedRepository,
     visibleChanges,
+    diffViewMode,
+    inspectorView,
     mutationDialog,
     operationLog?.redoTarget,
     operationLog?.undoTarget,
     rebaseSourceCommitId,
+    whitespaceMode,
   ]);
 
   useEffect(() => {
@@ -1996,6 +2067,29 @@ function App() {
               whitespaceMode={whitespaceMode}
               onDiffViewModeChange={setDiffViewMode}
               onWhitespaceModeChange={setWhitespaceMode}
+              onOpenDiffQuickLook={(
+                change,
+                path,
+                viewMode,
+                quickLookWhitespaceMode,
+              ) => {
+                void toggleDiffQuickLookWindow({
+                  repositoryId: selectedRepository.id,
+                  repositoryName: selectedRepository.displayName,
+                  changeId: change.changeId,
+                  commitId: change.commitId,
+                  selectedFilePath: path,
+                  viewMode,
+                  whitespaceMode: quickLookWhitespaceMode,
+                }).catch((error: unknown) => {
+                  const message =
+                    error instanceof Error ? error.message : String(error);
+                  setErrors((current) => ({
+                    ...current,
+                    [selectedRepository.id]: message,
+                  }));
+                });
+              }}
               inspectorView={inspectorView}
               onInspectorViewChange={setInspectorView}
               operationLog={operationLog}

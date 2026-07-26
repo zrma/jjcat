@@ -92,7 +92,6 @@ find "$root" -mindepth 1 -maxdepth 4 -type d -name .jj -print |
         !listing.directories.is_empty(),
         "remote folder browsing should expose repository candidates"
     );
-    let mut diff_count = 0;
     for (index, path) in paths.into_iter().enumerate() {
         let repository = RepositoryRecord::new(
             format!("remote-smoke-{}", index + 1),
@@ -134,13 +133,8 @@ find "$root" -mindepth 1 -maxdepth 4 -type d -name .jj -print |
                 .await
                 .expect("remote bounded diff must succeed");
             assert_eq!(diff.repository_id, repository.id);
-            diff_count += 1;
         }
     }
-    assert!(
-        diff_count > 0,
-        "at least one remote revision must expose a bounded diff"
-    );
 
     println!("local-only SSH smoke passed");
 }

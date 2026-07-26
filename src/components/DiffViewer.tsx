@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Columns2, Rows3 } from "lucide-react";
+import { Columns2, Maximize2, Rows3 } from "lucide-react";
 import { pairSideBySide } from "../lib/diff";
 import type {
   DiffLine,
@@ -23,6 +23,7 @@ interface DiffViewerProps {
   whitespaceMode: WhitespaceMode;
   onViewModeChange: (mode: DiffViewMode) => void;
   onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+  onOpenSeparateWindow?: () => void;
 }
 
 export function DiffViewer({
@@ -33,6 +34,7 @@ export function DiffViewer({
   whitespaceMode,
   onViewModeChange,
   onWhitespaceModeChange,
+  onOpenSeparateWindow,
 }: DiffViewerProps) {
   const displayPath = projection?.file.displayPath || projection?.file.path;
   const contentRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,19 @@ export function DiffViewer({
           )}
         </div>
         <div className="diff-controls">
+          {onOpenSeparateWindow && (
+            <button
+              type="button"
+              className="diff-window-trigger"
+              onClick={onOpenSeparateWindow}
+              title="Open selected file diff in a separate window (Space)"
+              aria-label="Open selected file diff in a separate window"
+            >
+              <Maximize2 aria-hidden="true" />
+              <span>Open in Window</span>
+              <kbd>Space</kbd>
+            </button>
+          )}
           <div className="segmented-control" aria-label="Diff layout">
             <button
               type="button"

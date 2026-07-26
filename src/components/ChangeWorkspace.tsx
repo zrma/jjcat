@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -19,6 +20,7 @@ import {
   GitCommitHorizontal,
   GitFork,
   History,
+  Maximize2,
   Minus,
   UserRound,
   X,
@@ -84,6 +86,12 @@ interface ChangeWorkspaceProps {
   onSelectFile: (path: string) => void;
   onDiffViewModeChange: (mode: DiffViewMode) => void;
   onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+  onOpenDiffQuickLook: (
+    change: ChangeRow,
+    selectedFilePath: string,
+    viewMode: DiffViewMode,
+    whitespaceMode: WhitespaceMode,
+  ) => void;
   inspectorView: InspectorView;
   onInspectorViewChange: (view: InspectorView) => void;
   operationLog: OperationLogProjection | null;
@@ -128,6 +136,7 @@ export function ChangeWorkspace({
   onSelectFile,
   onDiffViewModeChange,
   onWhitespaceModeChange,
+  onOpenDiffQuickLook,
   inspectorView,
   onInspectorViewChange,
   operationLog,
@@ -283,6 +292,7 @@ export function ChangeWorkspace({
         onSelectFile={onSelectFile}
         onDiffViewModeChange={onDiffViewModeChange}
         onWhitespaceModeChange={onWhitespaceModeChange}
+        onOpenDiffQuickLook={onOpenDiffQuickLook}
       />
     );
   }
@@ -451,6 +461,7 @@ export function ChangeWorkspace({
               onSelectFile={onSelectFile}
               onDiffViewModeChange={onDiffViewModeChange}
               onWhitespaceModeChange={onWhitespaceModeChange}
+              onOpenDiffQuickLook={onOpenDiffQuickLook}
             />
           )}
         </div>
@@ -483,6 +494,7 @@ function WorkingCopyWorkspace({
   onSelectFile,
   onDiffViewModeChange,
   onWhitespaceModeChange,
+  onOpenDiffQuickLook,
 }: {
   change?: ChangeRow;
   fileCount: number;
@@ -497,6 +509,12 @@ function WorkingCopyWorkspace({
   onSelectFile: (path: string) => void;
   onDiffViewModeChange: (mode: DiffViewMode) => void;
   onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+  onOpenDiffQuickLook: (
+    change: ChangeRow,
+    selectedFilePath: string,
+    viewMode: DiffViewMode,
+    whitespaceMode: WhitespaceMode,
+  ) => void;
 }) {
   return (
     <section className="working-copy-workspace" aria-label="Working copy files">
@@ -535,6 +553,7 @@ function WorkingCopyWorkspace({
             onSelectFile={onSelectFile}
             onDiffViewModeChange={onDiffViewModeChange}
             onWhitespaceModeChange={onWhitespaceModeChange}
+            onOpenDiffQuickLook={onOpenDiffQuickLook}
           />
         )}
       </div>
@@ -1417,6 +1436,7 @@ function ChangeInspector({
   onSelectFile,
   onDiffViewModeChange,
   onWhitespaceModeChange,
+  onOpenDiffQuickLook,
 }: {
   change?: ChangeRow;
   selectedFilePath: string | null;
@@ -1428,6 +1448,12 @@ function ChangeInspector({
   onSelectFile: (path: string) => void;
   onDiffViewModeChange: (mode: DiffViewMode) => void;
   onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+  onOpenDiffQuickLook: (
+    change: ChangeRow,
+    selectedFilePath: string,
+    viewMode: DiffViewMode,
+    whitespaceMode: WhitespaceMode,
+  ) => void;
 }) {
   return (
     <div className="change-inspector">
@@ -1443,6 +1469,7 @@ function ChangeInspector({
         onSelectFile={onSelectFile}
         onDiffViewModeChange={onDiffViewModeChange}
         onWhitespaceModeChange={onWhitespaceModeChange}
+        onOpenDiffQuickLook={onOpenDiffQuickLook}
       />
     </div>
   );
@@ -1536,6 +1563,7 @@ function ChangeFiles({
   onSelectFile,
   onDiffViewModeChange,
   onWhitespaceModeChange,
+  onOpenDiffQuickLook,
 }: {
   change?: ChangeRow;
   selectedFilePath: string | null;
@@ -1547,7 +1575,15 @@ function ChangeFiles({
   onSelectFile: (path: string) => void;
   onDiffViewModeChange: (mode: DiffViewMode) => void;
   onWhitespaceModeChange: (mode: WhitespaceMode) => void;
+  onOpenDiffQuickLook: (
+    change: ChangeRow,
+    selectedFilePath: string,
+    viewMode: DiffViewMode,
+    whitespaceMode: WhitespaceMode,
+  ) => void;
 }) {
+  const fileListRef = useRef<HTMLElement>(null);
+
   if (!change) {
     return (
       <aside className="change-details details-empty">
@@ -1563,6 +1599,7 @@ function ChangeFiles({
         className="detail-files"
         data-keyboard-navigation="files"
         tabIndex={0}
+        ref={fileListRef}
         onPointerDown={(event) => {
           const target = event.target;
           const fileButton =
@@ -1582,6 +1619,22 @@ function ChangeFiles({
           event.currentTarget.focus({ preventScroll: true });
         }}
         onKeyDown={(event) => {
+          if (
+            event.key === " " ||
+            event.key === "Spacebar" ||
+            event.code === "Space"
+          ) {
+            if (!selectedFilePath) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onOpenDiffQuickLook(
+              change,
+              selectedFilePath,
+              diffViewMode,
+              whitespaceMode,
+            );
+            return;
+          }
           if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
           const buttons = Array.from(
             event.currentTarget.querySelectorAll<HTMLButtonElement>(
@@ -1618,16 +1671,45 @@ function ChangeFiles({
         <header>
           <Files aria-hidden="true" />
           <h2>Files ({change.files.length})</h2>
+          <button
+            type="button"
+            className="quick-look-trigger"
+            disabled={!selectedFilePath}
+            onClick={() => {
+              if (!selectedFilePath) return;
+              onOpenDiffQuickLook(
+                change,
+                selectedFilePath,
+                diffViewMode,
+                whitespaceMode,
+              );
+            }}
+            title="Open diff Quick Look (Space)"
+            aria-label="Open selected file diff in Quick Look"
+          >
+            <Maximize2 aria-hidden="true" />
+            <kbd>Space</kbd>
+          </button>
         </header>
-        {change.files.length === 0 ? (
-          <p>No files changed</p>
-        ) : (
-          <ChangedFileTree
-            files={change.files}
-            selectedFilePath={selectedFilePath}
-            onSelectFile={onSelectFile}
-          />
-        )}
+        <div className="detail-file-tree-scroll">
+          {change.files.length === 0 ? (
+            <p>No files changed</p>
+          ) : (
+            <ChangedFileTree
+              files={change.files}
+              selectedFilePath={selectedFilePath}
+              onSelectFile={onSelectFile}
+              onOpenSelectedFile={(path) => {
+                onOpenDiffQuickLook(
+                  change,
+                  path,
+                  diffViewMode,
+                  whitespaceMode,
+                );
+              }}
+            />
+          )}
+        </div>
       </section>
       {selectedFilePath || diffLoading || diffError ? (
         <DiffViewer
@@ -1638,6 +1720,17 @@ function ChangeFiles({
           whitespaceMode={whitespaceMode}
           onViewModeChange={onDiffViewModeChange}
           onWhitespaceModeChange={onWhitespaceModeChange}
+          onOpenSeparateWindow={
+            selectedFilePath
+              ? () =>
+                  onOpenDiffQuickLook(
+                    change,
+                    selectedFilePath,
+                    diffViewMode,
+                    whitespaceMode,
+                  )
+              : undefined
+          }
         />
       ) : (
         <section className="diff-empty">
@@ -1679,14 +1772,16 @@ function buildFileTree(files: ChangedFile[]) {
   return root;
 }
 
-function ChangedFileTree({
+export function ChangedFileTree({
   files,
   selectedFilePath,
   onSelectFile,
+  onOpenSelectedFile,
 }: {
   files: ChangedFile[];
   selectedFilePath: string | null;
   onSelectFile: (path: string) => void;
+  onOpenSelectedFile?: (path: string) => void;
 }) {
   const root = useMemo(() => buildFileTree(files), [files]);
   return (
@@ -1697,6 +1792,7 @@ function ChangedFileTree({
           depth={0}
           selectedFilePath={selectedFilePath}
           onSelectFile={onSelectFile}
+          onOpenSelectedFile={onOpenSelectedFile}
           key={node.path}
         />
       ))}
@@ -1709,11 +1805,13 @@ function FileTreeBranch({
   depth,
   selectedFilePath,
   onSelectFile,
+  onOpenSelectedFile,
 }: {
   node: FileTreeNode;
   depth: number;
   selectedFilePath: string | null;
   onSelectFile: (path: string) => void;
+  onOpenSelectedFile?: (path: string) => void;
 }) {
   const children = [...node.children.values()].sort((left, right) => {
     const leftDirectory = left.children.size > 0;
@@ -1731,7 +1829,26 @@ function FileTreeBranch({
           onPointerDown={(event) =>
             event.currentTarget.focus({ preventScroll: true })
           }
-          onClick={() => onSelectFile(node.file!.path)}
+          onClick={(event) => {
+            const button = event.currentTarget;
+            onSelectFile(node.file!.path);
+            window.requestAnimationFrame(() =>
+              button.focus({ preventScroll: true }),
+            );
+          }}
+          onKeyDown={(event) => {
+            if (
+              event.key !== " " &&
+              event.key !== "Spacebar" &&
+              event.code !== "Space"
+            ) {
+              return;
+            }
+            if (!onOpenSelectedFile) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onOpenSelectedFile(node.file!.path);
+          }}
           data-file-path={node.file.path}
         >
           <File aria-hidden="true" />
@@ -1755,6 +1872,7 @@ function FileTreeBranch({
               depth={depth + 1}
               selectedFilePath={selectedFilePath}
               onSelectFile={onSelectFile}
+              onOpenSelectedFile={onOpenSelectedFile}
               key={child.path}
             />
           ))}
