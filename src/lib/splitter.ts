@@ -31,3 +31,15 @@ export function splitterSizeForKey(
   if (key === "End") return bounds.max;
   return null;
 }
+
+export function splitterSizeForPointer(
+  startSize: number,
+  startPosition: number,
+  currentPosition: number,
+  bounds: SplitterBounds,
+) {
+  return clampSplitterSize(
+    startSize + startPosition - currentPosition,
+    bounds,
+  );
+}

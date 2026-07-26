@@ -3,6 +3,7 @@ import {
   clampSplitterSize,
   splitterBounds,
   splitterSizeForKey,
+  splitterSizeForPointer,
 } from "./splitter";
 
 describe("splitter sizing", () => {
@@ -23,5 +24,11 @@ describe("splitter sizing", () => {
 
   it("ignores unrelated keys", () => {
     expect(splitterSizeForKey("Enter", 300, bounds, 24)).toBeNull();
+  });
+
+  it("tracks pointer movement outside the separator", () => {
+    expect(splitterSizeForPointer(280, 440, 320, bounds)).toBe(400);
+    expect(splitterSizeForPointer(280, 440, 510, bounds)).toBe(210);
+    expect(splitterSizeForPointer(280, 440, 0, bounds)).toBe(555);
   });
 });

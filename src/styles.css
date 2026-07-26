@@ -1141,7 +1141,8 @@ body[data-runtime="tauri"] .brand-lockup {
 .refresh-button:hover,
 .refresh-button.active {
   border-color: var(--border-default);
-  background: #18242b;
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .refresh-button svg {
@@ -1177,7 +1178,7 @@ body[data-runtime="tauri"] .brand-lockup {
   grid-template-rows:
     minmax(140px, 1fr)
     5px
-    minmax(180px, var(--inspector-height, 40%));
+    var(--inspector-track, minmax(180px, 40%));
   min-width: 0;
   min-height: 0;
   flex: 1;
@@ -1249,6 +1250,7 @@ body[data-runtime="tauri"] .brand-lockup {
   position: relative;
   z-index: 6;
   min-width: 0;
+  height: 5px;
   min-height: 5px;
   border: 0;
   outline: 0;
@@ -1317,9 +1319,10 @@ body.workspace-resizing {
 }
 
 .inspector-tabs button.selected {
-  background: var(--surface-hover);
+  background: var(--surface-selected);
   color: var(--text-primary);
-  box-shadow: inset 0 -2px 0 #b2b4b8;
+  box-shadow: inset 0 -2px 0 var(--text-secondary);
+  font-weight: 600;
 }
 
 .inspector-tabs button svg {
@@ -1656,6 +1659,15 @@ body.workspace-resizing {
   stroke: var(--text-muted);
 }
 
+.change-row.selected .dag-cell path:not(.branch-line) {
+  stroke: var(--selection-muted);
+}
+
+.change-row.selected .dag-cell circle:not(.bookmark-node) {
+  fill: var(--selection-bg);
+  stroke: var(--selection-text);
+}
+
 .change-id,
 .change-commit {
   color: var(--text-secondary);
@@ -1932,13 +1944,13 @@ body.workspace-resizing {
 }
 
 .detail-files li button:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface-hover);
 }
 
 .detail-files li button.selected {
   background: var(--brand-soft);
   box-shadow: inset 2px 0 0 var(--brand-primary);
-  color: #e2e9ec;
+  color: var(--text-primary);
 }
 
 .detail-files li svg {
@@ -1972,7 +1984,7 @@ body.workspace-resizing {
   gap: 7px;
   min-height: 27px;
   padding: 0 12px 0 calc(12px + var(--tree-depth, 0) * 14px);
-  color: #b9c4c9;
+  color: var(--text-secondary);
   font-size: 11px;
   list-style: none;
   cursor: pointer;
@@ -1983,7 +1995,7 @@ body.workspace-resizing {
 }
 
 .file-tree details > summary:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-hover);
   color: var(--text-primary);
 }
 
@@ -2475,8 +2487,8 @@ body.workspace-resizing {
   z-index: 2;
   top: 0;
   padding: 6px 10px;
-  border-bottom: 1px solid rgba(255, 194, 79, 0.28);
-  background: #241e14;
+  border-bottom: 1px solid var(--state-warning);
+  background: var(--state-warning-soft);
 }
 
 .unified-diff .diff-hunk {
@@ -2494,9 +2506,9 @@ body.workspace-resizing {
   top: 0;
   height: 24px;
   padding: 5px 10px;
-  border-bottom: 1px solid #29414c;
+  border-bottom: 1px solid var(--border-default);
   background: var(--surface-raised);
-  color: #8cb7c9;
+  color: var(--state-info);
   font-family: var(--mono);
   font-size: 10px;
   white-space: pre;
@@ -2832,7 +2844,7 @@ body.workspace-resizing {
 }
 
 .operation-list > button:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-hover);
 }
 
 .operation-list > button.selected {
@@ -2854,7 +2866,7 @@ body.workspace-resizing {
   left: 2px;
   width: 1px;
   height: 34px;
-  background: #47605d;
+  background: var(--border-strong);
   content: "";
 }
 

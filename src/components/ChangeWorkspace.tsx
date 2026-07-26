@@ -43,6 +43,7 @@ import {
   clampSplitterSize,
   splitterBounds,
   splitterSizeForKey,
+  splitterSizeForPointer,
 } from "../lib/splitter";
 import { virtualRange } from "../lib/virtualization";
 import type {
@@ -142,6 +143,7 @@ export function ChangeWorkspace({
   const contentGridRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
   const changeActionButtonRef = useRef<HTMLButtonElement>(null);
+  const splitterBoundsRef = useRef({ min: 0, max: 0 });
   const splitterDragRef = useRef<{
     pointerId: number;
     startY: number;
@@ -171,7 +173,8 @@ export function ChangeWorkspace({
   );
   const gridStyle = inspectorHeight === null
     ? undefined
-    : ({ "--inspector-height": `${currentInspectorHeight}px` } as CSSProperties);
+    : ({ "--inspector-track": `${currentInspectorHeight}px` } as CSSProperties);
+  splitterBoundsRef.current = bounds;
 
   useLayoutEffect(() => {
     const element = contentGridRef.current;
@@ -192,12 +195,43 @@ export function ChangeWorkspace({
     });
   }, [bounds.max, bounds.min, contentHeight, inspectorHeight]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const clearSplitterDrag = () => {
+      splitterDragRef.current = null;
       document.body.classList.remove("workspace-resizing");
-    },
-    [],
-  );
+    };
+    const finishSplitterDrag = (pointerId: number) => {
+      if (splitterDragRef.current?.pointerId !== pointerId) return;
+      clearSplitterDrag();
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = splitterDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      setInspectorHeight(
+        splitterSizeForPointer(
+          drag.startHeight,
+          drag.startY,
+          event.clientY,
+          splitterBoundsRef.current,
+        ),
+      );
+      event.preventDefault();
+    };
+    const onPointerUp = (event: PointerEvent) =>
+      finishSplitterDrag(event.pointerId);
+
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("blur", clearSplitterDrag);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("blur", clearSplitterDrag);
+      clearSplitterDrag();
+    };
+  }, []);
 
   useEffect(() => {
     if (!changeActionMenu) return;
@@ -232,15 +266,6 @@ export function ChangeWorkspace({
     selectedChange?.changeId === changeActionMenu?.changeId
       ? selectedChange
       : changes.find((change) => change.changeId === changeActionMenu?.changeId);
-
-  const finishSplitterDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (splitterDragRef.current?.pointerId !== event.pointerId) return;
-    splitterDragRef.current = null;
-    document.body.classList.remove("workspace-resizing");
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
 
   if (workingCopyMode) {
     return (
@@ -326,25 +351,13 @@ export function ChangeWorkspace({
             startY: event.clientY,
             startHeight: measuredHeight,
           };
-          event.currentTarget.setPointerCapture(event.pointerId);
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+          } catch {
+            // Window-level tracking remains available when WebKit rejects capture.
+          }
           document.body.classList.add("workspace-resizing");
           event.preventDefault();
-        }}
-        onPointerMove={(event) => {
-          const drag = splitterDragRef.current;
-          if (!drag || drag.pointerId !== event.pointerId) return;
-          setInspectorHeight(
-            clampSplitterSize(
-              drag.startHeight + drag.startY - event.clientY,
-              bounds,
-            ),
-          );
-        }}
-        onPointerUp={finishSplitterDrag}
-        onPointerCancel={finishSplitterDrag}
-        onLostPointerCapture={() => {
-          splitterDragRef.current = null;
-          document.body.classList.remove("workspace-resizing");
         }}
       />
       <section

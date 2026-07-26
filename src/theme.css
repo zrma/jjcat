@@ -1,28 +1,28 @@
 :root {
   color-scheme: light;
 
-  /* Paper-white surfaces keep the dense desktop cockpit legible in daylight. */
-  --surface-canvas: #fafafa;
-  --surface-chrome: #f1f1f2;
-  --surface-sidebar: #f5f5f6;
+  /* Fork-like separation keeps dense desktop chrome readable in daylight. */
+  --surface-canvas: #ffffff;
+  --surface-chrome: #eceef0;
+  --surface-sidebar: #f2f3f5;
   --surface-panel: #ffffff;
-  --surface-raised: #f7f7f8;
-  --surface-hover: #eceef0;
-  --surface-pressed: #e1e4e7;
-  --surface-selected: #e5e7ea;
+  --surface-raised: #f6f7f8;
+  --surface-hover: #e5e8eb;
+  --surface-pressed: #d9dde1;
+  --surface-selected: #dfe3e7;
   --surface-inset: #f3f4f5;
 
-  /* Structure should remain visible without competing with the graph. */
-  --border-row: #e1e3e5;
-  --border-subtle: #d8dade;
-  --border-default: #c7cbd0;
-  --border-strong: #aeb4ba;
+  /* A visible four-step border scale prevents panels from washing together. */
+  --border-row: #d6d9dd;
+  --border-subtle: #cdd1d5;
+  --border-default: #b8bec5;
+  --border-strong: #8d959e;
 
   /* Text hierarchy carries most of the information density. */
-  --text-primary: #202326;
-  --text-secondary: #4e5358;
-  --text-muted: #737980;
-  --text-disabled: #a0a5aa;
+  --text-primary: #17191b;
+  --text-secondary: #3f454b;
+  --text-muted: #666d74;
+  --text-disabled: #999fa6;
 
   /* jjcat identity: cat cyan is reserved for the product and current state. */
   --brand-primary: #087f79;
@@ -61,26 +61,26 @@
   :root {
     color-scheme: dark;
 
-    /* Graphite surfaces keep the dense desktop cockpit quiet at night. */
-    --surface-canvas: #191a1c;
-    --surface-chrome: #1e2022;
-    --surface-sidebar: #202225;
-    --surface-panel: #242629;
-    --surface-raised: #2a2d30;
-    --surface-hover: #31353a;
-    --surface-pressed: #393d42;
-    --surface-selected: #35383d;
-    --surface-inset: #17191b;
+    /* Dark graphite uses wider surface steps than the previous near-black wash. */
+    --surface-canvas: #1f2123;
+    --surface-chrome: #282a2d;
+    --surface-sidebar: #232528;
+    --surface-panel: #26282b;
+    --surface-raised: #2e3033;
+    --surface-hover: #383b3f;
+    --surface-pressed: #42464b;
+    --surface-selected: #3b3e43;
+    --surface-inset: #1b1d1f;
 
-    --border-row: #2c2f33;
-    --border-subtle: #32353a;
-    --border-default: #41454a;
-    --border-strong: #53585f;
+    --border-row: #373a3e;
+    --border-subtle: #41454a;
+    --border-default: #51565c;
+    --border-strong: #6a7077;
 
-    --text-primary: #f1f2f3;
-    --text-secondary: #c5c8cc;
-    --text-muted: #9da2a8;
-    --text-disabled: #73787f;
+    --text-primary: #f5f6f7;
+    --text-secondary: #d2d5d8;
+    --text-muted: #a5abb1;
+    --text-disabled: #747a81;
 
     --brand-primary: #2cc8be;
     --brand-emphasis: #5ad9d0;
