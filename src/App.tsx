@@ -68,7 +68,9 @@ import {
   type TabOverflowState,
 } from "./lib/tabOverflow";
 import {
+  adjacentRepositoryTabId,
   reorderRepositoryTabs,
+  repositoryTabCycleDirection,
   type RepositoryTabDropEdge,
 } from "./lib/repositoryTabs";
 import type {
@@ -299,6 +301,7 @@ function App() {
   const changeDetailsRequestRef = useRef(0);
   const diffRequestRef = useRef(0);
   const operationRequestRef = useRef(0);
+  const repositorySelectionRequestRef = useRef(0);
   const historyStepExecutingRef = useRef(false);
   const tabOrderSavingRef = useRef(false);
   const tabPointerDragRef = useRef<RepositoryTabPointerDrag | null>(null);
@@ -554,12 +557,15 @@ function App() {
 
   const selectRepository = useCallback(
     async (repositoryId: string) => {
+      const request = ++repositorySelectionRequestRef.current;
       try {
         const snapshot = await bridge.selectRepository(repositoryId);
+        if (request !== repositorySelectionRequestRef.current) return;
         setRegistry(snapshot.registry);
         setRecoveryNotice(snapshot.recoveryNotice);
         setRepositoryActionError(null);
       } catch (error) {
+        if (request !== repositorySelectionRequestRef.current) return;
         setRepositoryActionError((error as AppError).message);
       }
     },
@@ -789,6 +795,19 @@ function App() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (activityCenterOpen) return;
+      const tabCycleDirection =
+        !mutationDialog ? repositoryTabCycleDirection(event) : null;
+      if (tabCycleDirection && registry) {
+        event.preventDefault();
+        const repositoryId = adjacentRepositoryTabId(
+          registry.openRepositoryIds,
+          registry.selectedRepository,
+          tabCycleDirection,
+        );
+        if (repositoryId) {
+          void selectRepository(repositoryId);
+        }
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "r") {
         event.preventDefault();
         if (selectedRepository) void refreshRepository(selectedRepository.id);
@@ -941,6 +960,7 @@ function App() {
     activityCenterOpen,
     refreshRepository,
     registry?.openRepositoryIds,
+    registry?.selectedRepository,
     selectRepository,
     selectedChange?.changeId,
     selectedChange?.commitId,
