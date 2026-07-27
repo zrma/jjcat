@@ -55,6 +55,7 @@
   --state-danger: #bf3434;
   --state-danger-soft: rgb(191 52 52 / 9%);
   --state-info: #477887;
+  --shadow-floating: rgba(31, 35, 40, 0.22);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -110,5 +111,6 @@
     --state-danger: #f17878;
     --state-danger-soft: rgb(241 120 120 / 12%);
     --state-info: #8ab6c7;
+    --shadow-floating: rgba(0, 0, 0, 0.45);
   }
 }

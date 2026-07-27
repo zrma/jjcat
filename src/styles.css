@@ -4868,8 +4868,8 @@ body.workspace-resizing {
   padding: 5px;
   border: 1px solid var(--border-default);
   border-radius: 7px;
-  background: rgba(30, 39, 44, 0.98);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+  background: var(--surface-raised);
+  box-shadow: 0 12px 34px var(--shadow-floating);
 }
 
 .repository-context-menu button {

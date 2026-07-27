@@ -2,13 +2,16 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { DiffQuickLookWindow } from "./components/DiffQuickLookWindow";
+import { suppressGenericWebViewContextMenu } from "./lib/contextMenu";
 import { parseDiffQuickLookRequest } from "./lib/diffQuickLook";
 import "./theme.css";
 import "./styles.css";
 
 const quickLookRequest = parseDiffQuickLookRequest(window.location.search);
+const rootElement = document.getElementById("root")!;
+const root = createRoot(rootElement);
 
-createRoot(document.getElementById("root")!).render(
+root.render(
   <StrictMode>
     {quickLookRequest ? (
       <DiffQuickLookWindow request={quickLookRequest} />
@@ -17,3 +20,5 @@ createRoot(document.getElementById("root")!).render(
     )}
   </StrictMode>,
 );
+
+rootElement.addEventListener("contextmenu", suppressGenericWebViewContextMenu);
