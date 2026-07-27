@@ -17,6 +17,7 @@ import {
   mutationDecisionForKey,
   supportsMutationDecisionShortcuts,
 } from "../lib/mutationShortcuts";
+import { jjMutationCommands } from "../lib/jjCommand";
 import type {
   AppError,
   ChangeRow,
@@ -34,7 +35,11 @@ interface MutationDialogProps {
   initialIntent: MutationIntent;
   previewImmediately: boolean;
   onClose: () => void;
-  onExecutionStarted: (title: string, kind: MutationKind) => string;
+  onExecutionStarted: (
+    title: string,
+    kind: MutationKind,
+    commands: string[],
+  ) => string;
   onExecutionFailed: (activityId: string) => void;
   onExecuted: (execution: MutationExecution, activityId: string) => void;
 }
@@ -222,8 +227,13 @@ export function MutationDialog({
   }, [changes, destinationCommitId, kind, sourceCommitId]);
 
   async function execute() {
-    if (!preview) return;
-    const activityId = onExecutionStarted(preview.title, preview.kind);
+    const intent = buildIntent();
+    if (!preview || !intent) return;
+    const activityId = onExecutionStarted(
+      preview.title,
+      preview.kind,
+      jjMutationCommands(intent, preview),
+    );
     setExecuting(true);
     setError(null);
     try {

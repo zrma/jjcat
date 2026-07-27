@@ -19,6 +19,7 @@ function entry(
     repositoryName: repositoryId,
     title: "Refresh repository",
     detail: "Refresh repository projection",
+    commands: [],
     category,
     state,
     startedAt: "2026-07-26T00:00:00.000Z",

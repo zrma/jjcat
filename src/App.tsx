@@ -52,6 +52,10 @@ import {
   type ActivityCategory,
   type ActivityEntry,
 } from "./lib/activity";
+import {
+  jjGitInitializationCommands,
+  jjMutationCommands,
+} from "./lib/jjCommand";
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import { repositoryNavigation as navigationForProjection } from "./lib/repositoryNavigation";
 import { repositoryTabPresentations } from "./lib/repositories";
@@ -342,6 +346,7 @@ function App() {
       repositoryName,
       title,
       detail,
+      commands = [],
       category,
       cancellable = false,
       requestId = null,
@@ -350,6 +355,7 @@ function App() {
       repositoryName: string;
       title: string;
       detail: string;
+      commands?: string[];
       category: ActivityCategory;
       cancellable?: boolean;
       requestId?: string | null;
@@ -361,6 +367,7 @@ function App() {
         repositoryName,
         title,
         detail,
+        commands,
         category,
         state: "running",
         startedAt: new Date().toISOString(),
@@ -1181,6 +1188,15 @@ function App() {
   async function initializeGitRepository() {
     const target = gitOnboardingTarget;
     if (!target || gitOnboardingRunning) return;
+    const activityId = startActivity({
+      repositoryId:
+        target.kind === "registered" ? target.repositoryId : target.sourceId,
+      repositoryName: target.displayName,
+      title: "Initialize Git repository",
+      detail: "Initialize the selected Git repository as a colocated jj repository",
+      commands: jjGitInitializationCommands(),
+      category: "user",
+    });
     setGitOnboardingRunning(true);
     setGitOnboardingError(null);
     try {
@@ -1195,8 +1211,18 @@ function App() {
       setRecoveryNotice(snapshot.recoveryNotice);
       setGitOnboardingTarget(null);
       setRepositoryActionError(null);
+      completeActivity(
+        activityId,
+        "success",
+        "Git repository initialized as a colocated jj repository.",
+      );
     } catch (error) {
       setGitOnboardingError((error as AppError).message);
+      completeActivity(
+        activityId,
+        "failed",
+        "Git repository initialization failed.",
+      );
     } finally {
       setGitOnboardingRunning(false);
     }
@@ -1324,6 +1350,7 @@ function App() {
       repositoryName: selectedRepository.displayName,
       title: kind === "undo" ? "Undo operation" : "Redo operation",
       detail: MUTATION_ACTIVITY_DETAILS[kind],
+      commands: jjMutationCommands({ kind, operationId }),
       category: "user",
     });
     try {
@@ -2371,12 +2398,13 @@ function App() {
           initialIntent={mutationDialog.initialIntent}
           previewImmediately={mutationDialog.previewImmediately}
           onClose={() => setMutationDialog(null)}
-          onExecutionStarted={(title, kind) =>
+          onExecutionStarted={(title, kind, commands) =>
             startActivity({
               repositoryId: selectedRepository.id,
               repositoryName: selectedRepository.displayName,
               title,
               detail: MUTATION_ACTIVITY_DETAILS[kind],
+              commands,
               category: "user",
             })
           }

@@ -7,6 +7,7 @@ export interface ActivityEntry {
   repositoryName: string;
   title: string;
   detail: string;
+  commands: string[];
   category: ActivityCategory;
   state: ActivityState;
   startedAt: string;

@@ -13,6 +13,7 @@ import {
   Clock3,
   LoaderCircle,
   Minus,
+  SquareTerminal,
   Trash2,
   X,
 } from "lucide-react";
@@ -370,6 +371,21 @@ export function ActivityCenter({
                             <dd>{durationLabel(selected, now)}</dd>
                           </div>
                         </dl>
+                        {selected.commands.length > 0 ? (
+                          <section className="activity-command-output">
+                            <h4>
+                              <SquareTerminal aria-hidden="true" />
+                              {selected.commands.length === 1
+                                ? "Command"
+                                : "Commands"}
+                            </h4>
+                            <pre>
+                              {selected.commands
+                                .map((command) => `$ ${command}`)
+                                .join("\n")}
+                            </pre>
+                          </section>
+                        ) : null}
                         <section className="activity-safe-output">
                           <h4>
                             <Clock3 aria-hidden="true" />
@@ -378,8 +394,8 @@ export function ActivityCenter({
                           <p>{selected.outcome ?? selected.detail}</p>
                         </section>
                         <p className="activity-privacy-note">
-                          Command arguments, local paths, SSH hosts, and raw output
-                          are intentionally omitted.
+                          Repository paths, SSH hosts, shell wrappers, and raw
+                          output are intentionally omitted.
                         </p>
                       </>
                     ) : (

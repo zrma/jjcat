@@ -1787,6 +1787,38 @@ body[data-runtime="tauri"] .brand-lockup {
   background: var(--surface-inset);
 }
 
+.activity-command-output {
+  margin-bottom: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-inset);
+}
+
+.activity-command-output h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.activity-command-output h4 svg {
+  width: 13px;
+  height: 13px;
+}
+
+.activity-command-output pre {
+  margin: 0;
+  overflow-x: auto;
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
 .activity-safe-output h4 {
   display: flex;
   align-items: center;
