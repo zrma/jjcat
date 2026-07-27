@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Server,
   Trash2,
+  Unplug,
 } from "lucide-react";
 import {
   buildRepositorySourceTree,
@@ -67,6 +68,8 @@ export function RepositorySourceTree({
         const catalog = registry.sourceCatalogs[source.id];
         const expanded = expandedSources.has(source.id);
         const sourceScanning = scanning.has(source.id);
+        const sourceDisconnected =
+          source.location.kind === "ssh" && Boolean(errors[source.id]);
         return (
           <div className="repository-source" key={source.id}>
             <div className="repository-source-heading">
@@ -80,7 +83,22 @@ export function RepositorySourceTree({
                 {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
                 {source.location.kind === "local" ? <Database aria-hidden="true" /> : <Server aria-hidden="true" />}
                 <span>{source.displayName}</span>
-                <strong>{catalog?.repositories.length ?? 0}</strong>
+                <div className="source-summary">
+                  <strong>{catalog?.repositories.length ?? 0}</strong>
+                  {sourceDisconnected && (
+                    <i
+                      className="source-disconnected"
+                      aria-label="Disconnected"
+                      title={
+                        catalog
+                          ? "Disconnected · showing cached repositories"
+                          : "Disconnected"
+                      }
+                    >
+                      <Unplug aria-hidden="true" />
+                    </i>
+                  )}
+                </div>
               </button>
               <button
                 type="button"

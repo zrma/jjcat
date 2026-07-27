@@ -743,6 +743,23 @@ body[data-runtime="tauri"] .brand-lockup {
   font-size: 9px;
 }
 
+.repository-source-toggle .source-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.repository-source-toggle .source-disconnected {
+  display: grid;
+  color: var(--state-warning);
+  place-items: center;
+}
+
+.repository-source-toggle .source-disconnected svg {
+  width: 12px;
+  height: 12px;
+}
+
 .repository-source-toggle svg {
   width: 13px;
   height: 13px;
@@ -862,6 +879,8 @@ body[data-runtime="tauri"] .brand-lockup {
 }
 
 .repository-state.stale,
+.repository-state.failed,
+.repository-state.failed-cached,
 .repository-state.disconnected,
 .repository-state.disconnected-cached {
   color: var(--state-warning);
@@ -913,15 +932,30 @@ body[data-runtime="tauri"] .brand-lockup {
 }
 
 .status-dot.stale,
-.status-dot.disconnected,
-.status-dot.disconnected-cached {
+.status-dot.failed,
+.status-dot.failed-cached {
   border-color: var(--state-warning);
   background: var(--state-warning);
 }
 
-.status-dot.disconnected,
-.status-dot.disconnected-cached {
+.status-dot.failed-cached {
   background: transparent;
+}
+
+.status-disconnected {
+  display: inline-grid;
+  grid-column: 4;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  color: var(--state-warning);
+  place-items: center;
+}
+
+.status-disconnected svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
 }
 
 .status-dot.refreshing {

@@ -29,6 +29,7 @@ import {
   Server,
   SquareTerminal,
   Trash2,
+  Unplug,
   X,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -56,7 +57,14 @@ import {
   jjGitInitializationCommands,
   jjMutationCommands,
 } from "./lib/jjCommand";
-import { isStale, locationLabel, relativeTime } from "./lib/format";
+import { locationLabel, relativeTime } from "./lib/format";
+import {
+  compactStateLabel,
+  isDisconnectedState,
+  repositoryState,
+  stateLabel,
+  type RepositoryState,
+} from "./lib/repositoryStatus";
 import { repositoryNavigation as navigationForProjection } from "./lib/repositoryNavigation";
 import { repositoryTabPresentations } from "./lib/repositories";
 import {
@@ -101,14 +109,6 @@ import type {
   WhitespaceMode,
 } from "./types";
 
-type RepositoryState =
-  | "ready"
-  | "cached"
-  | "stale"
-  | "refreshing"
-  | "disconnected"
-  | "disconnected-cached"
-  | "empty";
 type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
 type RepositoryTabDropTarget = {
   repositoryId: string;
@@ -1518,7 +1518,14 @@ function App() {
     }),
   );
   const selectedState = selectedRepository
-    ? repositoryState(selectedRepository.id, selectedCache, freshIds, refreshing, errors)
+    ? repositoryState(
+        selectedRepository.id,
+        selectedRepository.location.kind,
+        selectedCache,
+        freshIds,
+        refreshing,
+        errors,
+      )
     : "empty";
   const tabPresentations = repositoryTabPresentations(openRepositories);
   const repositoryCommandBand = selectedRepository ? (
@@ -1736,6 +1743,7 @@ function App() {
             {openRepositories.map((repository, tabIndex) => {
             const state = repositoryState(
               repository.id,
+              repository.location.kind,
               registry.cachedProjections[repository.id],
               freshIds,
               refreshing,
@@ -2086,6 +2094,7 @@ function App() {
             {standalone.map((repository) => {
                 const state = repositoryState(
                   repository.id,
+                  repository.location.kind,
                   registry.cachedProjections[repository.id],
                   freshIds,
                   refreshing,
@@ -2280,6 +2289,7 @@ function App() {
               .map((repository) => {
                 const state = repositoryState(
                   repository.id,
+                  repository.location.kind,
                   registry.cachedProjections[repository.id],
                   freshIds,
                   refreshing,
@@ -2427,60 +2437,26 @@ function repositoryNameFromPath(path: string) {
   return normalized.split(/[\\/]/).pop() || "repository";
 }
 
-function repositoryState(
-  repositoryId: string,
-  cache: CachedProjection | undefined,
-  freshIds: Set<string>,
-  refreshing: Record<string, string>,
-  errors: Record<string, string>,
-): RepositoryState {
-  if (refreshing[repositoryId]) return "refreshing";
-  if (errors[repositoryId]) return cache ? "disconnected-cached" : "disconnected";
-  if (!cache) return "empty";
-  if (freshIds.has(repositoryId)) return "ready";
-  return isStale(cache.cachedAt) ? "stale" : "cached";
-}
-
-function stateLabel(state: RepositoryState) {
-  switch (state) {
-    case "ready":
-      return "Ready";
-    case "refreshing":
-      return "Refreshing";
-    case "disconnected":
-      return "Unavailable";
-    case "disconnected-cached":
-      return "Refresh failed · Cached";
-    case "stale":
-      return "Cached · Stale";
-    case "cached":
-      return "Cached";
-    case "empty":
-      return "Never refreshed";
-  }
-}
-
-function compactStateLabel(state: RepositoryState) {
-  switch (state) {
-    case "ready":
-      return "Ready";
-    case "refreshing":
-      return "Syncing";
-    case "disconnected":
-      return "Unavailable";
-    case "disconnected-cached":
-      return "Refresh failed";
-    case "stale":
-      return "Stale";
-    case "cached":
-      return "Cached";
-    case "empty":
-      return "New";
-  }
-}
-
 function StatusDot({ state }: { state: RepositoryState }) {
-  return <span className={`status-dot ${state}`} aria-label={stateLabel(state)} />;
+  const label = stateLabel(state);
+  if (isDisconnectedState(state)) {
+    return (
+      <span
+        className={`status-disconnected ${state}`}
+        aria-label={label}
+        title={label}
+      >
+        <Unplug aria-hidden="true" />
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`status-dot ${state}`}
+      aria-label={label}
+      title={label}
+    />
+  );
 }
 
 function EmptyRepository({ onAdd }: { onAdd: () => void }) {
