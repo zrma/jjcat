@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { absoluteTime, relativeTime } from "../lib/format";
 import {
+  changedDagLanesInRange,
   dagRowLayoutEquals,
   layoutDag,
   type DagRowLayout,
@@ -840,29 +841,46 @@ function ChangeRows({
       stagedRebase,
     ],
   );
-  const hoverOrderMatches = useMemo(
+  const hoverDagRows = useMemo(
     () =>
-      hoverTopologyPreview?.changes.every(
-        (change, index) => change.changeId === changes[index]?.changeId,
-      ) ?? false,
-    [changes, hoverTopologyPreview],
+      hoverTopologyPreview
+        ? layoutDag(hoverTopologyPreview.changes).rows
+        : null,
+    [hoverTopologyPreview],
   );
-  const hoverDagRowsByChangeId = useMemo(
-    () => {
-      if (!hoverTopologyPreview || !hoverOrderMatches) return null;
-      const layout = layoutDag(hoverTopologyPreview.changes);
-      return new Map(
-        hoverTopologyPreview.changes.map((change, index) => [
-          change.changeId,
-          layout.rows[index],
-        ]),
-      );
-    },
-    [hoverOrderMatches, hoverTopologyPreview],
-  );
-  const topologyPreview =
-    stagedTopologyPreview ??
-    (hoverOrderMatches ? hoverTopologyPreview : null);
+  const previewFoldLanesById = useMemo(() => {
+    const proposedRows = hoverDagRows ?? dagRows;
+    const currentRows = hoverDagRows
+      ? dagRows
+      : stagedTopologyPreview && previousDagRowsByChangeId
+        ? stagedTopologyPreview.changes.map(
+            (change, index) =>
+              previousDagRowsByChangeId.get(change.changeId) ??
+              proposedRows[index],
+          )
+        : null;
+    if (!currentRows) return new Map<string, number[]>();
+
+    return new Map(
+      items.flatMap((item) => {
+        if (item.kind !== "fold") return [];
+        const lanes = changedDagLanesInRange(
+          currentRows,
+          proposedRows,
+          item.startIndex + item.shownCount,
+          item.endIndex + 1,
+        );
+        return lanes.length > 0 ? [[item.id, lanes] as const] : [];
+      }),
+    );
+  }, [
+    dagRows,
+    hoverDagRows,
+    items,
+    previousDagRowsByChangeId,
+    stagedTopologyPreview,
+  ]);
+  const topologyPreview = stagedTopologyPreview;
   const commitAtPoint = (clientX: number, clientY: number) =>
     document
       .elementFromPoint(clientX, clientY)
@@ -978,6 +996,7 @@ function ChangeRows({
               virtualized={virtualized}
               displayIndex={displayIndex}
               dagWidth={dagWidth}
+              previewLanes={previewFoldLanesById.get(item.id)}
               onReveal={onRevealGap}
               key={`fold-${item.id}`}
             />
@@ -1076,16 +1095,13 @@ function ChangeRows({
             <DagCell
               change={change}
               layout={
-                hoverDagRowsByChangeId?.get(change.changeId) ??
+                hoverDagRows?.[sourceIndex] ??
                 dagRows[sourceIndex]
               }
               previousLayout={
                 stagedTopologyPreview?.affectedChangeIds.has(change.changeId)
                   ? previousDagRowsByChangeId?.get(change.changeId)
-                  : hoverDagRowsByChangeId &&
-                      hoverTopologyPreview?.affectedChangeIds.has(
-                        change.changeId,
-                      )
+                  : hoverDagRows?.[sourceIndex]
                     ? dagRows[sourceIndex]
                     : undefined
               }
@@ -1252,12 +1268,14 @@ function HistoryFoldRow({
   virtualized,
   displayIndex,
   dagWidth,
+  previewLanes,
   onReveal,
 }: {
   fold: Extract<HistoryFoldItem, { kind: "fold" }>;
   virtualized: boolean;
   displayIndex: number;
   dagWidth: number;
+  previewLanes?: readonly number[];
   onReveal: (id: string, count: number) => void;
 }) {
   const revealCount = Math.min(
@@ -1266,7 +1284,7 @@ function HistoryFoldRow({
   );
   return (
     <div
-      className={`history-fold-row ${virtualized ? "virtualized-row" : ""}`}
+      className={`history-fold-row ${virtualized ? "virtualized-row" : ""} ${previewLanes?.length ? "previewing" : ""}`}
       style={virtualized ? { top: displayIndex * HISTORY_ROW_HEIGHT } : undefined}
       role="row"
       aria-label={
@@ -1276,6 +1294,18 @@ function HistoryFoldRow({
       }
     >
       <span className="history-fold-graph" style={{ width: dagWidth }}>
+        {previewLanes && previewLanes.length > 0 && (
+          <svg
+            className="history-fold-preview"
+            viewBox={`0 0 ${dagWidth} 20`}
+            preserveAspectRatio="xMinYMid meet"
+            aria-hidden="true"
+          >
+            {previewLanes.map((lane) => (
+              <path d={`M${laneX(lane)} 0V20`} key={lane} />
+            ))}
+          </svg>
+        )}
         <i aria-hidden="true">~</i>
       </span>
       <span className="history-fold-summary">

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChangeRow } from "../types";
-import { dagRowLayoutEquals, layoutDag } from "./dag";
+import {
+  changedDagLanesInRange,
+  dagRowLayoutEquals,
+  layoutDag,
+} from "./dag";
 
 function row(changeId: string, parents: string[]): ChangeRow {
   return {
@@ -94,5 +98,25 @@ describe("layoutDag", () => {
         })),
       }),
     ).toBe(false);
+  });
+
+  it("projects changed proposed lanes through a collapsed row range", () => {
+    const current = layoutDag([
+      row("head", ["source"]),
+      row("source", ["old-parent"]),
+      row("destination", ["root"]),
+      row("old-parent", ["root"]),
+      row("root", []),
+    ]).rows;
+    const proposed = layoutDag([
+      row("head", ["source"]),
+      row("source", ["destination"]),
+      row("destination", ["root"]),
+      row("old-parent", ["root"]),
+      row("root", []),
+    ]).rows;
+
+    expect(changedDagLanesInRange(current, proposed, 1, 4)).toEqual([0, 1]);
+    expect(changedDagLanesInRange(current, proposed, 4, 5)).toEqual([]);
   });
 });

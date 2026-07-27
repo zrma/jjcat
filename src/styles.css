@@ -2330,9 +2330,31 @@ body.workspace-resizing {
   content: "";
 }
 
-.history-fold-graph i {
+.history-fold-row.previewing .history-fold-graph::before {
+  opacity: 0.16;
+  filter: grayscale(1);
+}
+
+.history-fold-preview {
   position: absolute;
   z-index: 1;
+  inset: 0;
+  display: block;
+  height: 20px;
+  overflow: visible;
+}
+
+.history-fold-preview path {
+  fill: none;
+  stroke: var(--preview-emphasis);
+  stroke-dasharray: 4 2;
+  stroke-linecap: round;
+  stroke-width: 2.05;
+}
+
+.history-fold-graph i {
+  position: absolute;
+  z-index: 2;
   top: 50%;
   left: 8px;
   min-width: 13px;

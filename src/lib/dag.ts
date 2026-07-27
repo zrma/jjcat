@@ -43,6 +43,37 @@ export function dagRowLayoutEquals(
   );
 }
 
+export function changedDagLanesInRange(
+  currentRows: readonly DagRowLayout[],
+  proposedRows: readonly DagRowLayout[],
+  startIndex: number,
+  endIndex: number,
+) {
+  const lanes = new Set<number>();
+  const boundedStart = Math.max(0, startIndex);
+  const boundedEnd = Math.min(
+    currentRows.length,
+    proposedRows.length,
+    endIndex,
+  );
+
+  for (let index = boundedStart; index < boundedEnd; index += 1) {
+    const current = currentRows[index];
+    const proposed = proposedRows[index];
+    if (!current || !proposed || dagRowLayoutEquals(current, proposed)) {
+      continue;
+    }
+
+    lanes.add(proposed.lane);
+    for (const edge of proposed.edges) {
+      lanes.add(edge.fromLane);
+      lanes.add(edge.toLane);
+    }
+  }
+
+  return [...lanes].sort((left, right) => left - right);
+}
+
 function unique(values: string[]) {
   return values.filter((value, index) => value && values.indexOf(value) === index);
 }
