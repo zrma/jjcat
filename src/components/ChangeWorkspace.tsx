@@ -186,6 +186,36 @@ export function ChangeWorkspace({
     : ({ "--inspector-track": `${currentInspectorHeight}px` } as CSSProperties);
   splitterBoundsRef.current = bounds;
 
+  const clearSplitterDrag = useCallback(() => {
+    splitterDragRef.current = null;
+    document.body.classList.remove("workspace-resizing");
+  }, []);
+
+  const finishSplitterDrag = useCallback(
+    (pointerId: number) => {
+      if (splitterDragRef.current?.pointerId !== pointerId) return;
+      clearSplitterDrag();
+    },
+    [clearSplitterDrag],
+  );
+
+  const updateSplitterDrag = useCallback(
+    (pointerId: number, clientY: number) => {
+      const drag = splitterDragRef.current;
+      if (!drag || drag.pointerId !== pointerId) return false;
+      setInspectorHeight(
+        splitterSizeForPointer(
+          drag.startHeight,
+          drag.startY,
+          clientY,
+          splitterBoundsRef.current,
+        ),
+      );
+      return true;
+    },
+    [],
+  );
+
   useLayoutEffect(() => {
     const element = contentGridRef.current;
     if (!element) return;
@@ -206,25 +236,8 @@ export function ChangeWorkspace({
   }, [bounds.max, bounds.min, contentHeight, inspectorHeight]);
 
   useEffect(() => {
-    const clearSplitterDrag = () => {
-      splitterDragRef.current = null;
-      document.body.classList.remove("workspace-resizing");
-    };
-    const finishSplitterDrag = (pointerId: number) => {
-      if (splitterDragRef.current?.pointerId !== pointerId) return;
-      clearSplitterDrag();
-    };
     const onPointerMove = (event: PointerEvent) => {
-      const drag = splitterDragRef.current;
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      setInspectorHeight(
-        splitterSizeForPointer(
-          drag.startHeight,
-          drag.startY,
-          event.clientY,
-          splitterBoundsRef.current,
-        ),
-      );
+      if (!updateSplitterDrag(event.pointerId, event.clientY)) return;
       event.preventDefault();
     };
     const onPointerUp = (event: PointerEvent) =>
@@ -241,7 +254,7 @@ export function ChangeWorkspace({
       window.removeEventListener("blur", clearSplitterDrag);
       clearSplitterDrag();
     };
-  }, []);
+  }, [clearSplitterDrag, finishSplitterDrag, updateSplitterDrag]);
 
   useEffect(() => {
     if (!changeActionMenu) return;
@@ -354,14 +367,27 @@ export function ChangeWorkspace({
         }}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
+          const measuredContentHeight =
+            contentGridRef.current?.getBoundingClientRect().height ??
+            contentHeight;
+          const measuredBounds = splitterBounds(
+            measuredContentHeight,
+            MIN_HISTORY_HEIGHT,
+            MIN_INSPECTOR_HEIGHT,
+            SPLITTER_SIZE,
+          );
           const measuredHeight =
             inspectorRef.current?.getBoundingClientRect().height ??
             currentInspectorHeight;
+          splitterBoundsRef.current = measuredBounds;
           splitterDragRef.current = {
             pointerId: event.pointerId,
             startY: event.clientY,
-            startHeight: measuredHeight,
+            startHeight: clampSplitterSize(measuredHeight, measuredBounds),
           };
+          if (measuredContentHeight !== contentHeight) {
+            setContentHeight(measuredContentHeight);
+          }
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
@@ -370,6 +396,19 @@ export function ChangeWorkspace({
           document.body.classList.add("workspace-resizing");
           event.preventDefault();
         }}
+        onPointerMove={(event) => {
+          if (!updateSplitterDrag(event.pointerId, event.clientY)) return;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onPointerUp={(event) => {
+          finishSplitterDrag(event.pointerId);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+        }}
+        onPointerCancel={(event) => finishSplitterDrag(event.pointerId)}
+        onLostPointerCapture={(event) => finishSplitterDrag(event.pointerId)}
       />
       <section
         className="inspector-shell"

@@ -788,6 +788,7 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (activityCenterOpen) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "r") {
         event.preventDefault();
         if (selectedRepository) void refreshRepository(selectedRepository.id);
@@ -937,6 +938,7 @@ function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    activityCenterOpen,
     refreshRepository,
     registry?.openRepositoryIds,
     selectRepository,

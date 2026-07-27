@@ -1,5 +1,11 @@
 import { createPortal } from "react-dom";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Activity,
   CheckCircle2,
@@ -17,6 +23,7 @@ import {
   type ActivityEntry,
 } from "../lib/activity";
 import { relativeTime } from "../lib/format";
+import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
 
 type ActivityFilter = "all" | ActivityCategory;
 
@@ -77,6 +84,7 @@ export function ActivityCenter({
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const activityListRef = useRef<HTMLDivElement>(null);
   const preferred = preferredActivity(entries, selectedRepositoryId);
   const filteredEntries = useMemo(
     () =>
@@ -104,6 +112,24 @@ export function ActivityCenter({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onOpenChange, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => {
+      const rows = Array.from(
+        activityListRef.current?.querySelectorAll<HTMLButtonElement>(
+          "button[data-activity-id]",
+        ) ?? [],
+      );
+      const selectedRow = rows.find(
+        (row) => row.dataset.activityId === selected?.id,
+      );
+      (selectedRow ?? activityListRef.current)?.focus({
+        preventScroll: true,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [filter, open, selected?.id]);
 
   if (!preferred) return fallback;
 
@@ -213,7 +239,57 @@ export function ActivityCenter({
                         </button>
                       ))}
                     </div>
-                    <div className="activity-list" role="list">
+                    <div
+                      ref={activityListRef}
+                      className="activity-list"
+                      role="listbox"
+                      aria-label="Command history"
+                      tabIndex={0}
+                      onPointerDown={(event) => {
+                        const target = event.target;
+                        const activityButton =
+                          target instanceof Element
+                            ? target.closest<HTMLButtonElement>(
+                                "button[data-activity-id]",
+                              )
+                            : null;
+                        if (activityButton) {
+                          activityButton.focus({ preventScroll: true });
+                          return;
+                        }
+                        event.currentTarget.focus({ preventScroll: true });
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key !== "ArrowUp" &&
+                          event.key !== "ArrowDown"
+                        ) {
+                          return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const currentIndex = filteredEntries.findIndex(
+                          (entry) => entry.id === selected?.id,
+                        );
+                        const nextIndex = adjacentNavigationIndex(
+                          filteredEntries.length,
+                          currentIndex,
+                          event.key === "ArrowDown" ? 1 : -1,
+                        );
+                        const next = filteredEntries[nextIndex];
+                        if (!next) return;
+                        setSelectedId(next.id);
+                        const button = Array.from(
+                          event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                            "button[data-activity-id]",
+                          ),
+                        ).find(
+                          (row) => row.dataset.activityId === next.id,
+                        );
+                        button?.focus({ preventScroll: true });
+                        button?.scrollIntoView({ block: "nearest" });
+                      }}
+                    >
                       {filteredEntries.length > 0 ? (
                         filteredEntries.map((entry) => (
                           <button
@@ -225,7 +301,9 @@ export function ActivityCenter({
                             ]
                               .filter(Boolean)
                               .join(" ")}
-                            role="listitem"
+                            role="option"
+                            aria-selected={selected?.id === entry.id}
+                            data-activity-id={entry.id}
                             onClick={() => setSelectedId(entry.id)}
                             key={entry.id}
                           >
