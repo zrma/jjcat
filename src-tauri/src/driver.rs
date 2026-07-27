@@ -562,6 +562,42 @@ impl JjDriver {
         parse_single_line(&operation.stdout, "current operation ID")
     }
 
+    pub async fn initialize_git_repository(
+        &self,
+        repository: &RepositoryRecord,
+        cancellation: CancellationToken,
+    ) -> Result<(), DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        let plan = self.initialization_plan(repository);
+        self.run_mutation_plan(repository, plan, cancellation).await
+    }
+
+    fn initialization_plan(&self, repository: &RepositoryRecord) -> CommandPlan {
+        let args = vec![
+            OsString::from("git"),
+            OsString::from("init"),
+            OsString::from("--colocate"),
+            OsString::from("."),
+        ];
+        match &repository.location {
+            RepositoryLocation::Local { path } => CommandPlan {
+                program: self.jj_program.clone(),
+                args,
+                current_dir: Some(path.into()),
+                stdin: None,
+            },
+            RepositoryLocation::Ssh { host, path } => CommandPlan {
+                program: self.ssh_program.clone(),
+                args: ssh_arguments(host),
+                current_dir: None,
+                stdin: Some(remote_initialization_script(path).into_bytes()),
+            },
+        }
+    }
+
     pub async fn execute_mutation(
         &self,
         repository: &RepositoryRecord,
@@ -1022,6 +1058,13 @@ fn remote_mutation_script(path: &str, args: &[OsString]) -> String {
         .join(" ");
     format!(
         "set -eu\ndecode_hex() {{\n  encoded=$1\n  decoded=''\n  while [ -n \"$encoded\" ]; do\n    rest=${{encoded#??}}\n    byte=${{encoded%\"$rest\"}}\n    encoded=$rest\n    octal=$(printf '%03o' \"0x$byte\")\n    decoded=\"$decoded$(printf \"\\\\$octal\")\"\n  done\n  printf '%s' \"$decoded\"\n}}\nrepo=$(decode_hex '{encoded_path}')\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\n{assignments}\nexec \"$jj_bin\" --repository \"$repo\" {invocation}\n"
+    )
+}
+
+fn remote_initialization_script(path: &str) -> String {
+    let encoded_path = encode_hex(path);
+    format!(
+        "set -eu\ndecode_hex() {{\n  encoded=$1\n  decoded=''\n  while [ -n \"$encoded\" ]; do\n    rest=${{encoded#??}}\n    byte=${{encoded%\"$rest\"}}\n    encoded=$rest\n    octal=$(printf '%03o' \"0x$byte\")\n    decoded=\"$decoded$(printf \"\\\\$octal\")\"\n  done\n  printf '%s' \"$decoded\"\n}}\nrepo=$(decode_hex '{encoded_path}')\ncase \"$repo\" in\n  \"~/\"*) repo=\"$HOME/${{repo#??}}\" ;;\nesac\nif [ ! -d \"$repo\" ]; then\n  printf '%s\\n' 'remote repository folder is not available' >&2\n  exit 2\nfi\nfind_jj() {{\n  if command -v jj >/dev/null 2>&1; then\n    command -v jj\n    return 0\n  fi\n  for candidate in \"$HOME/.cargo/bin/jj\" \"$HOME/.local/bin/jj\" \"$HOME/.local/share/mise/shims/jj\" \"$HOME/.asdf/shims/jj\" \"$HOME/.proto/shims/jj\" \"$HOME/.local/share/aquaproj-aqua/bin/jj\" \"$HOME/.nix-profile/bin/jj\" /opt/homebrew/bin/jj /home/linuxbrew/.linuxbrew/bin/jj /nix/var/nix/profiles/default/bin/jj /run/current-system/sw/bin/jj /opt/bin/jj /snap/bin/jj /usr/local/bin/jj /usr/bin/jj; do\n    if [ -x \"$candidate\" ]; then\n      printf '%s\\n' \"$candidate\"\n      return 0\n    fi\n  done\n  return 127\n}}\njj_bin=$(find_jj) || {{\n  printf '%s\\n' 'jj executable was not found in the remote non-interactive environment' >&2\n  exit 127\n}}\ncd \"$repo\"\nexec \"$jj_bin\" git init --colocate .\n"
     )
 }
 
@@ -2179,6 +2222,54 @@ mod tests {
         assert!(script.contains("7e2f776f726b2f66697874757265"));
         assert!(script.contains("--version"));
         assert!(script.contains("$HOME/.cargo/bin/jj"));
+    }
+
+    #[test]
+    fn local_git_initialization_is_explicit_and_colocated() {
+        let repository = RepositoryRecord::new(
+            "fixture",
+            RepositoryLocation::Local {
+                path: "/fixtures/git-only".into(),
+            },
+        )
+        .unwrap();
+        let plan = JjDriver::default().initialization_plan(&repository);
+        let args = plan
+            .args
+            .iter()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(plan.program, PathBuf::from("jj"));
+        assert_eq!(plan.current_dir, Some(PathBuf::from("/fixtures/git-only")));
+        assert_eq!(args, ["git", "init", "--colocate", "."]);
+        assert!(plan.stdin.is_none());
+    }
+
+    #[test]
+    fn remote_git_initialization_encodes_the_path_and_uses_a_fixed_command() {
+        let repository = RepositoryRecord::new(
+            "fixture",
+            RepositoryLocation::Ssh {
+                host: "fixture-host".into(),
+                path: "~/work/private repository".into(),
+            },
+        )
+        .unwrap();
+        let plan = JjDriver::default().initialization_plan(&repository);
+        let args = plan
+            .args
+            .iter()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        let script = String::from_utf8(plan.stdin.unwrap()).unwrap();
+
+        assert_eq!(plan.program, PathBuf::from("ssh"));
+        assert!(args.windows(2).any(|pair| pair == ["--", "fixture-host"]));
+        assert!(!script.contains("~/work/private repository"));
+        assert!(script.contains(&encode_hex("~/work/private repository")));
+        assert!(script.contains("cd \"$repo\""));
+        assert!(script.contains("exec \"$jj_bin\" git init --colocate ."));
     }
 
     #[test]

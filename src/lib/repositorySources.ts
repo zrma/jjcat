@@ -1,6 +1,7 @@
 import type {
   DiscoveredRepository,
   RepositoryLocation,
+  RepositoryReadiness,
   RepositoryRecord,
   RepositorySourceRecord,
 } from "../types";
@@ -97,6 +98,12 @@ export function repositoryLocationKey(location: RepositoryLocation) {
   return location.kind === "local"
     ? `local\0${trimTrailingSlash(location.path)}`
     : `ssh\0${location.host.toLocaleLowerCase()}\0${trimTrailingSlash(location.path)}`;
+}
+
+export function repositoryReadiness(repository: {
+  readiness?: RepositoryReadiness;
+}): RepositoryReadiness {
+  return repository.readiness ?? "ready";
 }
 
 export function registeredRepositoryFor(

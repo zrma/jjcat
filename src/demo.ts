@@ -17,7 +17,10 @@ import type {
   ChangeRow,
   WorkspaceRow,
 } from "./types";
-import { repositoryLocationKey } from "./lib/repositorySources";
+import {
+  repositoryLocationKey,
+  repositoryReadiness,
+} from "./lib/repositorySources";
 
 const LOCAL_ID = "e21c6676-690c-5847-b407-137074516f66";
 const SSH_ID = "60223841-0e65-5848-9ba8-35f071629176";
@@ -267,6 +270,7 @@ export class DemoBridge {
                 relativePath: "products/example-app",
                 displayName: "example-app",
                 location: { kind: "local", path: "/fixtures/products/example-app" },
+                readiness: "gitOnly",
               },
             ],
           },
@@ -291,6 +295,7 @@ export class DemoBridge {
                   host: "fixture-host",
                   path: "~/fixtures/products/service-api",
                 },
+                readiness: "gitOnly",
               },
             ],
           },
@@ -640,6 +645,12 @@ export class DemoBridge {
     if (!discovered) {
       throw { kind: "notFound", message: "Discovered repository is not available." } satisfies AppError;
     }
+    if (repositoryReadiness(discovered) === "gitOnly") {
+      throw {
+        kind: "invalidInput",
+        message: "Set up Jujutsu before opening this Git repository.",
+      } satisfies AppError;
+    }
     let repository = this.snapshot.registry.repositories.find(
       (candidate) =>
         JSON.stringify(candidate.location) === JSON.stringify(discovered.location),
@@ -651,8 +662,59 @@ export class DemoBridge {
         location: discovered.location,
         pinned: false,
         lastOpenedAt: new Date().toISOString(),
+        readiness: discovered.readiness,
       };
       this.snapshot.registry.repositories.push(repository);
+    }
+    return this.selectRepository(repository.id);
+  }
+
+  async initializeRepository(repositoryId: string) {
+    const repository = this.snapshot.registry.repositories.find(
+      (candidate) => candidate.id === repositoryId,
+    );
+    if (!repository) {
+      throw {
+        kind: "notFound",
+        message: "Repository is not registered.",
+      } satisfies AppError;
+    }
+    repository.readiness = "ready";
+    return this.selectRepository(repositoryId);
+  }
+
+  async initializeDiscoveredRepository(
+    sourceId: string,
+    relativePath: string,
+  ) {
+    const discovered =
+      this.snapshot.registry.sourceCatalogs[sourceId]?.repositories.find(
+        (candidate) => candidate.relativePath === relativePath,
+      );
+    if (!discovered) {
+      throw {
+        kind: "notFound",
+        message: "Discovered repository is not available.",
+      } satisfies AppError;
+    }
+    discovered.readiness = "ready";
+    let repository = this.snapshot.registry.repositories.find(
+      (candidate) =>
+        repositoryLocationKey(candidate.location) ===
+        repositoryLocationKey(discovered.location),
+    );
+    if (!repository) {
+      repository = {
+        id: crypto.randomUUID(),
+        displayName: discovered.displayName,
+        location: discovered.location,
+        pinned: false,
+        lastOpenedAt: null,
+        readiness: "ready",
+      };
+      this.snapshot.registry.repositories.push(repository);
+    } else {
+      repository.readiness = "ready";
     }
     return this.selectRepository(repository.id);
   }
@@ -721,6 +783,12 @@ export class DemoBridge {
     if (!repository) {
       throw { kind: "notFound", message: "Repository is not registered." } satisfies AppError;
     }
+    if (repositoryReadiness(repository) === "gitOnly") {
+      throw {
+        kind: "invalidInput",
+        message: "Set up Jujutsu before opening this Git repository.",
+      } satisfies AppError;
+    }
     if (!this.snapshot.registry.openRepositoryIds.includes(repositoryId)) {
       this.snapshot.registry.openRepositoryIds.push(repositoryId);
     }
@@ -737,6 +805,19 @@ export class DemoBridge {
       (selectedRepository !== null && !openRepositoryIds.includes(selectedRepository))
     ) {
       throw { kind: "invalidInput", message: "Open repository state is invalid." } satisfies AppError;
+    }
+    if (
+      openRepositoryIds.some((repositoryId) => {
+        const repository = this.snapshot.registry.repositories.find(
+          (candidate) => candidate.id === repositoryId,
+        );
+        return repository && repositoryReadiness(repository) === "gitOnly";
+      })
+    ) {
+      throw {
+        kind: "invalidInput",
+        message: "Set up Jujutsu before opening this Git repository.",
+      } satisfies AppError;
     }
     this.snapshot.registry.openRepositoryIds = [...openRepositoryIds];
     this.snapshot.registry.selectedRepository = selectedRepository;

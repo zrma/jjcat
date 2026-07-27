@@ -5,7 +5,9 @@ use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 
-use crate::domain::{DiscoveredRepository, RepositoryLocation, RepositorySourceRecord};
+use crate::domain::{
+    DiscoveredRepository, RepositoryLocation, RepositoryReadiness, RepositorySourceRecord,
+};
 use crate::driver::{DriverError, DriverErrorKind, redact_error};
 use crate::process::{CommandPlan, run_remote_command};
 
@@ -62,6 +64,59 @@ impl RepositoryDiscovery {
             RepositoryLocation::Ssh { host, path } => {
                 self.discover_ssh(host, path, source.scan_depth, cancellation)
                     .await
+            }
+        }
+    }
+
+    pub async fn readiness(
+        &self,
+        location: &RepositoryLocation,
+        cancellation: CancellationToken,
+    ) -> Result<Option<RepositoryReadiness>, DriverError> {
+        location.validate().map_err(invalid_source)?;
+        match location {
+            RepositoryLocation::Local { path } => {
+                let path = PathBuf::from(path);
+                tokio::task::spawn_blocking(move || Ok(local_repository_readiness(&path)))
+                    .await
+                    .map_err(|_| transport_error("local repository inspection task failed"))?
+            }
+            RepositoryLocation::Ssh { host, path } => {
+                let plan = CommandPlan {
+                    program: self.ssh_program.clone(),
+                    args: ssh_arguments(host),
+                    current_dir: None,
+                    stdin: Some(remote_readiness_script(path).into_bytes()),
+                };
+                let output = run_remote_command(plan, self.timeout, cancellation)
+                    .await
+                    .map_err(|_| {
+                        transport_error("SSH repository inspection could not be started")
+                    })?;
+                if output.truncated {
+                    return Err(DriverError {
+                        kind: DriverErrorKind::OutputLimit,
+                        message: "SSH repository inspection exceeded the safe capture limit".into(),
+                    });
+                }
+                if output.exit_code != Some(0) {
+                    let raw = String::from_utf8_lossy(&output.stderr);
+                    return Err(DriverError {
+                        kind: DriverErrorKind::CommandFailed,
+                        message: format!(
+                            "SSH repository inspection failed: {}",
+                            compact_error(raw.trim())
+                        ),
+                    });
+                }
+                match output.stdout.as_slice() {
+                    b"ready\n" => Ok(Some(RepositoryReadiness::Ready)),
+                    b"gitOnly\n" => Ok(Some(RepositoryReadiness::GitOnly)),
+                    b"none\n" => Ok(None),
+                    _ => Err(invalid_output(
+                        "SSH repository inspection returned an invalid status",
+                    )),
+                }
             }
         }
     }
@@ -140,8 +195,8 @@ fn discover_local(root: &Path, scan_depth: u8) -> Result<Vec<DiscoveredRepositor
         children.sort_by_key(|(name, _)| name.to_ascii_lowercase());
         for (_, child) in children {
             let child_depth = depth + 1;
-            if child.join(".jj").is_dir() {
-                if let Some(repository) = local_discovered_repository(root, &child) {
+            if let Some(readiness) = local_repository_readiness(&child) {
+                if let Some(repository) = local_discovered_repository(root, &child, readiness) {
                     discovered.push(repository);
                 }
                 if discovered.len() >= MAX_DISCOVERED_REPOSITORIES {
@@ -162,7 +217,21 @@ fn discover_local(root: &Path, scan_depth: u8) -> Result<Vec<DiscoveredRepositor
     Ok(discovered)
 }
 
-fn local_discovered_repository(root: &Path, repository: &Path) -> Option<DiscoveredRepository> {
+fn local_repository_readiness(repository: &Path) -> Option<RepositoryReadiness> {
+    if repository.join(".jj").is_dir() {
+        Some(RepositoryReadiness::Ready)
+    } else if repository.join(".git").is_dir() || repository.join(".git").is_file() {
+        Some(RepositoryReadiness::GitOnly)
+    } else {
+        None
+    }
+}
+
+fn local_discovered_repository(
+    root: &Path,
+    repository: &Path,
+    readiness: RepositoryReadiness,
+) -> Option<DiscoveredRepository> {
     let relative = repository.strip_prefix(root).ok()?;
     let relative_path = path_to_portable(relative)?;
     let display_name = repository.file_name()?.to_str()?.to_owned();
@@ -172,6 +241,7 @@ fn local_discovered_repository(root: &Path, repository: &Path) -> Option<Discove
         location: RepositoryLocation::Local {
             path: repository.to_string_lossy().into_owned(),
         },
+        readiness,
     })
 }
 
@@ -210,7 +280,22 @@ fn parse_remote_discovery(
         ));
     }
     let mut repositories = Vec::new();
-    for field in fields.take(MAX_DISCOVERED_REPOSITORIES) {
+    while let Some(kind) = fields.next() {
+        if repositories.len() >= MAX_DISCOVERED_REPOSITORIES {
+            break;
+        }
+        let readiness = match kind {
+            b"ready" => RepositoryReadiness::Ready,
+            b"gitOnly" => RepositoryReadiness::GitOnly,
+            _ => {
+                return Err(invalid_output(
+                    "SSH repository discovery returned an invalid repository status",
+                ));
+            }
+        };
+        let field = fields.next().ok_or_else(|| {
+            invalid_output("SSH repository discovery returned an incomplete repository record")
+        })?;
         let repository = std::str::from_utf8(field)
             .map_err(|_| invalid_output("SSH repository path was not UTF-8"))?;
         let relative = repository
@@ -239,15 +324,39 @@ fn parse_remote_discovery(
                 host: host.to_owned(),
                 path: join_remote_path(configured_root, relative),
             },
+            readiness,
         });
     }
     repositories.sort_by(|left, right| {
         left.relative_path
+            .split('/')
+            .count()
+            .cmp(&right.relative_path.split('/').count())
+            .then_with(|| {
+                left.relative_path
+                    .to_ascii_lowercase()
+                    .cmp(&right.relative_path.to_ascii_lowercase())
+            })
+    });
+    let mut top_level = Vec::<DiscoveredRepository>::new();
+    for repository in repositories {
+        if top_level.iter().any(|ancestor| {
+            repository
+                .relative_path
+                .strip_prefix(&ancestor.relative_path)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+        }) {
+            continue;
+        }
+        top_level.push(repository);
+    }
+    top_level.sort_by(|left, right| {
+        left.relative_path
             .to_ascii_lowercase()
             .cmp(&right.relative_path.to_ascii_lowercase())
     });
-    repositories.dedup_by(|left, right| left.relative_path == right.relative_path);
-    Ok(repositories)
+    top_level.dedup_by(|left, right| left.relative_path == right.relative_path);
+    Ok(top_level)
 }
 
 fn join_remote_path(root: &str, relative_path: &str) -> String {
@@ -273,7 +382,6 @@ fn ssh_arguments(host: &str) -> Vec<OsString> {
 
 fn remote_discovery_script(root: &str, scan_depth: u8) -> String {
     let encoded_root = encode_hex(root);
-    let max_depth = scan_depth.saturating_add(1);
     format!(
         r#"set -eu
 decode_hex() {{
@@ -299,9 +407,46 @@ fi
 cd "$target"
 current=$(pwd -P)
 printf '%s\0' "$current"
-find "$current" -mindepth 2 -maxdepth {max_depth} \
+find "$current" -mindepth 1 -maxdepth {scan_depth} \
   \( -name .git -o -name node_modules -o -name target -o -name vendor -o -name dist -o -name build -o \( -name '.*' ! -name .jj \) \) -prune -o \
-  -type d -name .jj -exec sh -c 'for marker do repository=${{marker%/.jj}}; printf "%s\0" "$repository"; done' sh {{}} +
+  -type d -exec sh -c 'for repository do
+    if [ -d "$repository/.jj" ]; then
+      printf "ready\0%s\0" "$repository"
+    elif [ -d "$repository/.git" ] || [ -f "$repository/.git" ]; then
+      printf "gitOnly\0%s\0" "$repository"
+    fi
+  done' sh {{}} +
+"#
+    )
+}
+
+fn remote_readiness_script(path: &str) -> String {
+    let encoded_path = encode_hex(path);
+    format!(
+        r#"set -eu
+decode_hex() {{
+  encoded=$1
+  decoded=''
+  while [ -n "$encoded" ]; do
+    rest=${{encoded#??}}
+    byte=${{encoded%"$rest"}}
+    encoded=$rest
+    octal=$(printf '%03o' "0x$byte")
+    decoded="$decoded$(printf "\\$octal")"
+  done
+  printf '%s' "$decoded"
+}}
+repository=$(decode_hex '{encoded_path}')
+case "$repository" in
+  "~/"*) repository="$HOME/${{repository#??}}" ;;
+esac
+if [ -d "$repository/.jj" ]; then
+  printf '%s\n' ready
+elif [ -d "$repository/.git" ] || [ -f "$repository/.git" ]; then
+  printf '%s\n' gitOnly
+else
+  printf '%s\n' none
+fi
 "#
     )
 }
@@ -355,7 +500,7 @@ mod tests {
     async fn local_discovery_is_bounded_sorted_and_stops_inside_repositories() {
         let directory = tempdir().unwrap();
         let root = directory.path();
-        std::fs::create_dir_all(root.join("group/zeta/.jj")).unwrap();
+        std::fs::create_dir_all(root.join("group/zeta/.git")).unwrap();
         std::fs::create_dir_all(root.join("alpha/.jj")).unwrap();
         std::fs::create_dir_all(root.join("alpha/nested/ignored/.jj")).unwrap();
         std::fs::create_dir_all(root.join("target/ignored/.jj")).unwrap();
@@ -381,18 +526,21 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["alpha", "group/zeta"]
         );
+        assert_eq!(repositories[0].readiness, RepositoryReadiness::Ready);
+        assert_eq!(repositories[1].readiness, RepositoryReadiness::GitOnly);
     }
 
     #[test]
     fn remote_output_is_rebased_onto_configured_home_relative_root() {
         let repositories = parse_remote_discovery(
-            b"/home/example/code/src\0/home/example/code/src/group/repo\0",
+            b"/home/example/code/src\0gitOnly\0/home/example/code/src/group/repo\0",
             "dev-box",
             "~/code/src",
         )
         .unwrap();
 
         assert_eq!(repositories[0].relative_path, "group/repo");
+        assert_eq!(repositories[0].readiness, RepositoryReadiness::GitOnly);
         assert_eq!(
             repositories[0].location,
             RepositoryLocation::Ssh {

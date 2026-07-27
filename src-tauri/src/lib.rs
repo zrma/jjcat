@@ -32,6 +32,8 @@ pub fn run() {
             commands::register_repository_source,
             commands::scan_repository_source,
             commands::open_discovered_repository,
+            commands::initialize_repository,
+            commands::initialize_discovered_repository,
             commands::remove_repository_source,
             commands::select_repository,
             commands::update_open_repositories,

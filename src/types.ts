@@ -5,10 +5,13 @@ export type RepositoryLocation =
   | { kind: "local"; path: string }
   | { kind: "ssh"; host: string; path: string };
 
+export type RepositoryReadiness = "ready" | "gitOnly";
+
 export interface RepositoryRecord {
   id: RepositoryId;
   displayName: string;
   location: RepositoryLocation;
+  readiness?: RepositoryReadiness;
   pinned: boolean;
   lastOpenedAt: string | null;
 }
@@ -24,6 +27,7 @@ export interface DiscoveredRepository {
   relativePath: string;
   displayName: string;
   location: RepositoryLocation;
+  readiness?: RepositoryReadiness;
 }
 
 export interface SourceCatalog {

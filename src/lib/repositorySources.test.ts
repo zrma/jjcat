@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRepositorySourceTree,
   registeredRepositoryFor,
+  repositoryReadiness,
   standaloneRepositories,
 } from "./repositorySources";
 import type {
@@ -93,5 +94,10 @@ describe("repository source tree", () => {
       "sibling-prefix",
       "remote",
     ]);
+  });
+
+  it("treats legacy records as ready while preserving explicit Git-only state", () => {
+    expect(repositoryReadiness(discovered[0])).toBe("ready");
+    expect(repositoryReadiness({ ...discovered[0], readiness: "gitOnly" })).toBe("gitOnly");
   });
 });

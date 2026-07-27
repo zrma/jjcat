@@ -813,6 +813,11 @@ body[data-runtime="tauri"] .brand-lockup {
   font-weight: 600;
 }
 
+.source-tree-row i.git-only,
+.repository-state.git-only {
+  color: var(--state-warning);
+}
+
 .source-error,
 .source-empty {
   margin: 2px 10px 5px 34px;
@@ -4996,6 +5001,71 @@ body.workspace-resizing {
   background: #c95757;
   color: white;
   font-weight: 600;
+}
+
+.git-onboarding-dialog {
+  width: min(500px, 100%);
+}
+
+.git-onboarding-dialog header svg {
+  color: var(--brand-primary);
+}
+
+.git-onboarding-dialog dl {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 18px;
+}
+
+.git-onboarding-dialog dl > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.git-onboarding-dialog dt {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.git-onboarding-dialog dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-onboarding-dialog footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.git-onboarding-dialog footer .primary {
+  border: 1px solid var(--brand-primary);
+  background: var(--brand-primary);
+  color: #08251e;
+  font-weight: 600;
+}
+
+.git-onboarding-dialog footer kbd {
+  padding: 1px 4px;
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.git-onboarding-dialog .dialog-error {
+  margin: 0 0 14px;
+  color: var(--state-danger);
 }
 
 .mutation-button {

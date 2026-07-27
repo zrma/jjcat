@@ -12,6 +12,7 @@ import {
 import {
   buildRepositorySourceTree,
   registeredRepositoryFor,
+  repositoryReadiness,
   type RepositorySourceTreeNode,
 } from "../lib/repositorySources";
 import { relativeTime } from "../lib/format";
@@ -148,7 +149,9 @@ function SourceContents({
   if (tree.length === 0) {
     return (
       <p className="source-empty">
-        {catalog ? "No Jujutsu repositories found." : "Scan this source to discover repositories."}
+        {catalog
+          ? "No Jujutsu or Git repositories found."
+          : "Scan this source to discover repositories."}
       </p>
     );
   }
@@ -222,12 +225,17 @@ function SourceNode({
   }
   const registered = registeredRepositoryFor(registry.repositories, node.repository);
   const open = registered ? registry.openRepositoryIds.includes(registered.id) : false;
+  const gitOnly = repositoryReadiness(registered ?? node.repository) === "gitOnly";
   return (
     <button
       type="button"
-      className={`source-tree-row repository ${open ? "open" : ""}`}
+      className={`source-tree-row repository ${open ? "open" : ""} ${gitOnly ? "git-only" : ""}`}
       style={{ "--tree-depth": depth } as CSSProperties}
-      title={`${node.relativePath}\nDouble-click or press Enter to open`}
+      title={`${node.relativePath}\n${
+        gitOnly
+          ? "Double-click or press Enter to set up Jujutsu"
+          : "Double-click or press Enter to open"
+      }`}
       onDoubleClick={() => void onOpen(source.id, node.relativePath)}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
@@ -239,7 +247,13 @@ function SourceNode({
       <span className="tree-spacer" />
       <Database aria-hidden="true" />
       <span>{node.name}</span>
-      {open && <i aria-label="Open in a tab">Open</i>}
+      {gitOnly ? (
+        <i className="git-only" aria-label="Git repository; Jujutsu setup available">
+          Git · Set up JJ
+        </i>
+      ) : (
+        open && <i aria-label="Open in a tab">Open</i>
+      )}
     </button>
   );
 }

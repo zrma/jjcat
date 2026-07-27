@@ -25,6 +25,11 @@ interface Bridge {
   registerRepositorySource(draft: RepositorySourceDraft): Promise<RegistrySnapshot>;
   scanRepositorySource(sourceId: string): Promise<RegistrySnapshot>;
   openDiscoveredRepository(sourceId: string, relativePath: string): Promise<RegistrySnapshot>;
+  initializeRepository(repositoryId: string): Promise<RegistrySnapshot>;
+  initializeDiscoveredRepository(
+    sourceId: string,
+    relativePath: string,
+  ): Promise<RegistrySnapshot>;
   removeRepositorySource(sourceId: string): Promise<RegistrySnapshot>;
   removeRepository(repositoryId: string): Promise<RegistrySnapshot>;
   listSshHosts(): Promise<string[]>;
@@ -72,6 +77,19 @@ class TauriBridge implements Bridge {
 
   openDiscoveredRepository(sourceId: string, relativePath: string) {
     return invoke<RegistrySnapshot>("open_discovered_repository", {
+      sourceId,
+      relativePath,
+    }).catch(normalizeError);
+  }
+
+  initializeRepository(repositoryId: string) {
+    return invoke<RegistrySnapshot>("initialize_repository", { repositoryId }).catch(
+      normalizeError,
+    );
+  }
+
+  initializeDiscoveredRepository(sourceId: string, relativePath: string) {
+    return invoke<RegistrySnapshot>("initialize_discovered_repository", {
       sourceId,
       relativePath,
     }).catch(normalizeError);

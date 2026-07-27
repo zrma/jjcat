@@ -55,7 +55,10 @@ import {
 import { isStale, locationLabel, relativeTime } from "./lib/format";
 import { repositoryNavigation as navigationForProjection } from "./lib/repositoryNavigation";
 import { repositoryTabPresentations } from "./lib/repositories";
-import { standaloneRepositories } from "./lib/repositorySources";
+import {
+  repositoryReadiness,
+  standaloneRepositories,
+} from "./lib/repositorySources";
 import { failureBackoffMs, planRepositoryRefreshes } from "./lib/refreshScheduler";
 import { historyShortcutFor } from "./lib/historyShortcuts";
 import {
@@ -86,6 +89,7 @@ import type {
   MutationKind,
   Registry,
   RepositoryDraft,
+  RepositoryLocation,
   RepositoryRecord,
   RepositorySourceDraft,
   RepositorySourceRecord,
@@ -117,6 +121,20 @@ type MutationDialogState = {
   initialIntent: MutationIntent;
   previewImmediately: boolean;
 };
+type GitOnboardingTarget =
+  | {
+      kind: "registered";
+      repositoryId: string;
+      displayName: string;
+      location: RepositoryLocation;
+    }
+  | {
+      kind: "discovered";
+      sourceId: string;
+      relativePath: string;
+      displayName: string;
+      location: RepositoryLocation;
+    };
 type ResizeDirection =
   | "East"
   | "North"
@@ -262,6 +280,12 @@ function App() {
   const [railAddMenuPosition, setRailAddMenuPosition] =
     useState<PopupPosition | null>(null);
   const [showAddSource, setShowAddSource] = useState(false);
+  const [gitOnboardingTarget, setGitOnboardingTarget] =
+    useState<GitOnboardingTarget | null>(null);
+  const [gitOnboardingRunning, setGitOnboardingRunning] = useState(false);
+  const [gitOnboardingError, setGitOnboardingError] = useState<string | null>(
+    null,
+  );
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [contextMenu, setContextMenu] = useState<RepositoryContextMenu | null>(null);
   const [removeTarget, setRemoveTarget] = useState<RepositoryRecord | null>(null);
@@ -290,6 +314,7 @@ function App() {
     right: false,
   });
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const registryRef = useRef<Registry | null>(null);
   const railAddMenuRef = useRef<HTMLDivElement>(null);
   const railAddButtonRef = useRef<HTMLButtonElement>(null);
   const railAddPopupRef = useRef<HTMLDivElement>(null);
@@ -306,6 +331,10 @@ function App() {
   const tabOrderSavingRef = useRef(false);
   const tabPointerDragRef = useRef<RepositoryTabPointerDrag | null>(null);
   const suppressTabClickRef = useRef(false);
+
+  useEffect(() => {
+    registryRef.current = registry;
+  }, [registry]);
 
   const startActivity = useCallback(
     ({
@@ -557,6 +586,19 @@ function App() {
 
   const selectRepository = useCallback(
     async (repositoryId: string) => {
+      const repository = registryRef.current?.repositories.find(
+        (candidate) => candidate.id === repositoryId,
+      );
+      if (repository && repositoryReadiness(repository) === "gitOnly") {
+        setGitOnboardingError(null);
+        setGitOnboardingTarget({
+          kind: "registered",
+          repositoryId: repository.id,
+          displayName: repository.displayName,
+          location: repository.location,
+        });
+        return;
+      }
       const request = ++repositorySelectionRequestRef.current;
       try {
         const snapshot = await bridge.selectRepository(repositoryId);
@@ -1109,6 +1151,20 @@ function App() {
     sourceId: string,
     relativePath: string,
   ) {
+    const discovered = registry?.sourceCatalogs[sourceId]?.repositories.find(
+      (candidate) => candidate.relativePath === relativePath,
+    );
+    if (discovered && repositoryReadiness(discovered) === "gitOnly") {
+      setGitOnboardingError(null);
+      setGitOnboardingTarget({
+        kind: "discovered",
+        sourceId,
+        relativePath,
+        displayName: discovered.displayName,
+        location: discovered.location,
+      });
+      return;
+    }
     try {
       const snapshot = await bridge.openDiscoveredRepository(
         sourceId,
@@ -1119,6 +1175,30 @@ function App() {
       setRepositoryActionError(null);
     } catch (error) {
       setRepositoryActionError((error as AppError).message);
+    }
+  }
+
+  async function initializeGitRepository() {
+    const target = gitOnboardingTarget;
+    if (!target || gitOnboardingRunning) return;
+    setGitOnboardingRunning(true);
+    setGitOnboardingError(null);
+    try {
+      const snapshot =
+        target.kind === "registered"
+          ? await bridge.initializeRepository(target.repositoryId)
+          : await bridge.initializeDiscoveredRepository(
+              target.sourceId,
+              target.relativePath,
+            );
+      setRegistry(snapshot.registry);
+      setRecoveryNotice(snapshot.recoveryNotice);
+      setGitOnboardingTarget(null);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setGitOnboardingError((error as AppError).message);
+    } finally {
+      setGitOnboardingRunning(false);
     }
   }
 
@@ -1984,6 +2064,7 @@ function App() {
                   refreshing,
                   errors,
                 );
+                const gitOnly = repositoryReadiness(repository) === "gitOnly";
                 return (
                   <button
                     type="button"
@@ -2001,9 +2082,11 @@ function App() {
                   >
                     {repository.location.kind === "local" ? <Database aria-hidden="true" /> : <Server aria-hidden="true" />}
                     <span>{repository.displayName}</span>
-                    {state !== "ready" && state !== "cached" && (
+                    {gitOnly ? (
+                      <span className="repository-state git-only">Git · Set up JJ</span>
+                    ) : state !== "ready" && state !== "cached" ? (
                       <span className={`repository-state ${state}`}>{compactStateLabel(state)}</span>
-                    )}
+                    ) : null}
                     <StatusDot state={state} />
                   </button>
                 );
@@ -2202,6 +2285,19 @@ function App() {
         <AddRepositorySourceDialog
           onClose={() => setShowAddSource(false)}
           onSubmit={registerRepositorySource}
+        />
+      )}
+      {gitOnboardingTarget && (
+        <GitRepositoryOnboardingDialog
+          target={gitOnboardingTarget}
+          running={gitOnboardingRunning}
+          error={gitOnboardingError}
+          onClose={() => {
+            if (gitOnboardingRunning) return;
+            setGitOnboardingTarget(null);
+            setGitOnboardingError(null);
+          }}
+          onConfirm={() => void initializeGitRepository()}
         />
       )}
       {showSwitcher && (
@@ -2425,7 +2521,7 @@ function AddRepositoryDialog({
         ? await open({
             directory: true,
             multiple: false,
-            title: "Choose a local Jujutsu repository",
+            title: "Choose a local Git or Jujutsu repository",
           })
         : "/fixtures/example-repository";
       if (!selectedPath || Array.isArray(selectedPath)) return;
@@ -2672,6 +2768,103 @@ function RemoteFolderDialog({
             disabled={!listing || loading}
           >
             Use this folder
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function GitRepositoryOnboardingDialog({
+  target,
+  running,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  target: GitOnboardingTarget;
+  running: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.isComposing || running) return;
+      const key = event.key.toLowerCase();
+      if (event.key === "Enter" || key === "y") {
+        event.preventDefault();
+        onConfirm();
+      } else if (event.key === "Escape" || key === "n") {
+        event.preventDefault();
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, onConfirm, running]);
+
+  const location =
+    target.location.kind === "local"
+      ? target.location.path
+      : `${target.location.host}:${target.location.path}`;
+
+  return (
+    <div
+      className="dialog-backdrop confirm-backdrop"
+      role="presentation"
+      onMouseDown={onClose}
+    >
+      <section
+        className="confirm-dialog git-onboarding-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="git-onboarding-title"
+        aria-describedby="git-onboarding-description"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <FolderGit2 aria-hidden="true" />
+          <h2 id="git-onboarding-title">
+            Set up Jujutsu for {target.displayName}?
+          </h2>
+        </header>
+        <p id="git-onboarding-description">
+          jjcat found an existing Git repository. This adds colocated Jujutsu
+          metadata while keeping its Git history and working tree in place.
+        </p>
+        <dl>
+          <div>
+            <dt>Repository</dt>
+            <dd title={location}>{location}</dd>
+          </div>
+          <div>
+            <dt>Command</dt>
+            <dd>
+              <code>jj git init --colocate .</code>
+            </dd>
+          </div>
+        </dl>
+        {error && <p className="dialog-error">{error}</p>}
+        <footer>
+          <button
+            type="button"
+            className="secondary"
+            aria-keyshortcuts="Escape N"
+            onClick={onClose}
+            disabled={running}
+          >
+            Cancel <kbd>Esc</kbd>
+          </button>
+          <button
+            type="button"
+            className="primary"
+            aria-keyshortcuts="Enter Y"
+            onClick={onConfirm}
+            disabled={running}
+          >
+            {running ? "Setting up…" : "Set up JJ and open"} <kbd>↵</kbd>
           </button>
         </footer>
       </section>

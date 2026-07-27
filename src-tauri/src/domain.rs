@@ -115,6 +115,8 @@ pub struct RepositoryRecord {
     pub id: RepositoryId,
     pub display_name: String,
     pub location: RepositoryLocation,
+    #[serde(default)]
+    pub readiness: RepositoryReadiness,
     pub pinned: bool,
     #[serde(default)]
     pub last_opened_at: Option<String>,
@@ -146,9 +148,15 @@ impl RepositoryRecord {
             id,
             display_name: display_name.to_owned(),
             location,
+            readiness: RepositoryReadiness::Ready,
             pinned: false,
             last_opened_at: None,
         })
+    }
+
+    pub fn with_readiness(mut self, readiness: RepositoryReadiness) -> Self {
+        self.readiness = readiness;
+        self
     }
 
     pub fn validate(&self) -> Result<(), DomainError> {
@@ -158,6 +166,14 @@ impl RepositoryRecord {
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RepositoryReadiness {
+    #[default]
+    Ready,
+    GitOnly,
 }
 
 fn default_source_scan_depth() -> u8 {
@@ -236,6 +252,8 @@ pub struct DiscoveredRepository {
     pub relative_path: String,
     pub display_name: String,
     pub location: RepositoryLocation,
+    #[serde(default)]
+    pub readiness: RepositoryReadiness,
 }
 
 impl DiscoveredRepository {

@@ -10,8 +10,8 @@ use tokio_util::sync::CancellationToken;
 use crate::discovery::RepositoryDiscovery;
 use crate::domain::{
     CachedProjection, ChangeRow, FileDiffProjection, OperationLogProjection, Registry,
-    RemoteDirectoryListing, RepositoryId, RepositoryLocation, RepositoryRecord, RepositorySourceId,
-    RepositorySourceRecord, SourceCatalog, WhitespaceMode,
+    RemoteDirectoryListing, RepositoryId, RepositoryLocation, RepositoryReadiness,
+    RepositoryRecord, RepositorySourceId, RepositorySourceRecord, SourceCatalog, WhitespaceMode,
 };
 use crate::driver::{DriverError, DriverErrorKind, JjDriver};
 use crate::handoff::{self, HandoffPreview, HandoffTarget};
@@ -629,13 +629,22 @@ pub async fn register_repository(
         kind: AppErrorKind::Storage,
         message: "home directory could not be resolved".into(),
     })?;
-    let repository =
+    let mut repository =
         RepositoryRecord::from_user_input(draft.display_name, draft.location, &home_dir).map_err(
             |error| AppError {
                 kind: AppErrorKind::InvalidInput,
                 message: error.to_string(),
             },
         )?;
+    repository.readiness = state
+        .discovery
+        .readiness(&repository.location, CancellationToken::new())
+        .await
+        .map_err(driver_error)?
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "selected folder is neither a Jujutsu nor Git repository".into(),
+        })?;
     let store = state.store.lock().await;
     let loaded = store.load().map_err(storage_error)?;
     let mut registry = loaded.registry;
@@ -646,12 +655,18 @@ pub async fn register_repository(
         .find(|existing| existing.id == repository.id)
     {
         existing.display_name = repository.display_name;
+        existing.readiness = repository.readiness;
     } else {
         registry.repositories.push(repository);
     }
-    registry
-        .open_repository(&repository_id, current_timestamp())
-        .map_err(domain_error)?;
+    if matches!(
+        registry_repository(&registry, &repository_id)?.readiness,
+        RepositoryReadiness::Ready
+    ) {
+        registry
+            .open_repository(&repository_id, current_timestamp())
+            .map_err(domain_error)?;
+    }
     store.save(&registry).map_err(storage_error)?;
     Ok(RegistrySnapshot {
         registry,
@@ -773,8 +788,12 @@ pub async fn open_discovered_repository(
             kind: AppErrorKind::NotFound,
             message: "discovered repository is not present in the latest source catalog".into(),
         })?;
+    if matches!(discovered.readiness, RepositoryReadiness::GitOnly) {
+        return Err(git_only_repository_error());
+    }
     let repository = RepositoryRecord::new(discovered.display_name, discovered.location)
-        .map_err(domain_input_error)?;
+        .map_err(domain_input_error)?
+        .with_readiness(discovered.readiness);
     let repository_id = repository.id.clone();
     if let Some(existing) = registry
         .repositories
@@ -782,6 +801,7 @@ pub async fn open_discovered_repository(
         .find(|existing| existing.id == repository.id)
     {
         existing.display_name = repository.display_name;
+        existing.readiness = repository.readiness;
     } else {
         registry.repositories.push(repository);
     }
@@ -824,6 +844,140 @@ pub async fn select_repository(
     let store = state.store.lock().await;
     let loaded = store.load().map_err(storage_error)?;
     let mut registry = loaded.registry;
+    if matches!(
+        registry_repository(&registry, &repository_id)?.readiness,
+        RepositoryReadiness::GitOnly
+    ) {
+        return Err(git_only_repository_error());
+    }
+    registry
+        .open_repository(&repository_id, current_timestamp())
+        .map_err(domain_error)?;
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
+pub async fn initialize_repository(
+    repository_id: RepositoryId,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let repository = {
+        let store = state.store.lock().await;
+        let loaded = store.load().map_err(storage_error)?;
+        registry_repository(&loaded.registry, &repository_id)?.clone()
+    };
+    initialize_git_only_repository(&state, &repository).await?;
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    let existing = registry
+        .repositories
+        .iter_mut()
+        .find(|candidate| candidate.id == repository_id)
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::Stale,
+            message: "repository was removed while Jujutsu was being initialized".into(),
+        })?;
+    if existing.location != repository.location {
+        return Err(AppError {
+            kind: AppErrorKind::Stale,
+            message: "repository location changed while Jujutsu was being initialized".into(),
+        });
+    }
+    existing.readiness = RepositoryReadiness::Ready;
+    registry
+        .open_repository(&repository_id, current_timestamp())
+        .map_err(domain_error)?;
+    store.save(&registry).map_err(storage_error)?;
+    Ok(RegistrySnapshot {
+        registry,
+        recovery_notice: recovery_notice(loaded.recovered_corrupt_state),
+    })
+}
+
+#[tauri::command]
+pub async fn initialize_discovered_repository(
+    source_id: RepositorySourceId,
+    relative_path: String,
+    state: State<'_, AppState>,
+) -> Result<RegistrySnapshot, AppError> {
+    let (source, discovered) = {
+        let store = state.store.lock().await;
+        let loaded = store.load().map_err(storage_error)?;
+        let source = loaded
+            .registry
+            .repository_sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .cloned()
+            .ok_or_else(|| AppError {
+                kind: AppErrorKind::NotFound,
+                message: "repository source is not registered".into(),
+            })?;
+        let discovered = loaded
+            .registry
+            .source_catalogs
+            .get(&source_id)
+            .and_then(|catalog| {
+                catalog
+                    .repositories
+                    .iter()
+                    .find(|repository| repository.relative_path == relative_path)
+            })
+            .cloned()
+            .ok_or_else(|| AppError {
+                kind: AppErrorKind::NotFound,
+                message: "discovered repository is not present in the latest source catalog".into(),
+            })?;
+        (source, discovered)
+    };
+    let repository =
+        RepositoryRecord::new(discovered.display_name.clone(), discovered.location.clone())
+            .map_err(domain_input_error)?
+            .with_readiness(discovered.readiness);
+    initialize_git_only_repository(&state, &repository).await?;
+    let repositories = state
+        .discovery
+        .discover(&source, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let mut registry = loaded.registry;
+    if !registry
+        .repository_sources
+        .iter()
+        .any(|candidate| candidate.id == source_id)
+    {
+        return Err(AppError {
+            kind: AppErrorKind::Stale,
+            message: "repository source was removed while Jujutsu was being initialized".into(),
+        });
+    }
+    registry
+        .set_source_catalog(SourceCatalog {
+            source_id: source_id.clone(),
+            scanned_at: current_timestamp(),
+            repositories,
+        })
+        .map_err(domain_error)?;
+    let repository_id = repository.id.clone();
+    if let Some(existing) = registry
+        .repositories
+        .iter_mut()
+        .find(|candidate| candidate.id == repository_id)
+    {
+        existing.display_name = repository.display_name;
+        existing.readiness = RepositoryReadiness::Ready;
+    } else {
+        registry
+            .repositories
+            .push(repository.with_readiness(RepositoryReadiness::Ready));
+    }
     registry
         .open_repository(&repository_id, current_timestamp())
         .map_err(domain_error)?;
@@ -843,6 +997,14 @@ pub async fn update_open_repositories(
     let store = state.store.lock().await;
     let loaded = store.load().map_err(storage_error)?;
     let mut registry = loaded.registry;
+    for repository_id in &open_repository_ids {
+        if matches!(
+            registry_repository(&registry, repository_id)?.readiness,
+            RepositoryReadiness::GitOnly
+        ) {
+            return Err(git_only_repository_error());
+        }
+    }
     registry
         .set_open_repositories(open_repository_ids, selected_repository.clone())
         .map_err(domain_error)?;
@@ -1032,6 +1194,66 @@ fn recovery_notice(recovered: bool) -> Option<String> {
     recovered.then(|| {
         "Invalid registry data was preserved and jjcat started with an empty registry.".into()
     })
+}
+
+fn registry_repository<'a>(
+    registry: &'a Registry,
+    repository_id: &RepositoryId,
+) -> Result<&'a RepositoryRecord, AppError> {
+    registry
+        .repositories
+        .iter()
+        .find(|repository| repository.id == *repository_id)
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::NotFound,
+            message: "repository is not registered".into(),
+        })
+}
+
+fn git_only_repository_error() -> AppError {
+    AppError {
+        kind: AppErrorKind::InvalidInput,
+        message: "repository is Git-only; set up Jujutsu before opening it".into(),
+    }
+}
+
+async fn initialize_git_only_repository(
+    state: &State<'_, AppState>,
+    repository: &RepositoryRecord,
+) -> Result<(), AppError> {
+    let readiness = state
+        .discovery
+        .readiness(&repository.location, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    match readiness {
+        Some(RepositoryReadiness::Ready) => return Ok(()),
+        Some(RepositoryReadiness::GitOnly) => {}
+        None => {
+            return Err(AppError {
+                kind: AppErrorKind::Driver,
+                message: "repository is no longer a readable Git repository".into(),
+            });
+        }
+    }
+
+    state
+        .driver
+        .initialize_git_repository(repository, CancellationToken::new())
+        .await
+        .map_err(driver_error)?;
+    match state
+        .discovery
+        .readiness(&repository.location, CancellationToken::new())
+        .await
+        .map_err(driver_error)?
+    {
+        Some(RepositoryReadiness::Ready) => Ok(()),
+        _ => Err(AppError {
+            kind: AppErrorKind::Driver,
+            message: "Jujutsu initialization did not produce a readable repository".into(),
+        }),
+    }
 }
 
 fn storage_error(error: RegistryError) -> AppError {

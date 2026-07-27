@@ -60,7 +60,7 @@ export function AddRepositorySourceDialog({
         ? await open({
             directory: true,
             multiple: false,
-            title: "Choose a folder containing Jujutsu repositories",
+            title: "Choose a folder containing Git or Jujutsu repositories",
           })
         : "/fixtures";
       if (!selectedPath || Array.isArray(selectedPath)) return;
@@ -100,7 +100,10 @@ export function AddRepositorySourceDialog({
         <header>
           <div>
             <h2 id="add-source-title">Add repository source</h2>
-            <p>Scan one local or SSH folder and keep its Jujutsu repositories in a tree.</p>
+            <p>
+              Scan one local or SSH folder and keep its Git and Jujutsu
+              repositories in a tree.
+            </p>
           </div>
           <button type="button" aria-label="Close dialog" onClick={onClose}>
             <X aria-hidden="true" />
