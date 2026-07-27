@@ -70,6 +70,49 @@ describe("foldHistory", () => {
     expect(expandedFold?.shownCount).toBe(28);
   });
 
+  it("preserves an explicit expansion when selecting a revealed change", () => {
+    const changes = Array.from({ length: 30 }, (_, index) =>
+      change(`change-${index}`, { workingCopy: index === 0 }),
+    );
+    const collapsed = foldHistory(changes, undefined, {});
+    const fold = collapsed.find((item) => item.kind === "fold");
+    const revealedByGap = { [fold!.id]: HISTORY_REVEAL_STEP };
+
+    const beforeSelection = foldHistory(changes, undefined, revealedByGap);
+    const afterSelection = foldHistory(
+      changes,
+      "change-8",
+      revealedByGap,
+    );
+
+    expect(afterSelection).toEqual(beforeSelection);
+    expect(afterSelection.find((item) => item.kind === "fold")).toMatchObject({
+      id: fold!.id,
+      shownCount: HISTORY_REVEAL_STEP,
+      hiddenCount: 18,
+    });
+  });
+
+  it("keeps a selected hidden change visible without expanding its whole gap", () => {
+    const changes = Array.from({ length: 30 }, (_, index) =>
+      change(`change-${index}`, { workingCopy: index === 0 }),
+    );
+
+    const items = foldHistory(changes, "change-20", {});
+    const visibleIds = items
+      .filter((item) => item.kind === "change")
+      .map((item) => item.change.changeId);
+
+    expect(visibleIds).toEqual([
+      "change-0",
+      "change-1",
+      "change-19",
+      "change-20",
+      "change-21",
+    ]);
+    expect(items.filter((item) => item.kind === "fold")).toHaveLength(2);
+  });
+
   it("shows search results unchanged when folding is disabled", () => {
     const changes = Array.from({ length: 30 }, (_, index) =>
       change(`change-${index}`),

@@ -35,6 +35,52 @@ function gapId(changes: ChangeRow[], startIndex: number, endIndex: number) {
   return `${newer}:${older}:${startIndex}:${endIndex}`;
 }
 
+function markAnchorContext(visible: boolean[], anchor: number) {
+  const start = Math.max(0, anchor - ANCHOR_CONTEXT);
+  const end = Math.min(visible.length - 1, anchor + ANCHOR_CONTEXT);
+  for (let index = start; index <= end; index += 1) visible[index] = true;
+}
+
+function isRenderedByBaseFolds(
+  changes: ChangeRow[],
+  selectedIndex: number,
+  visible: readonly boolean[],
+  revealedByGap: Readonly<Record<string, number>>,
+) {
+  if (visible[selectedIndex]) return true;
+
+  let index = 0;
+  while (index < changes.length) {
+    if (visible[index]) {
+      index += 1;
+      continue;
+    }
+
+    const startIndex = index;
+    while (index < changes.length && !visible[index]) index += 1;
+    const endIndex = index - 1;
+    const totalCount = endIndex - startIndex + 1;
+    if (totalCount < MIN_FOLD_SIZE) {
+      if (selectedIndex >= startIndex && selectedIndex <= endIndex) return true;
+      continue;
+    }
+
+    const id = gapId(changes, startIndex, endIndex);
+    const shownCount = Math.min(
+      totalCount,
+      Math.max(0, revealedByGap[id] ?? 0),
+    );
+    if (
+      selectedIndex >= startIndex &&
+      selectedIndex < startIndex + shownCount
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function foldHistory(
   changes: ChangeRow[],
   selectedChangeId: string | undefined,
@@ -56,16 +102,26 @@ export function foldHistory(
   changes.forEach((change, index) => {
     if (
       isReferenceAnchor(change) ||
-      change.changeId === selectedChangeId ||
       additionalAnchors.has(change.changeId)
     ) {
       anchors.add(index);
     }
   });
-  for (const anchor of anchors) {
-    const start = Math.max(0, anchor - ANCHOR_CONTEXT);
-    const end = Math.min(changes.length - 1, anchor + ANCHOR_CONTEXT);
-    for (let index = start; index <= end; index += 1) visible[index] = true;
+  for (const anchor of anchors) markAnchorContext(visible, anchor);
+
+  const selectedIndex = selectedChangeId
+    ? changes.findIndex((change) => change.changeId === selectedChangeId)
+    : -1;
+  if (
+    selectedIndex >= 0 &&
+    !isRenderedByBaseFolds(
+      changes,
+      selectedIndex,
+      visible,
+      revealedByGap,
+    )
+  ) {
+    markAnchorContext(visible, selectedIndex);
   }
 
   const items: HistoryFoldItem[] = [];
