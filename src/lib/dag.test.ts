@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ChangeRow } from "../types";
 import {
   changedDagLanesInRange,
+  dagColumnWidth,
+  dagLaneX,
   dagRowLayoutEquals,
   layoutDag,
 } from "./dag";
@@ -21,6 +23,22 @@ function row(changeId: string, parents: string[]): ChangeRow {
     empty: false,
   };
 }
+
+describe("DAG geometry", () => {
+  it("centers a single lane and keeps equal side insets for multiple lanes", () => {
+    expect(dagColumnWidth(1)).toBe(32);
+    expect(dagLaneX(0)).toBe(16);
+
+    expect(dagColumnWidth(2)).toBe(44);
+    expect(dagLaneX(1)).toBe(28);
+    expect(dagLaneX(0)).toBe(dagColumnWidth(2) - dagLaneX(1));
+  });
+
+  it("bounds geometry to the maximum visible lane count", () => {
+    expect(dagLaneX(99)).toBe(dagLaneX(9));
+    expect(dagColumnWidth(99)).toBe(dagColumnWidth(10));
+  });
+});
 
 describe("layoutDag", () => {
   it("keeps a linear history in one stable lane", () => {

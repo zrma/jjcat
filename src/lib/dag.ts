@@ -1,5 +1,27 @@
 import type { ChangeRow } from "../types";
 
+export const DAG_LANE_GAP = 12;
+export const DAG_SIDE_INSET = 16;
+export const MAX_VISIBLE_DAG_LANES = 10;
+
+export function dagLaneX(lane: number) {
+  return (
+    DAG_SIDE_INSET +
+    Math.min(Math.max(lane, 0), MAX_VISIBLE_DAG_LANES - 1) * DAG_LANE_GAP
+  );
+}
+
+export function dagColumnWidth(visibleLaneCount: number) {
+  const boundedLaneCount = Math.min(
+    Math.max(visibleLaneCount, 1),
+    MAX_VISIBLE_DAG_LANES,
+  );
+  return Math.max(
+    32,
+    DAG_SIDE_INSET * 2 + (boundedLaneCount - 1) * DAG_LANE_GAP,
+  );
+}
+
 export interface DagEdge {
   fromLane: number;
   toLane: number;

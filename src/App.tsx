@@ -58,6 +58,7 @@ import {
   jjMutationCommands,
 } from "./lib/jjCommand";
 import { locationLabel, relativeTime } from "./lib/format";
+import { loadDiffViewMode, saveDiffViewMode } from "./lib/preferences";
 import {
   compactStateLabel,
   isDisconnectedState,
@@ -267,7 +268,8 @@ function App() {
   const [fileDiff, setFileDiff] = useState<FileDiffProjection | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
-  const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>("unified");
+  const [diffViewMode, setDiffViewMode] =
+    useState<DiffViewMode>(loadDiffViewMode);
   const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>("preserve");
   const [inspectorView, setInspectorView] = useState<InspectorView>("changes");
   const keyboardNavigationZoneRef = useRef<
@@ -339,6 +341,11 @@ function App() {
   useEffect(() => {
     registryRef.current = registry;
   }, [registry]);
+
+  const handleDiffViewModeChange = useCallback((mode: DiffViewMode) => {
+    saveDiffViewMode(mode);
+    setDiffViewMode(mode);
+  }, []);
 
   const startActivity = useCallback(
     ({
@@ -2206,7 +2213,7 @@ function App() {
               diffError={diffError}
               diffViewMode={diffViewMode}
               whitespaceMode={whitespaceMode}
-              onDiffViewModeChange={setDiffViewMode}
+              onDiffViewModeChange={handleDiffViewModeChange}
               onWhitespaceModeChange={setWhitespaceMode}
               onOpenDiffQuickLook={(
                 change,

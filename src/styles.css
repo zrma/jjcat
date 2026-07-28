@@ -8,6 +8,7 @@
   --mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
   --row-height: 20px;
   --dag-width: 32px;
+  --dag-lane-origin: 16px;
   --history-columns:
     var(--dag-width)
     116px
@@ -2396,7 +2397,7 @@ body.workspace-resizing {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 8px;
+  left: var(--dag-lane-origin);
   border-left: 1px dashed var(--brand-border);
   content: "";
 }
@@ -2427,7 +2428,7 @@ body.workspace-resizing {
   position: absolute;
   z-index: 2;
   top: 50%;
-  left: 8px;
+  left: var(--dag-lane-origin);
   min-width: 13px;
   padding: 0 2px;
   border: 1px solid var(--border-default);

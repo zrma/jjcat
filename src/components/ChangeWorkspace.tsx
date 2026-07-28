@@ -28,8 +28,11 @@ import {
 import { absoluteTime, relativeTime } from "../lib/format";
 import {
   changedDagLanesInRange,
+  dagColumnWidth,
+  dagLaneX,
   dagRowLayoutEquals,
   layoutDag,
+  MAX_VISIBLE_DAG_LANES,
   type DagRowLayout,
 } from "../lib/dag";
 import {
@@ -110,9 +113,6 @@ const VIRTUALIZATION_THRESHOLD = 40;
 const HISTORY_ROW_HEIGHT = 20;
 const HISTORY_HEADER_HEIGHT = 21;
 const HISTORY_OVERSCAN = 6;
-const DAG_LANE_GAP = 12;
-const DAG_PADDING = 5;
-const MAX_VISIBLE_DAG_LANES = 10;
 const MIN_HISTORY_HEIGHT = 140;
 const MIN_INSPECTOR_HEIGHT = 350;
 const SPLITTER_SIZE = 5;
@@ -687,8 +687,11 @@ function ChangeLog({
     Math.max(currentDag.maxLaneCount, displayDag.maxLaneCount),
     MAX_VISIBLE_DAG_LANES,
   );
-  const dagWidth = Math.max(32, DAG_PADDING * 2 + visibleLaneCount * DAG_LANE_GAP);
-  const graphStyle = { "--dag-width": `${dagWidth}px` } as CSSProperties;
+  const dagWidth = dagColumnWidth(visibleLaneCount);
+  const graphStyle = {
+    "--dag-width": `${dagWidth}px`,
+    "--dag-lane-origin": `${dagLaneX(0)}px`,
+  } as CSSProperties;
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -1392,7 +1395,7 @@ function HistoryFoldRow({
 }
 
 function laneX(lane: number) {
-  return DAG_PADDING + Math.min(lane, MAX_VISIBLE_DAG_LANES - 1) * DAG_LANE_GAP;
+  return dagLaneX(lane);
 }
 
 function DagCell({
