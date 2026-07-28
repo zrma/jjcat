@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -26,10 +28,12 @@ REQUIRED_PATHS = (
     "docs/status.md",
     "scripts/check-agent-harness-interface.sh",
     "scripts/check-publication-boundary.py",
+    "scripts/check-release-version.py",
     "scripts/check.sh",
     "scripts/finalize-change.sh",
     "scripts/start-work.sh",
     ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
     "package.json",
     "pnpm-lock.yaml",
     "src/App.tsx",
@@ -65,6 +69,8 @@ start_work = read("scripts/start-work.sh")
 cargo_manifest = read("src-tauri/Cargo.toml")
 package_manifest = read("package.json")
 ci_workflow = read(".github/workflows/ci.yml")
+release_workflow = read(".github/workflows/release.yml")
+tauri_config = json.loads(read("src-tauri/tauri.conf.json"))
 
 for fragment in (
     "name: jjcat",
@@ -98,8 +104,8 @@ if "All your jj repos, one window." not in readme:
     fail("README product identity is missing")
 if "`P3: Safe Shaping`까지 완료됐다" not in status:
     fail("status does not record P3 completion")
-if "P4 distribution은 별도 milestone로 연다" not in status:
-    fail("status does not identify the next milestone boundary")
+if "`P4: Distribution`을 active milestone로 열었다" not in status:
+    fail("status does not identify the active distribution milestone")
 if "현재 content class는 `public`" not in status:
     fail("status does not declare the public tracked surface")
 if "publication class는 public" not in handoff:
@@ -124,6 +130,39 @@ if "dependency-refresh-or-linux-distribution" not in security:
     fail("security policy does not define the upstream advisory review boundary")
 if "RUSTSEC-2024-0429" not in roadmap:
     fail("distribution roadmap does not require upstream advisory review")
+
+package_version = json.loads(package_manifest).get("version")
+cargo_version = tomllib.loads(cargo_manifest).get("package", {}).get("version")
+tauri_version = tauri_config.get("version")
+versions = {
+    "package.json": package_version,
+    "src-tauri/Cargo.toml": cargo_version,
+    "src-tauri/tauri.conf.json": tauri_version,
+}
+if set(versions.values()) != {"0.9.0"}:
+    fail(f"release versions are not aligned at 0.9.0: {versions}")
+
+bundle = tauri_config.get("bundle", {})
+if bundle.get("active") is not True:
+    fail("Tauri bundling is not active")
+if set(bundle.get("targets", [])) != {"app", "dmg"}:
+    fail("Tauri bundle targets must be app and dmg for the macOS beta")
+
+for fragment in (
+    "tags:",
+    '"v*"',
+    "APPLE_CERTIFICATE",
+    "APPLE_SIGNING_IDENTITY",
+    "APPLE_ID",
+    "APPLE_PASSWORD",
+    "APPLE_TEAM_ID",
+    "scripts/check-release-version.py",
+    "tauri-apps/tauri-action@v0",
+    "prerelease: true",
+):
+    if fragment not in release_workflow:
+        fail(f"release workflow is missing {fragment!r}")
+
 for fragment in (
     "name: Install Jujutsu",
     "JJCAT_JJ_VERSION: 0.43.0",

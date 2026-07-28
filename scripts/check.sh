@@ -6,6 +6,7 @@ cd "$repo_root"
 
 scripts/check-agent-harness-interface.sh
 scripts/check-repository-contract.py
+scripts/check-release-version.py
 scripts/check-publication-boundary.py --self-test
 
 pnpm test

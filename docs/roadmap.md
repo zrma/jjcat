@@ -42,8 +42,10 @@
 
 ## P4: Distribution
 
-- [ ] macOS packaging, signing과 update path
+- [x] `0.9.0` source version, macOS app/DMG bundle target과 tag-driven prerelease workflow
+- [ ] signed/notarized macOS artifact와 clean install/launch/restart, local/SSH smoke
+- [ ] release artifact, checksum과 user documentation
+- [ ] updater contract는 0.9.x 후속 slice에서 별도로 결정
 - [ ] Linux와 Windows acceptance
 - [ ] Linux packaging 전에 `RUSTSEC-2024-0429` upstream resolution 또는 validated pinned backport 재검토
 - [ ] optional `jjcat-agent` install/upgrade/remove contract
-- [ ] release artifacts와 user documentation

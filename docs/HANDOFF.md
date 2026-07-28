@@ -11,8 +11,8 @@
 
 ## Current Baseline
 
-- repository는 실행 가능한 pre-alpha P3 graph/diff 및 preview-first safe-shaping cockpit을
-  가진다.
+- repository는 P3 graph/diff 및 preview-first safe-shaping cockpit을 완료했고, 0.9.0
+  macOS public beta source contract를 준비 중이다.
 - runtime은 Tauri 2, Rust 2024 core와 React/TypeScript/Vite frontend다.
 - local과 SSH transport는 같은 Repository Driver contract를 사용한다.
 - SSH는 OpenSSH stdio와 외부 credential ownership을 기본으로 한다.
@@ -36,7 +36,7 @@
 
 ## Current Work
 
-`P3: Safe Shaping` complete
+`P4: Distribution` active
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
@@ -45,7 +45,11 @@ push가 구현됐다. graph drag/drop과 keyboard shaping은 execute를 우회�
 preview를 연다. workspace manager는 current/non-empty workspace와 unsafe path를 보호하면서
 다른 empty workspace의 working-copy change, registration과 exact directory를 단일
 preview-first action으로 정리한다.
-active todo는 없으며 다음 repo-owned milestone은 P4 distribution이다. remote helper는 계속
+
+active todo는 `docs/todo-v0-9-0-release/spec.md`다. source version, macOS app/DMG bundle
+target과 tag-driven prerelease workflow는 0.9.0으로 정렬한다. 실제 tag와 GitHub Release는
+Apple signing/notarization credential, signed artifact의 clean install/launch/restart,
+local/SSH smoke evidence가 모두 준비될 때까지 보류한다. updater와 remote helper는 0.9.0
 범위 밖이다.
 
 ## Completion Rule

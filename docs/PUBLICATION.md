@@ -59,3 +59,9 @@ push, tag/release, visibility 변경과 history rewrite는 각각 별도의 외�
 - issue와 release note에는 재현에 필요한 최소 synthetic evidence만 포함한다.
 - release artifact가 생기면 source tree와 별도로 artifact, checksum, install/run smoke를
   검증한다.
+- release tag는 `scripts/check-release-version.py`가 검증한 source version과 정확히
+  일치해야 한다.
+- macOS public beta는 signed/notarized artifact의 clean install, launch/restart와
+  대표 local/SSH repository smoke가 모두 통과한 뒤에만 게시한다.
+- release workflow의 signing secret preflight 실패는 우회하지 않는다. credential이 없는
+  상태에서는 unsigned local package evidence와 source change까지만 게시한다.

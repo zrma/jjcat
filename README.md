@@ -22,9 +22,10 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 
 ## Current Status
 
-jjcat은 현재 **pre-alpha P3**다. local/SSH 저장소 직접 등록과 folder source discovery,
-drag-reorder가 가능한 persistent tab과 quick switcher, cached background refresh,
-multi-lane history, bounded file diff와 editor/terminal handoff가 동작한다.
+jjcat은 P3 기능을 완료하고 **0.9.0 macOS public beta를 준비 중**이다. local/SSH 저장소
+직접 등록과 folder source discovery, drag-reorder가 가능한 persistent tab과 quick
+switcher, cached background refresh, multi-lane history, bounded file diff와
+editor/terminal handoff가 동작한다.
 
 모든 repository mutation은 repository, exact target과 expected operation을 고정한 backend
 preview token을 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
@@ -32,8 +33,10 @@ protected empty-change pruning, multi-step undo/redo, bookmark move와 explicit 
 Undo/Redo는 별도 확인 dialog 없이 한 번의 입력으로 실행하고 나머지 shaping 작업은 실행 전
 preview를 보여준다. `jj undo`로 복원 가능한 local preview는 `Enter`/`Y`로 실행하고
 `Esc`/`N`으로 취소할 수 있다. directory를 삭제하는 workspace removal과 remote push는
-명시적 button 조작만 허용한다. package signing, updater와 release artifact는
-[P4 Distribution](docs/roadmap.md#p4-distribution)의 범위다.
+명시적 button 조작만 허용한다. 0.9.0 version contract와 macOS app/DMG build surface는
+[P4 Distribution](docs/roadmap.md#p4-distribution)에서 준비 중이다. signed/notarized
+artifact, clean install/restart와 local/SSH smoke evidence가 확보되기 전에는 public beta
+tag나 GitHub Release를 만들지 않는다. updater는 0.9.0의 release blocker가 아니다.
 
 ## Quick Start
 

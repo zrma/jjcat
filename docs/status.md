@@ -108,7 +108,10 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 
 ## Next Slice
 
-P4 distribution은 별도 milestone로 연다. 우선 macOS signing/notarization, updater와 release
-artifact contract를 결정하고, Linux package 작업 전 accepted GTK advisory의 upstream
-resolution 또는 검증된 backport를 다시 판단한다. P3 완료는 package publication이나 release를
-자동 승인하지 않는다.
+`P4: Distribution`을 active milestone로 열었다. 0.9.0 source version, macOS app/DMG
+bundle target과 tag-driven prerelease workflow를 먼저 고정한다. 실제 tag와 GitHub Release는
+Apple signing/notarization credential, signed artifact의 clean install/launch/restart,
+local/SSH smoke evidence가 모두 준비된 뒤에만 진행한다. updater는 0.9.0 blocker가 아니며,
+Linux package 작업 전 accepted GTK advisory의 upstream resolution 또는 검증된 backport를
+다시 판단한다. P3 완료와 unsigned build 성공은 package publication이나 release를 자동
+승인하지 않는다.
