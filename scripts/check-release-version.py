@@ -37,9 +37,14 @@ if len(set(versions.values())) != 1:
         + ", ".join(f"{path}={version}" for path, version in versions.items())
     )
 
-tag = os.environ.get("GITHUB_REF_NAME")
 expected_tag = f"v{package_version}"
-if tag and tag != expected_tag:
+ref_type = os.environ.get("GITHUB_REF_TYPE")
+ref = os.environ.get("GITHUB_REF", "")
+is_tag_ref = ref_type == "tag" or ref.startswith("refs/tags/")
+tag = os.environ.get("GITHUB_REF_NAME") if is_tag_ref else None
+if is_tag_ref and not tag:
+    fail("tag ref is missing GITHUB_REF_NAME")
+if is_tag_ref and tag != expected_tag:
     fail(f"tag {tag!r} does not match {expected_tag!r}")
 
 print(f"release version contract is valid: {package_version}")
