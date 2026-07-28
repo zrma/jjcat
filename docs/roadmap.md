@@ -43,9 +43,11 @@
 ## P4: Distribution
 
 - [x] `0.9.0` source version, macOS app/DMG bundle target과 tag-driven prerelease workflow
-- [ ] signed/notarized macOS artifact와 clean install/launch/restart, local/SSH smoke
-- [ ] release artifact, checksum과 user documentation
+- [x] Apple Silicon용 ad-hoc-signed/not-notarized beta와 표준 Gatekeeper 최초 실행 정책
+- [x] macOS artifact, checksum, clean install/launch/restart와 local/SSH smoke
+- [ ] reviewed tag, same-SHA CI와 GitHub prerelease
 - [ ] updater contract는 0.9.x 후속 slice에서 별도로 결정
+- [ ] optional Developer ID signing/notarization
 - [ ] Linux와 Windows acceptance
 - [ ] Linux packaging 전에 `RUSTSEC-2024-0429` upstream resolution 또는 validated pinned backport 재검토
 - [ ] optional `jjcat-agent` install/upgrade/remove contract

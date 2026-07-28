@@ -34,9 +34,12 @@ Undo/Redo는 별도 확인 dialog 없이 한 번의 입력으로 실행하고 �
 preview를 보여준다. `jj undo`로 복원 가능한 local preview는 `Enter`/`Y`로 실행하고
 `Esc`/`N`으로 취소할 수 있다. directory를 삭제하는 workspace removal과 remote push는
 명시적 button 조작만 허용한다. 0.9.0 version contract와 macOS app/DMG build surface는
-[P4 Distribution](docs/roadmap.md#p4-distribution)에서 준비 중이다. signed/notarized
-artifact, clean install/restart와 local/SSH smoke evidence가 확보되기 전에는 public beta
-tag나 GitHub Release를 만들지 않는다. updater는 0.9.0의 release blocker가 아니다.
+[P4 Distribution](docs/roadmap.md#p4-distribution)에서 준비 중이다. 첫 public beta는
+번들 무결성용 ad-hoc 서명만 적용하고 Developer ID 서명과 공증 없이 Apple Silicon용
+prerelease로 배포하며, SHA-256 checksum, 표준 Gatekeeper 최초 실행 안내, clean
+install/restart와 local/SSH smoke evidence를 release contract로 삼는다. 자세한 설치 경계는
+[v0.9.0 release notes](docs/releases/v0.9.0.md)에 기록했다. updater와 signed/notarized
+distribution은 0.9.0의 release blocker가 아니다.
 
 ## Quick Start
 

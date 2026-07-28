@@ -2,24 +2,28 @@
 
 ## Decisions
 
-- v0.9.0 is a macOS public beta and may be marked as a GitHub prerelease.
-- Unsigned local builds are valid for packaging rehearsal only.
+- v0.9.0 is a GitHub prerelease for Apple Silicon Macs running macOS 13 or
+  newer.
+- The artifacts are ad-hoc signed for bundle integrity, but are not Developer ID
+  signed or notarized.
+- The release contains a DMG, zipped app bundle, and `SHA256SUMS`.
+- Supported first launch uses Finder `Open` or System Settings
+  `Privacy & Security` > `Open Anyway`.
+- The documentation does not advise disabling Gatekeeper or removing quarantine
+  attributes.
 - The first beta uses a manual download and install path; an in-app updater is
   deferred.
-- Release automation must stop before packaging when required Apple credentials
-  are unavailable.
 
-## Open
+## Non-blocking Follow-ups
 
-- Which authorized Apple Developer identity and notarization credential set
-  will be provided to GitHub Actions?
-- Should the first beta ship as a universal binary or use separate Apple
-  Silicon and Intel artifacts after the initial signed package rehearsal?
-- What minimum macOS version should be stated after clean-machine acceptance?
+- Reconsider Developer ID signing/notarization only if distribution volume or
+  support cost justifies an Apple Developer Program subscription.
+- Decide whether demand warrants Intel or universal artifacts.
+- Define updater behavior in a later 0.9.x milestone.
 
 ## Blocking Boundary
 
-The source-preparation slice can complete without resolving the open questions.
-The v0.9.0 tag and GitHub prerelease cannot be created until signing identity,
-notarization credentials, artifact architecture, and clean-machine acceptance
-are resolved with evidence.
+The `v0.9.0` tag and GitHub prerelease require verified app/DMG artifacts,
+checksums, clean launch/restart, representative local and SSH smoke, repository
+and public-boundary gates, and reviewed same-revision CI. Apple credentials are
+not part of this release boundary.

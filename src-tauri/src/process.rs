@@ -1,5 +1,5 @@
-use std::ffi::OsString;
-use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -89,9 +89,11 @@ pub async fn run_command_with_limit(
     cancellation: CancellationToken,
     output_limit: usize,
 ) -> Result<CommandOutput, ProcessError> {
-    let mut command = Command::new(&plan.program);
+    let (program, path) = command_environment(&plan.program);
+    let mut command = Command::new(program);
     command
         .args(&plan.args)
+        .env("PATH", path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -150,6 +152,98 @@ pub async fn run_command_with_limit(
     })
 }
 
+fn command_environment(program: &Path) -> (PathBuf, OsString) {
+    let base_path = std::env::var_os("PATH");
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let path = augmented_path(base_path.as_deref(), home.as_deref());
+    let override_path = match program.to_str() {
+        Some("jj") => std::env::var_os("JJCAT_JJ_BIN"),
+        Some("ssh") => std::env::var_os("JJCAT_SSH_BIN"),
+        _ => None,
+    };
+    let program = resolve_program(program, &path, override_path.as_deref());
+    (program, path)
+}
+
+fn augmented_path(base_path: Option<&OsStr>, home: Option<&Path>) -> OsString {
+    let mut paths = Vec::new();
+
+    if let Some(base_path) = base_path {
+        for path in std::env::split_paths(base_path) {
+            push_unique(&mut paths, path);
+        }
+    }
+
+    if let Some(home) = home {
+        push_unique(&mut paths, home.join(".local/bin"));
+        push_unique(&mut paths, home.join(".cargo/bin"));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        push_unique(&mut paths, PathBuf::from("/opt/homebrew/bin"));
+        push_unique(&mut paths, PathBuf::from("/usr/local/bin"));
+    }
+
+    std::env::join_paths(paths)
+        .ok()
+        .or_else(|| base_path.map(OsStr::to_os_string))
+        .unwrap_or_default()
+}
+
+fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
+    if !paths.contains(&path) {
+        paths.push(path);
+    }
+}
+
+fn resolve_program(program: &Path, search_path: &OsStr, override_path: Option<&OsStr>) -> PathBuf {
+    if program.components().count() != 1 {
+        return program.to_path_buf();
+    }
+
+    if let Some(override_path) = override_path.filter(|path| !path.is_empty()) {
+        return PathBuf::from(override_path);
+    }
+
+    for directory in std::env::split_paths(search_path) {
+        let candidate = directory.join(program);
+        if is_executable_file(&candidate) {
+            return candidate;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    if program == Path::new("ssh") {
+        let system_ssh = PathBuf::from("/usr/bin/ssh");
+        if is_executable_file(&system_ssh) {
+            return system_ssh;
+        }
+    }
+
+    program.to_path_buf()
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(metadata) = path.metadata() else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
 async fn terminate(child: &mut tokio::process::Child) {
     let _ = child.start_kill();
     let _ = child.wait().await;
@@ -192,6 +286,10 @@ async fn read_bounded<R: AsyncRead + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn shell_plan(script: &str) -> CommandPlan {
         CommandPlan {
@@ -200,6 +298,105 @@ mod tests {
             current_dir: None,
             stdin: None,
         }
+    }
+
+    fn unique_temp_dir() -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("jjcat-process-test-{}-{nonce}", std::process::id()))
+    }
+
+    #[test]
+    fn augments_gui_path_without_discarding_existing_entries() {
+        let home = Path::new("/tmp/jjcat-home");
+        let home_local = home.join(".local/bin");
+        let base = std::env::join_paths([Path::new("/custom/bin"), home_local.as_path()]).unwrap();
+
+        let augmented = augmented_path(Some(&base), Some(home));
+        let entries = std::env::split_paths(&augmented).collect::<Vec<_>>();
+
+        assert_eq!(entries[0], PathBuf::from("/custom/bin"));
+        assert_eq!(entries[1], home_local);
+        assert_eq!(entries[2], home.join(".cargo/bin"));
+        assert_eq!(
+            entries.iter().filter(|entry| **entry == home_local).count(),
+            1
+        );
+    }
+
+    #[test]
+    fn resolves_bare_program_from_augmented_path() {
+        let directory = unique_temp_dir();
+        fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join("jj");
+        fs::write(&executable, b"test").unwrap();
+        #[cfg(unix)]
+        {
+            let mut permissions = fs::metadata(&executable).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&executable, permissions).unwrap();
+        }
+        let search_path = std::env::join_paths([directory.as_path()]).unwrap();
+
+        assert_eq!(
+            resolve_program(Path::new("jj"), &search_path, None),
+            executable
+        );
+
+        fs::remove_file(&executable).unwrap();
+        fs::remove_dir(&directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_non_executable_path_candidates() {
+        let directory = unique_temp_dir();
+        let first = directory.join("first");
+        let second = directory.join("second");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        fs::write(first.join("jj"), b"not executable").unwrap();
+        let executable = second.join("jj");
+        fs::write(&executable, b"executable").unwrap();
+        let mut permissions = fs::metadata(&executable).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&executable, permissions).unwrap();
+        let search_path = std::env::join_paths([first.as_path(), second.as_path()]).unwrap();
+
+        assert_eq!(
+            resolve_program(Path::new("jj"), &search_path, None),
+            executable
+        );
+
+        fs::remove_dir_all(&directory).unwrap();
+    }
+
+    #[test]
+    fn executable_override_wins_for_bare_program() {
+        let override_path = OsStr::new("/custom/jj");
+
+        assert_eq!(
+            resolve_program(
+                Path::new("jj"),
+                OsStr::new("/does/not/exist"),
+                Some(override_path)
+            ),
+            PathBuf::from(override_path)
+        );
+    }
+
+    #[test]
+    fn explicit_program_path_is_not_rewritten() {
+        assert_eq!(
+            resolve_program(
+                Path::new("/custom/jj"),
+                OsStr::new("/another/bin"),
+                Some(OsStr::new("/override/jj"))
+            ),
+            PathBuf::from("/custom/jj")
+        );
     }
 
     #[tokio::test]

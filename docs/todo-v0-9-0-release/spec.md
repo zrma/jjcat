@@ -4,90 +4,103 @@ Status: active
 
 ## Goal
 
-Prepare and publish `jjcat` v0.9.0 as a macOS public beta only after the app
-bundle and DMG are signed, notarized, installable, and proven against local and
-SSH-backed Jujutsu repositories.
+Prepare and publish `jjcat` v0.9.0 as an Apple Silicon macOS public beta with
+reproducible app and DMG artifacts, SHA-256 checksums, explicit
+non-Developer-ID first-launch guidance, and proven local/SSH repository
+behavior.
 
 ## Context
 
 P3 established the daily-driver graph, diff, workspace, mutation, undo/redo,
 repository discovery, and SSH workflows. The next useful boundary is a
-repeatable macOS release rather than another feature milestone.
+repeatable public beta rather than another feature milestone.
 
-The source tree can prepare version metadata, packaging, documentation, and a
-tag-triggered release workflow without holding Apple credentials. Publishing
-the release remains blocked until authorized signing and notarization evidence
-is available.
+This personal open-source release does not justify an Apple Developer Program
+subscription. The first beta therefore ships without Developer ID signing or
+notarization and states that boundary plainly instead of weakening macOS
+security controls.
 
 ## Scope
 
-- Synchronize the frontend, Rust package, and Tauri application versions at
-  `0.9.0`.
-- Build `.app` and `.dmg` artifacts for macOS.
-- Add a tag-triggered GitHub prerelease workflow with an explicit Apple
-  credential preflight.
-- Define checksum, clean-install, launch, restart, local-repository, and
-  SSH-repository acceptance evidence.
-- Keep tracked release documentation public-ready and free of private
-  inventory.
+- Keep the frontend, Rust package, and Tauri application versions at `0.9.0`.
+- Build Apple Silicon `.app` and `.dmg` artifacts for macOS 13 or newer.
+- Publish a tag-triggered GitHub prerelease with normalized public filenames.
+- Generate and verify `SHA256SUMS` for every uploaded binary artifact.
+- Document Finder `Open` and System Settings `Open Anyway` as the supported
+  Gatekeeper first-launch paths.
+- Verify clean install, launch, restart, local repository, and SSH repository
+  behavior before publication.
+- Keep tracked release material public-ready and free of private inventory.
 
 ## Constraints
 
-- Apple credentials and certificates must remain outside the repository.
-- A locally built unsigned artifact is preparation evidence only and must not
-  be published as the v0.9.0 release.
-- v0.9.0 targets macOS. Linux, Windows, an in-app updater, and a built-in
-  conflict editor are not release requirements.
-- No tag or GitHub Release may be created before the signed and notarized
-  artifact gates pass.
+- v0.9.0 artifacts are ad-hoc signed for bundle integrity, but are not Developer
+  ID signed or notarized.
+- The release must not instruct users to disable Gatekeeper or remove quarantine
+  attributes.
+- v0.9.0 targets Apple Silicon only. Intel/universal binaries, Linux, Windows,
+  an in-app updater, and a built-in conflict editor are not release requirements.
+- A local build is evidence, not permission to publish. Tagging still requires
+  repository gates, public-boundary gates, representative smoke, and a reviewed
+  release payload.
 
 ## Acceptance Checklist
 
 - [x] `package.json`, `src-tauri/Cargo.toml`, and
   `src-tauri/tauri.conf.json` all declare version `0.9.0`.
 - [x] Tauri produces both an app bundle and a DMG.
-- [x] The release workflow rejects missing Apple credentials before packaging.
-- [ ] The signed application passes `codesign` verification and Gatekeeper
-  assessment.
-- [ ] The notarized DMG passes stapling validation and checksum verification.
-- [ ] A clean install launches, quits, relaunches, and preserves safe user
+- [x] The release workflow targets a public Apple Silicon runner and publishes
+  a GitHub prerelease without private signing credentials.
+- [x] Release notes disclose the ad-hoc-signed/not-notarized boundary and
+  supported Gatekeeper first-launch paths.
+- [x] The app and DMG build locally and their public archive names and SHA-256
+  checksums verify.
+- [x] A clean install launches, quits, relaunches, and preserves safe user
   preferences.
-- [ ] Local and SSH repository discovery, graph, diff, fetch, and one
+- [x] Local and SSH repository discovery, graph, diff, fetch, and one
   preview-first mutation smoke pass.
-- [ ] Repository gates and both public publication-boundary gates pass.
-- [ ] The GitHub prerelease points at the reviewed tag and contains only the
-  expected public artifacts.
+- [x] Repository gates and both public publication-boundary gates pass.
+- [ ] The reviewed `v0.9.0` tag, release commit, workflow run, and prerelease
+  resolve to the same source revision.
+- [ ] The prerelease contains only the expected app archive, DMG, and checksum
+  manifest.
 
 ## Required Evidence
 
-- Terminal output summaries for the canonical repository gate and public
+- Terminal verdicts for the canonical repository gate and both public
   publication-boundary gates.
-- Artifact paths, sizes, and SHA-256 checksums without machine-local path
-  disclosure in tracked files.
-- `codesign`, Gatekeeper, notarization, and stapling verification verdicts.
+- Artifact names, sizes, and verified SHA-256 checksums without machine-local
+  path disclosure in tracked files.
+- Bundle version, architecture, ad-hoc code-signing state, and expected
+  Gatekeeper assessment verdicts.
 - Clean-install and representative local/SSH smoke verdicts.
-- The final tag, commit SHA, GitHub Release URL, and terminal CI conclusion.
+- Final tag, commit SHA, GitHub prerelease URL, and terminal CI conclusion.
 
-## Preparation Evidence
+## Local Release Candidate Evidence
 
-- The canonical repository gate passed after the version and workflow changes.
-- A local unsigned arm64 build produced `jjcat.app` and
-  `jjcat_0.9.0_aarch64.dmg`; both bundle versions report `0.9.0`.
-- The release contract checker verified that the tag workflow performs its
-  Apple credential preflight before packaging.
-- These unsigned artifacts are preparation evidence only. They are not release
-  candidates and do not satisfy signing, notarization, clean-install, or
-  local/SSH acceptance.
+- The release verifier accepts only the expected app archive, DMG, and checksum
+  manifest, then verifies SHA-256, bundle identifier, version, macOS 13 minimum,
+  arm64 architecture, and sealed ad-hoc signatures inside both artifacts.
+- An isolated clean app launch, quit, and relaunch preserved the repository
+  registry. The packaged UI loaded local and synthetic OpenSSH repositories,
+  graph and bounded diff views, and previewed fetch and mutation actions without
+  executing them against the working repository.
+- Fixture-backed local/simulated-SSH integration executed fetch and core
+  mutations, while a machine-local representative SSH repository passed
+  read-only projection, operation-log, and bounded-diff smoke.
+- The canonical repository gate, repository publication check, and authorized
+  machine-local publication guard passed for the release-candidate diff.
 
 ## Publication Impact
 
-This milestone changes public version metadata, release automation, user-facing
-release status, and eventually publishes executable artifacts. Source changes
-may be pushed while the milestone remains active. Tagging and artifact
-publication require the stricter release boundary in this specification.
+This milestone changes public version metadata, release automation,
+user-facing release status, and publishes executable artifacts. The artifact
+limitations are part of the release contract, not a hidden exception.
 
 ## Out Of Scope
 
+- Developer ID signing and notarization.
+- Intel or universal macOS artifacts.
 - Linux and Windows acceptance.
 - Automatic updates inside the application.
 - A bundled remote helper or agent.
@@ -95,7 +108,7 @@ publication require the stricter release boundary in this specification.
 
 ## Completion Rule
 
-Close this milestone only after the signed and notarized macOS prerelease is
-published from the reviewed v0.9.0 tag, clean-install and local/SSH smoke
-evidence pass, public boundary checks pass, and the release CI is terminal and
-successful.
+Close this milestone only after the Apple Silicon macOS prerelease is published
+from the reviewed v0.9.0 tag, checksums and local/SSH smoke pass, public boundary
+checks pass, the release CI is terminal and successful, and the uploaded assets
+match the documented non-Developer-ID release contract.

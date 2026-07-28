@@ -20,6 +20,8 @@ sh -n scripts/check.sh
 sh -n scripts/check-agent-harness-interface.sh
 bash -n scripts/start-work.sh
 bash -n scripts/finalize-change.sh
+bash -n scripts/package-macos-release.sh
+bash -n scripts/verify-macos-release.sh
 
 python3 - <<'PY'
 import ast

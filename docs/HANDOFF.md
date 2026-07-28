@@ -47,10 +47,12 @@ preview를 연다. workspace manager는 current/non-empty workspace와 unsafe pa
 preview-first action으로 정리한다.
 
 active todo는 `docs/todo-v0-9-0-release/spec.md`다. source version, macOS app/DMG bundle
-target과 tag-driven prerelease workflow는 0.9.0으로 정렬한다. 실제 tag와 GitHub Release는
-Apple signing/notarization credential, signed artifact의 clean install/launch/restart,
-local/SSH smoke evidence가 모두 준비될 때까지 보류한다. updater와 remote helper는 0.9.0
-범위 밖이다.
+target과 tag-driven prerelease workflow는 0.9.0으로 정렬했다. 첫 public beta는 Apple
+Silicon용 ad-hoc-signed/not-notarized prerelease다. ad-hoc 서명은 번들 무결성만
+봉인하며 Developer ID 신뢰 체인을 제공하지 않는다. artifact checksum, bundle contract,
+clean launch/restart와 local/SSH smoke는 통과했다. 실제 tag와 GitHub Release는 reviewed
+release change, same-SHA CI와 최종 public publication boundary가 준비될 때까지 보류한다.
+updater, Developer ID distribution과 remote helper는 0.9.0 범위 밖이다.
 
 ## Completion Rule
 

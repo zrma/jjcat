@@ -6,6 +6,61 @@ use jjcat_core::domain::{RepositoryLocation, RepositoryRecord, WhitespaceMode};
 use jjcat_core::driver::JjDriver;
 use tokio_util::sync::CancellationToken;
 
+async fn smoke_repository(driver: &JjDriver, repository: &RepositoryRecord) {
+    let projection = driver
+        .project(repository, CancellationToken::new())
+        .await
+        .expect("remote projection must succeed");
+    assert!(!projection.changes.is_empty());
+    assert!(projection.capability.supported);
+    let first_operations = driver
+        .operation_log(repository, CancellationToken::new())
+        .await
+        .expect("remote operation inspection must succeed");
+    let second_operations = driver
+        .operation_log(repository, CancellationToken::new())
+        .await
+        .expect("repeated remote operation inspection must succeed");
+    assert_eq!(first_operations.operations, second_operations.operations);
+    if let Some((change, file)) = projection
+        .changes
+        .iter()
+        .find_map(|change| change.files.first().map(|file| (change, file.clone())))
+    {
+        let diff = driver
+            .file_diff(
+                repository,
+                change.change_id.clone(),
+                change.commit_id.clone(),
+                file,
+                WhitespaceMode::Preserve,
+                CancellationToken::new(),
+            )
+            .await
+            .expect("remote bounded diff must succeed");
+        assert_eq!(diff.repository_id, repository.id);
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires a machine-local SSH repository configured by the repository owner"]
+async fn projects_user_owned_remote_repository() {
+    let host = std::env::var("JJCAT_SSH_SMOKE_HOST")
+        .expect("JJCAT_SSH_SMOKE_HOST must name a machine-local OpenSSH host alias");
+    let path = std::env::var("JJCAT_SSH_SMOKE_PATH")
+        .expect("JJCAT_SSH_SMOKE_PATH must name a machine-local remote repository");
+    let repository = RepositoryRecord::new("remote-smoke", RepositoryLocation::Ssh { host, path })
+        .expect("the machine-local smoke repository must satisfy the SSH location contract");
+
+    smoke_repository(
+        &JjDriver::default().with_timeout(Duration::from_secs(30)),
+        &repository,
+    )
+    .await;
+
+    println!("local-only SSH repository smoke passed");
+}
+
 #[tokio::test]
 #[ignore = "requires a machine-local SSH host configured by the repository owner"]
 async fn projects_two_user_owned_remote_repositories() {
@@ -101,39 +156,7 @@ find "$root" -mindepth 1 -maxdepth 4 -type d -name .jj -print |
             },
         )
         .expect("discovered location must satisfy the P0 SSH path contract");
-        let projection = driver
-            .project(&repository, CancellationToken::new())
-            .await
-            .expect("remote projection must succeed");
-        assert!(!projection.changes.is_empty());
-        assert!(projection.capability.supported);
-        let first_operations = driver
-            .operation_log(&repository, CancellationToken::new())
-            .await
-            .expect("remote operation inspection must succeed");
-        let second_operations = driver
-            .operation_log(&repository, CancellationToken::new())
-            .await
-            .expect("repeated remote operation inspection must succeed");
-        assert_eq!(first_operations.operations, second_operations.operations);
-        if let Some((change, file)) = projection
-            .changes
-            .iter()
-            .find_map(|change| change.files.first().map(|file| (change, file.clone())))
-        {
-            let diff = driver
-                .file_diff(
-                    &repository,
-                    change.change_id.clone(),
-                    change.commit_id.clone(),
-                    file,
-                    WhitespaceMode::Preserve,
-                    CancellationToken::new(),
-                )
-                .await
-                .expect("remote bounded diff must succeed");
-            assert_eq!(diff.repository_id, repository.id);
-        }
+        smoke_repository(&driver, &repository).await;
     }
 
     println!("local-only SSH smoke passed");

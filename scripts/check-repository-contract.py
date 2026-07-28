@@ -147,21 +147,45 @@ if bundle.get("active") is not True:
     fail("Tauri bundling is not active")
 if set(bundle.get("targets", [])) != {"app", "dmg"}:
     fail("Tauri bundle targets must be app and dmg for the macOS beta")
+macos_bundle = bundle.get("macOS", {})
+if macos_bundle.get("minimumSystemVersion") != "13.0":
+    fail("Tauri macOS minimum system version must match the macOS 13 beta contract")
+if macos_bundle.get("signingIdentity") != "-":
+    fail("Tauri macOS signing identity must use the ad-hoc pseudo-identity")
+if macos_bundle.get("hardenedRuntime") is not True:
+    fail("Tauri macOS hardened runtime must be enabled")
 
 for fragment in (
     "tags:",
     '"v*"',
+    "runs-on: macos-15",
+    "scripts/check-release-version.py",
+    "scripts/check.sh",
+    "pnpm tauri build --bundles app",
+    "scripts/package-macos-release.sh",
+    "scripts/verify-macos-release.sh",
+    "softprops/action-gh-release@v2",
+    "body_path: docs/releases/v0.9.0.md",
+    "files: release-dist/*",
+    "prerelease: true",
+    "fail_on_unmatched_files: true",
+):
+    if fragment not in release_workflow:
+        fail(f"release workflow is missing {fragment!r}")
+
+for fragment in (
     "APPLE_CERTIFICATE",
     "APPLE_SIGNING_IDENTITY",
     "APPLE_ID",
     "APPLE_PASSWORD",
     "APPLE_TEAM_ID",
-    "scripts/check-release-version.py",
-    "tauri-apps/tauri-action@v0",
-    "prerelease: true",
+    "tauri-apps/tauri-action",
+    "pnpm tauri bundle --bundles dmg",
+    "runs-on: macos-14",
+    "scripts/sign-macos-adhoc.sh",
 ):
-    if fragment not in release_workflow:
-        fail(f"release workflow is missing {fragment!r}")
+    if fragment in release_workflow:
+        fail(f"unsigned public beta workflow must not contain {fragment!r}")
 
 for fragment in (
     "name: Install Jujutsu",

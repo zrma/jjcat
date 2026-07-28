@@ -61,7 +61,10 @@ push, tag/release, visibility 변경과 history rewrite는 각각 별도의 외�
   검증한다.
 - release tag는 `scripts/check-release-version.py`가 검증한 source version과 정확히
   일치해야 한다.
-- macOS public beta는 signed/notarized artifact의 clean install, launch/restart와
-  대표 local/SSH repository smoke가 모두 통과한 뒤에만 게시한다.
-- release workflow의 signing secret preflight 실패는 우회하지 않는다. credential이 없는
-  상태에서는 unsigned local package evidence와 source change까지만 게시한다.
+- v0.9.0 macOS public beta는 Apple Silicon용 ad-hoc-signed/not-notarized
+  prerelease로 게시한다. ad-hoc 서명은 앱 번들 무결성만 봉인하며 Developer ID
+  신원 보증을 제공하지 않는다. artifact checksum, 표준 Gatekeeper 최초 실행 안내,
+  clean install, launch/restart와 대표 local/SSH repository smoke가 모두 통과해야
+  한다.
+- 사용자가 Gatekeeper를 끄거나 quarantine attribute를 제거하도록 안내하지 않는다.
+  Developer ID 서명과 notarization은 별도의 후속 distribution 경계다.
