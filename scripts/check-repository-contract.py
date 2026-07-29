@@ -122,8 +122,10 @@ if "`P3: Safe Shaping`" not in status or "`P4: Distribution`까지 완료됐다"
     fail("status does not record P3 and P4 completion")
 if "`v0.9.0` public beta" not in status:
     fail("status does not identify the original published v0.9.0 beta")
-if "`v0.9.1` Apple Silicon macOS updater bootstrap" not in status:
+if "`v0.9.1` bootstrap" not in status:
     fail("status does not identify the published v0.9.1 updater bootstrap")
+if "`v0.9.2` Apple Silicon macOS beta" not in status:
+    fail("status does not identify the latest published v0.9.2 beta")
 if "현재 content class는 `public`" not in status:
     fail("status does not declare the public tracked surface")
 if "publication class는 public" not in handoff:

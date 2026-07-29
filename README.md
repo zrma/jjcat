@@ -22,11 +22,11 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 
 ## Current Status
 
-jjcat은 P3 기능과 `v0.9.0` macOS public beta 출고를 완료하고, 첫 updater-enabled
-bootstrap인 `v0.9.1`을 게시했다. 현재 source는 실제 public in-app update를 검증할
-**v0.9.2** release candidate다. local/SSH 저장소 직접 등록과 folder source discovery,
-drag-reorder가 가능한 persistent tab과 quick switcher, cached background refresh,
-multi-lane history, bounded file diff와 editor/terminal handoff가 동작한다.
+jjcat은 P3 기능과 `v0.9.0` macOS public beta 출고를 완료하고, updater-enabled
+bootstrap인 `v0.9.1`과 live in-app update를 검증한 **v0.9.2** prerelease를 게시했다.
+local/SSH 저장소 직접 등록과 folder source discovery, drag-reorder가 가능한 persistent
+tab과 quick switcher, cached background refresh, multi-lane history, bounded file diff와
+editor/terminal handoff가 동작한다.
 
 모든 repository mutation은 repository, exact target과 expected operation을 고정한 backend
 preview token을 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
@@ -42,10 +42,11 @@ install/restart와 local/SSH smoke evidence를 release contract로 삼는다. �
 [v0.9.0 release notes](docs/releases/v0.9.0.md)에 기록했다. `v0.9.0` 자체에는 updater가
 없다. available-only download와 signed in-app update runtime은 다음 manual bootstrap용으로
 구현했다. password-protected persistent updater key는 owner-controlled recovery
-archive와 GitHub Actions secret/variable에 구성했다. `v0.9.1` manual bootstrap과
-rolling beta channel을 게시했으며, [v0.9.2 release notes](docs/releases/v0.9.2.md)는
-실제 in-app update 절차를 설명한다. Developer ID signed/notarized distribution은
-독립된 후속 경계다.
+archive와 GitHub Actions secret/variable에 구성했다. `v0.9.1` manual bootstrap,
+rolling beta channel과 `v0.9.2`를 게시했으며, 설치된 `v0.9.1`에서 공개 updater의
+download/verify/install/explicit-restart를 거쳐 `v0.9.2`로 실행되는 경로를 검증했다.
+[v0.9.2 release notes](docs/releases/v0.9.2.md)는 이 in-app update 절차를 설명한다.
+Developer ID signed/notarized distribution은 독립된 후속 경계다.
 
 ## Quick Start
 

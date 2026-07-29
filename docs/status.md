@@ -4,13 +4,12 @@
 
 `P3: Safe Shaping`과 `P4: Distribution`까지 완료됐다. preview-first safe shaping을
 포함한 local/SSH cockpit과 Apple Silicon macOS용 `v0.9.0` public beta가 게시됐다.
-현재 active follow-up은 `docs/todo-v0-9-x-updater/spec.md`이며, updater가 없는
-`v0.9.0` 이후의 manual bootstrap과 그 다음 버전부터의 signed in-app update path를
-구현한다. local runtime, release pipeline과 ephemeral-key two-version smoke는 완료됐고,
-password-protected persistent updater key recovery와 GitHub Actions
-secret/variable configuration도 완료됐다. signed `v0.9.1` prerelease와 rolling beta
-manifest를 게시하고, 공개 DMG로 기존 `v0.9.0` 설치를 교체해 실행했다. 현재 source와
-release notes는 실제 public in-app update를 증명할 `v0.9.2` candidate에 맞춰져 있다.
+updater가 없는 `v0.9.0` 이후의 manual bootstrap과 그 다음 버전부터의 signed in-app
+update path도 완료됐다. password-protected persistent updater key recovery와 GitHub
+Actions secret/variable configuration, signed `v0.9.1` bootstrap, rolling beta
+manifest와 `v0.9.2` prerelease를 게시했다. 설치된 `v0.9.1`은 공개 updater를
+download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실행됐다. 현재
+선택된 active milestone은 없다.
 
 완료된 기반:
 
@@ -99,6 +98,8 @@ release notes는 실제 public in-app update를 증명할 `v0.9.2` candidate에 
   rolling beta manifest를 교체하는 release pipeline
 - known signature/tamper test와 updater-enabled 두 fixture 사이의
   download/verify/install/relaunch local smoke
+- 공개 `v0.9.1` bootstrap에서 `v0.9.2`로 이어지는 available-only
+  download/verify/install/explicit-restart live update
 
 ## Known Upstream Constraints
 
@@ -121,11 +122,10 @@ release notes는 실제 public in-app update를 증명할 `v0.9.2` candidate에 
 
 ## Latest Release
 
-`v0.9.1` Apple Silicon macOS updater bootstrap을 ad-hoc-signed/not-notarized
-prerelease로 게시했다. signed tag, release commit, terminal CI와 Release workflow가
-같은 revision을 가리키며, 공개 app/DMG/updater assets와 rolling manifest를 다시
-내려받아 검증했다. 공개 DMG는 기존 `v0.9.0` 설치를 `v0.9.1`로 교체하고 registry를
-보존한 채 실행됐다. active 0.9.x follow-up은 `v0.9.2`의 실제 in-app
-download/verify/install/relaunch 증거를 기다린다. Developer ID distribution은 별도
-후속 경계다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution
-또는 검증된 backport를 다시 판단한다.
+`v0.9.2` Apple Silicon macOS beta를 ad-hoc-signed/not-notarized prerelease로
+게시했다. signed tag, release commit, terminal CI와 Release workflow가 같은 revision을
+가리키며, 공개 app/DMG/updater assets와 rolling manifest를 다시 내려받아 검증했다.
+설치된 `v0.9.1`은 available-only action으로 `v0.9.2`를 내려받아 서명을 검증하고
+설치했으며, 명시적 restart 뒤 registry를 보존한 채 `v0.9.2`로 실행됐다. Developer ID
+distribution은 별도 후속 경계다. Linux package 작업 전에는 accepted GTK advisory의
+upstream resolution 또는 검증된 backport를 다시 판단한다.

@@ -36,7 +36,7 @@
 
 ## Current Work
 
-`P4 follow-up: v0.9.x macOS in-app updater` active
+선택된 active todo 없음
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
@@ -50,17 +50,17 @@ preview-first action으로 정리한다.
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,
 DMG와 checksum manifest를 다시 내려받아 검증했다. 첫 public beta는 Apple Silicon용
 ad-hoc-signed/not-notarized prerelease이며 Developer ID 신뢰 체인을 제공하지 않는다.
-현재 `docs/todo-v0-9-x-updater/spec.md`는 우하단의 available-only update action,
+완료된 `docs/todo-v0-9-x-updater/spec.md`는 우하단의 available-only update action,
 Tauri 서명 검증, versioned updater artifacts, rolling beta manifest와 explicit restart를
 구현했다. focused/canonical gate와 ephemeral-key `0.9.0`→`0.9.1` fixture
 download/verify/install/relaunch smoke까지 통과했다. persistent password-protected
 updater key는 owner-controlled recovery archive에 보관하고 GitHub Actions
 secret/variable에 구성했으며, 그 키로 만든 release artifact도 서명 검증을 통과했다.
 첫 updater-enabled bootstrap인 `v0.9.1`은 signed tag, same-SHA CI와 Release
-workflow에서 게시됐고 공개 DMG 설치 및 rolling manifest 검증도 통과했다. source
-version과 release notes는 설치된 `v0.9.1`에서 실제 public in-app update를 검증할
-`v0.9.2` candidate에 맞춰져 있다. Developer ID distribution과 remote helper는 후속
-decision boundary로 남는다.
+workflow에서 게시됐고 공개 DMG 설치 및 rolling manifest 검증도 통과했다. 이어서
+`v0.9.2`를 게시하고 설치된 `v0.9.1`의 available-only action에서 공개 updater를
+download/verify/install한 뒤 명시적으로 restart해 `v0.9.2` 실행과 no-update 상태까지
+검증했다. Developer ID distribution과 remote helper는 후속 decision boundary로 남는다.
 
 ## Completion Rule
 

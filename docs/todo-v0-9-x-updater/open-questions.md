@@ -30,12 +30,12 @@
   the GitHub Actions secret store.
 - [x] Create the rolling beta-channel release asset and publish the
   first updater-enabled bootstrap as `v0.9.1`.
-- [ ] Publish `v0.9.2` and verify the live in-app update from the installed
+- [x] Publish `v0.9.2` and verify the live in-app update from the installed
   `v0.9.1` bootstrap.
 
-The first three actions were explicitly authorized and completed without
+All activation actions were explicitly authorized and completed without
 tracking the private key, password, archive location, or raw command output.
-The following release remains subject to the same versioned-asset-first and
+The public `v0.9.2` update preserved the versioned-asset-first and
 rolling-manifest-last contract.
 
 ## Non-blocking Follow-ups

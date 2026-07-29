@@ -1,5 +1,19 @@
 # Completed Milestones
 
+## 2026-07-30: v0.9.x macOS In-App Updater
+
+- 우하단에 available-only `jjcat <version>` action과 bounded progress,
+  signature-verified install, explicit restart 및 메뉴의 manual check를 추가했다.
+- password-protected persistent updater key의 owner-controlled recovery와 GitHub
+  Actions secret/variable을 구성하고, versioned updater assets 뒤 rolling beta
+  manifest를 교체하는 release pipeline을 검증했다.
+- 첫 updater-enabled `v0.9.1` bootstrap을 공개 DMG로 설치한 뒤 `v0.9.2`를 게시했다.
+  설치된 `v0.9.1`은 공개 updater를 download/verify/install하고 사용자의 명시적 restart
+  뒤 registry를 보존한 채 `v0.9.2`로 실행됐다.
+- signed tags, same-SHA CI와 Release workflows, fresh public asset verification,
+  same-version no-update 상태와 canonical/publication gates를 확인했다. Developer ID
+  signing/notarization은 별도 distribution decision으로 남겼다.
+
 ## 2026-07-29: P4 Distribution
 
 - Apple Silicon Mac과 macOS 13 이상을 대상으로 하는 `v0.9.0` public beta를

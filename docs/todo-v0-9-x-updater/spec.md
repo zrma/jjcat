@@ -1,8 +1,8 @@
 # Spec: v0.9.x macOS In-App Updater
 
-Status: active
+Status: completed
 
-v0.9.1 bootstrap: published and installed; v0.9.2 live update pending
+v0.9.1 bootstrap and v0.9.2 live in-app update: published and verified
 
 ## Goal
 
@@ -70,7 +70,7 @@ only later versions can prove the in-app path.
 | U7 | done | `scripts/check.sh` | Canonical repository, frontend, Rust, and publication self-test gates pass. |
 | U8 | done | cold diff review | No private key, machine inventory, production insecure endpoint, forced restart, or unrelated behavior is included. |
 | U9 | done | redacted persistent-key verification | The password-protected recovery copy, GitHub Actions credentials, and a locally signed release artifact use the same production public key without tracking secret material. |
-| U10 | pending | public two-version verification | The installed `v0.9.1` bootstrap discovers, downloads, verifies, installs, and explicitly restarts into published `v0.9.2`. |
+| U10 | done | public two-version verification | The installed `v0.9.1` bootstrap discovered, downloaded, verified, installed, and explicitly restarted into published `v0.9.2`. |
 
 ## Required Evidence
 
@@ -111,9 +111,19 @@ only later versions can prove the in-app path.
   verifier, the rolling manifest matched the versioned manifest, and the public
   DMG replaced an existing `v0.9.0` install with a running `v0.9.1` app while
   retaining the registry.
-- A persistent-key `v0.9.2` release candidate passed the same local app, DMG,
-  updater archive, manifest, checksum, signature, and Gatekeeper-boundary
-  verification before publication.
+- The `v0.9.2` release commit
+  `8773882428fd0bb8b0f1da133ac093f48f920244`, same-SHA
+  [CI run](https://github.com/zrma/jjcat/actions/runs/30495561581), signed tag,
+  and [Release workflow](https://github.com/zrma/jjcat/actions/runs/30495858268)
+  completed successfully. A fresh download of all six versioned assets passed
+  checksum, updater-signature, manifest, app archive, DMG, architecture, and
+  code-seal verification. The rolling manifest matched the versioned manifest
+  byte-for-byte and referenced the immutable `v0.9.2` updater archive.
+- The installed `v0.9.1` app exposed `Download jjcat 0.9.2` only after the
+  release became available. It downloaded and verified the public updater,
+  reached `Restart to update` without forcing a restart, relaunched as
+  `v0.9.2`, returned to repository readiness, and hid the update action after a
+  same-version manual check.
 - An isolated updater-enabled `0.9.0` fixture discovered a signed `0.9.1`
   fixture over a loopback-only channel, downloaded and installed it, exposed
   `Restart to update`, relaunched as `0.9.1`, and then hid the action because no
@@ -144,6 +154,5 @@ two-version beta releases. No private key or password is tracked.
 
 All local acceptance items are backed by focused and canonical evidence.
 Persistent key recovery and GitHub Actions credential configuration are
-complete. The `v0.9.1` bootstrap release and clean replacement install are
-verified. A following live update to published `v0.9.2` must still be verified
-before this todo is archived.
+complete. The `v0.9.1` bootstrap release, clean replacement install, and live
+update to published `v0.9.2` are verified. This todo is complete.
