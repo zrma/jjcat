@@ -102,10 +102,10 @@ if not manifest_class or not harness_class or manifest_class.group(1) != harness
 
 if "All your jj repos, one window." not in readme:
     fail("README product identity is missing")
-if "`P3: Safe Shaping`까지 완료됐다" not in status:
-    fail("status does not record P3 completion")
-if "`P4: Distribution`을 active milestone로 열었다" not in status:
-    fail("status does not identify the active distribution milestone")
+if "`P3: Safe Shaping`" not in status or "`P4: Distribution`까지 완료됐다" not in status:
+    fail("status does not record P3 and P4 completion")
+if "`v0.9.0` Apple Silicon macOS public beta" not in status:
+    fail("status does not identify the published v0.9.0 beta")
 if "현재 content class는 `public`" not in status:
     fail("status does not declare the public tracked surface")
 if "publication class는 public" not in handoff:

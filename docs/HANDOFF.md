@@ -11,8 +11,8 @@
 
 ## Current Baseline
 
-- repository는 P3 graph/diff 및 preview-first safe-shaping cockpit을 완료했고, 0.9.0
-  macOS public beta source contract를 준비 중이다.
+- repository는 P3 graph/diff 및 preview-first safe-shaping cockpit과 0.9.0
+  Apple Silicon macOS public beta 출고를 완료했다.
 - runtime은 Tauri 2, Rust 2024 core와 React/TypeScript/Vite frontend다.
 - local과 SSH transport는 같은 Repository Driver contract를 사용한다.
 - SSH는 OpenSSH stdio와 외부 credential ownership을 기본으로 한다.
@@ -36,7 +36,7 @@
 
 ## Current Work
 
-`P4: Distribution` active
+`P4: Distribution` complete
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
@@ -46,13 +46,11 @@ preview를 연다. workspace manager는 current/non-empty workspace와 unsafe pa
 다른 empty workspace의 working-copy change, registration과 exact directory를 단일
 preview-first action으로 정리한다.
 
-active todo는 `docs/todo-v0-9-0-release/spec.md`다. source version, macOS app/DMG bundle
-target과 tag-driven prerelease workflow는 0.9.0으로 정렬했다. 첫 public beta는 Apple
-Silicon용 ad-hoc-signed/not-notarized prerelease다. ad-hoc 서명은 번들 무결성만
-봉인하며 Developer ID 신뢰 체인을 제공하지 않는다. artifact checksum, bundle contract,
-clean launch/restart와 local/SSH smoke는 통과했다. 실제 tag와 GitHub Release는 reviewed
-release change, same-SHA CI와 최종 public publication boundary가 준비될 때까지 보류한다.
-updater, Developer ID distribution과 remote helper는 0.9.0 범위 밖이다.
+완료된 todo는 `docs/todo-v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
+same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,
+DMG와 checksum manifest를 다시 내려받아 검증했다. 첫 public beta는 Apple Silicon용
+ad-hoc-signed/not-notarized prerelease이며 Developer ID 신뢰 체인을 제공하지 않는다.
+updater, Developer ID distribution과 remote helper는 후속 decision boundary다.
 
 ## Completion Rule
 

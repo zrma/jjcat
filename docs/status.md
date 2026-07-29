@@ -2,8 +2,8 @@
 
 ## Current Milestone
 
-`P3: Safe Shaping`까지 완료됐다. preview-first mutation, protected empty-change pruning과
-operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
+`P3: Safe Shaping`과 `P4: Distribution`까지 완료됐다. preview-first safe shaping을
+포함한 local/SSH cockpit과 Apple Silicon macOS용 `v0.9.0` public beta가 게시됐다.
 
 완료된 기반:
 
@@ -106,15 +106,11 @@ operation recovery가 local/SSH의 같은 typed contract 위에서 동작한다.
 - public contribution과 security report의 경계는 `CONTRIBUTING.md`, `SECURITY.md`,
   `docs/PUBLICATION.md`에 고정했다.
 
-## Next Slice
+## Latest Release
 
-`P4: Distribution`을 active milestone로 열었다. 0.9.0 source version, macOS app/DMG
-bundle target과 tag-driven prerelease workflow를 고정했다. 첫 beta는 Apple Silicon용
-ad-hoc-signed/not-notarized artifact로 게시한다. ad-hoc 서명은 번들 무결성만 봉인하며
-Developer ID 신뢰 체인을 제공하지 않는다. app archive와 DMG는 checksum, macOS 13
-minimum, arm64 architecture와 sealed ad-hoc signature를 검증했고 isolated
-launch/restart, local/synthetic SSH packaged UI와 대표 actual SSH read-only smoke를
-통과했다. 이제 reviewed release change, tag, same-SHA CI와 GitHub prerelease가 남았다.
-updater와 Developer ID distribution은 0.9.0 blocker가 아니며, Linux package 작업 전
-accepted GTK advisory의 upstream resolution 또는 검증된 backport를 다시 판단한다.
-P3 완료와 local build 성공은 package publication이나 release를 자동 승인하지 않는다.
+`v0.9.0` Apple Silicon macOS public beta를 ad-hoc-signed/not-notarized artifact로
+게시했다. tag, release commit, terminal CI와 GitHub prerelease는 같은 revision을
+가리키며, 공개된 app archive, DMG와 checksum manifest를 다시 내려받아 검증했다.
+updater와 Developer ID distribution은 후속 decision boundary다. Linux package 작업
+전에는 accepted GTK advisory의 upstream resolution 또는 검증된 backport를 다시
+판단한다. 다음 milestone은 아직 선택하지 않았다.

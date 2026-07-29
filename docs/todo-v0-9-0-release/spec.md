@@ -1,6 +1,6 @@
 # v0.9.0 macOS Public Beta
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -60,9 +60,9 @@ security controls.
 - [x] Local and SSH repository discovery, graph, diff, fetch, and one
   preview-first mutation smoke pass.
 - [x] Repository gates and both public publication-boundary gates pass.
-- [ ] The reviewed `v0.9.0` tag, release commit, workflow run, and prerelease
+- [x] The reviewed `v0.9.0` tag, release commit, workflow run, and prerelease
   resolve to the same source revision.
-- [ ] The prerelease contains only the expected app archive, DMG, and checksum
+- [x] The prerelease contains only the expected app archive, DMG, and checksum
   manifest.
 
 ## Required Evidence
@@ -90,6 +90,18 @@ security controls.
   read-only projection, operation-log, and bounded-diff smoke.
 - The canonical repository gate, repository publication check, and authorized
   machine-local publication guard passed for the release-candidate diff.
+
+## Published Release Evidence
+
+- The GPG-signed `v0.9.0` tag, remote `main`, tag CI, and release workflow
+  resolve to commit `41bfbc00e09d4872a249c62eb244d14181c79d6e`.
+- [Tag CI run 30456226401](https://github.com/zrma/jjcat/actions/runs/30456226401)
+  and [release run 30456225727](https://github.com/zrma/jjcat/actions/runs/30456225727)
+  completed successfully.
+- The [v0.9.0 GitHub prerelease](https://github.com/zrma/jjcat/releases/tag/v0.9.0)
+  contains only `jjcat_0.9.0_aarch64.app.zip`,
+  `jjcat_0.9.0_aarch64.dmg`, and `SHA256SUMS`; a fresh download passed the
+  published checksum manifest.
 
 ## Publication Impact
 

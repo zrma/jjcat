@@ -21,9 +21,10 @@
 - Decide whether demand warrants Intel or universal artifacts.
 - Define updater behavior in a later 0.9.x milestone.
 
-## Blocking Boundary
+## Release Outcome
 
-The `v0.9.0` tag and GitHub prerelease require verified app/DMG artifacts,
-checksums, clean launch/restart, representative local and SSH smoke, repository
-and public-boundary gates, and reviewed same-revision CI. Apple credentials are
-not part of this release boundary.
+The [`v0.9.0` GitHub prerelease](https://github.com/zrma/jjcat/releases/tag/v0.9.0)
+was published after verified app/DMG artifacts, checksums, clean launch/restart,
+representative local and SSH smoke, repository and public-boundary gates, and
+reviewed same-revision CI passed. Apple credentials were not part of this
+release boundary.

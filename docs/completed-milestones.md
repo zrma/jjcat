@@ -1,5 +1,16 @@
 # Completed Milestones
 
+## 2026-07-29: P4 Distribution
+
+- Apple Silicon Mac과 macOS 13 이상을 대상으로 하는 `v0.9.0` public beta를
+  ad-hoc-signed/not-notarized GitHub prerelease로 게시했다.
+- app archive, DMG와 `SHA256SUMS`만 게시하고, release workflow와 fresh download에서
+  architecture, minimum system version, sealed signature와 checksum을 검증했다.
+- clean install/launch/restart, local/simulated SSH와 대표 actual SSH smoke, repository 및
+  public publication boundary gate를 통과했다.
+- GPG-signed tag, release commit, terminal CI와 release workflow가 같은 revision을
+  가리키는지 확인했다.
+
 ## 2026-07-21: AI-first Repository Foundation
 
 - `jjcat` product identity와 local/SSH multi-repository objective를 고정했다.
