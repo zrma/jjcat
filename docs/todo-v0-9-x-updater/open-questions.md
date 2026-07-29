@@ -38,9 +38,10 @@ tracking the private key, password, archive location, or raw command output.
 The public `v0.9.2` update preserved the versioned-asset-first and
 rolling-manifest-last contract.
 
-## Non-blocking Follow-ups
+## Deferred Decisions
 
-- Developer ID signing/notarization remains an independent distribution
-  decision.
+- Developer ID signing/notarization is intentionally not planned under the
+  current paid-membership decision. Reconsider it only if distribution volume
+  or support cost justifies the subscription.
 - A stable channel can replace or coexist with the beta channel after jjcat
   publishes full GitHub releases.

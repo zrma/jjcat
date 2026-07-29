@@ -72,4 +72,20 @@ push, tag/release, visibility 변경과 history rewrite는 각각 별도의 외�
   no-forced-restart behavior를 확인한다. private key와 password는 tracked artifact나
   workflow log에 포함하지 않는다.
 - 사용자가 Gatekeeper를 끄거나 quarantine attribute를 제거하도록 안내하지 않는다.
-  Developer ID 서명과 notarization은 별도의 후속 distribution 경계다.
+
+## macOS Developer Identity Decision
+
+Decision status: deferred, not planned work.
+
+- Developer ID signing과 notarization에는
+  [유료 Apple Developer Program 연간 membership](https://developer.apple.com/support/compare-memberships/)이
+  필요하다. 현재 개인 오픈소스 beta의 배포 규모와 지원 비용은 이 구독을
+  정당화하지 않으므로 가입하거나 credential을 구성하지 않는다.
+- 현재 ad-hoc-signed/not-notarized 배포는 미완료 상태가 아니라 의도적으로 선택한
+  release contract다. 표준 Gatekeeper 최초 실행 안내를 유지하고 보안 제어를 끄거나
+  quarantine attribute를 제거하도록 안내하지 않는다.
+- Tauri updater의 Minisign signature는 게시된 update를 승인하는 별도 보안 경계이며,
+  Apple Developer identity나 notarization을 대신하지 않는다.
+- 배포량 또는 Gatekeeper 관련 지원 비용이 연간 membership을 정당화할 때만 새
+  distribution decision으로 재검토한다. 그 전에는 roadmap의 active 또는 pending
+  implementation으로 취급하지 않는다.

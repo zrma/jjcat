@@ -132,6 +132,19 @@ if "publication class는 public" not in handoff:
     fail("handoff does not declare the public tracked surface")
 if "`jjcat`의 tracked repository surface는 `public`" not in publication:
     fail("publication policy does not declare the public tracked surface")
+if "Decision status: deferred, not planned work." not in publication:
+    fail("publication policy does not preserve the deferred Developer ID decision")
+if not re.search(r"유료 Apple\s+Developer Program", roadmap) or "Deferred, not planned:" not in roadmap:
+    fail("roadmap presents Developer ID signing/notarization as pending work")
+for source_name, source in (
+    ("README", readme),
+    ("status", status),
+    ("handoff", handoff),
+):
+    if not re.search(r"유료 Apple\s+Developer Program", source) or not re.search(
+        r"현재\s+계획된 작업이\s+아니", source
+    ):
+        fail(f"{source_name} does not preserve the non-planned Developer ID decision")
 license_path = ROOT / "LICENSE"
 if not license_path.is_file():
     fail("Apache-2.0 LICENSE is missing")

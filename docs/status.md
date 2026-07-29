@@ -126,6 +126,8 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
 게시했다. signed tag, release commit, terminal CI와 Release workflow가 같은 revision을
 가리키며, 공개 app/DMG/updater assets와 rolling manifest를 다시 내려받아 검증했다.
 설치된 `v0.9.1`은 available-only action으로 `v0.9.2`를 내려받아 서명을 검증하고
-설치했으며, 명시적 restart 뒤 registry를 보존한 채 `v0.9.2`로 실행됐다. Developer ID
-distribution은 별도 후속 경계다. Linux package 작업 전에는 accepted GTK advisory의
-upstream resolution 또는 검증된 backport를 다시 판단한다.
+설치했으며, 명시적 restart 뒤 registry를 보존한 채 `v0.9.2`로 실행됐다. 유료 Apple
+Developer Program을 사용하는 Developer ID signing/notarization은 현재 계획된 작업이
+아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로 재검토한다.
+Linux package 작업 전에는 accepted GTK advisory의 upstream resolution 또는 검증된
+backport를 다시 판단한다.

@@ -11,8 +11,9 @@
   설치된 `v0.9.1`은 공개 updater를 download/verify/install하고 사용자의 명시적 restart
   뒤 registry를 보존한 채 `v0.9.2`로 실행됐다.
 - signed tags, same-SHA CI와 Release workflows, fresh public asset verification,
-  same-version no-update 상태와 canonical/publication gates를 확인했다. Developer ID
-  signing/notarization은 별도 distribution decision으로 남겼다.
+  same-version no-update 상태와 canonical/publication gates를 확인했다. 유료 Apple
+  Developer Program을 사용하는 Developer ID signing/notarization은 현재 계획하지
+  않으며, 배포량 또는 지원 비용이 구독을 정당화할 때만 재검토하기로 결정했다.
 
 ## 2026-07-29: P4 Distribution
 

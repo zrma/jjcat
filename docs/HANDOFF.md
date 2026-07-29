@@ -60,7 +60,9 @@ secret/variable에 구성했으며, 그 키로 만든 release artifact도 서명
 workflow에서 게시됐고 공개 DMG 설치 및 rolling manifest 검증도 통과했다. 이어서
 `v0.9.2`를 게시하고 설치된 `v0.9.1`의 available-only action에서 공개 updater를
 download/verify/install한 뒤 명시적으로 restart해 `v0.9.2` 실행과 no-update 상태까지
-검증했다. Developer ID distribution과 remote helper는 후속 decision boundary로 남는다.
+검증했다. 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은
+현재 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새
+distribution decision으로 재검토한다. remote helper도 별도 decision boundary로 남는다.
 
 ## Completion Rule
 

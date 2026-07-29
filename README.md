@@ -46,7 +46,9 @@ archive와 GitHub Actions secret/variable에 구성했다. `v0.9.1` manual boots
 rolling beta channel과 `v0.9.2`를 게시했으며, 설치된 `v0.9.1`에서 공개 updater의
 download/verify/install/explicit-restart를 거쳐 `v0.9.2`로 실행되는 경로를 검증했다.
 [v0.9.2 release notes](docs/releases/v0.9.2.md)는 이 in-app update 절차를 설명한다.
-Developer ID signed/notarized distribution은 독립된 후속 경계다.
+유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
+계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
+distribution decision으로 재검토한다.
 
 ## Quick Start
 

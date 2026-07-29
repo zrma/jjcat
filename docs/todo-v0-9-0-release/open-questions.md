@@ -14,10 +14,11 @@
 - The first beta uses a manual download and install path; an in-app updater is
   deferred.
 
-## Non-blocking Follow-ups
+## Deferred Decisions
 
-- Reconsider Developer ID signing/notarization only if distribution volume or
-  support cost justifies an Apple Developer Program subscription.
+- Developer ID signing/notarization is intentionally not planned. Reconsider it
+  only if distribution volume or support cost justifies a paid annual Apple
+  Developer Program membership.
 - Decide whether demand warrants Intel or universal artifacts.
 - Define updater behavior in a later 0.9.x milestone.
 

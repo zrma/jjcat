@@ -53,7 +53,9 @@
 - [x] rolling beta channel을 활성화한 `v0.9.1` manual bootstrap
 - [x] `v0.9.2`의 live in-app update
   (`docs/todo-v0-9-x-updater/spec.md`, completed)
-- [ ] optional Developer ID signing/notarization
+- Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
+  signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
+  재검토한다.
 - [ ] Linux와 Windows acceptance
 - [ ] Linux packaging 전에 `RUSTSEC-2024-0429` upstream resolution 또는 validated pinned backport 재검토
 - [ ] optional `jjcat-agent` install/upgrade/remove contract
