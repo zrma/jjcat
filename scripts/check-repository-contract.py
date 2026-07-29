@@ -120,8 +120,10 @@ if "All your jj repos, one window." not in readme:
     fail("README product identity is missing")
 if "`P3: Safe Shaping`" not in status or "`P4: Distribution`까지 완료됐다" not in status:
     fail("status does not record P3 and P4 completion")
-if "`v0.9.0` Apple Silicon macOS public beta" not in status:
-    fail("status does not identify the published v0.9.0 beta")
+if "`v0.9.0` public beta" not in status:
+    fail("status does not identify the original published v0.9.0 beta")
+if "`v0.9.1` Apple Silicon macOS updater bootstrap" not in status:
+    fail("status does not identify the published v0.9.1 updater bootstrap")
 if "현재 content class는 `public`" not in status:
     fail("status does not declare the public tracked surface")
 if "publication class는 public" not in handoff:
@@ -155,8 +157,8 @@ versions = {
     "src-tauri/Cargo.toml": cargo_version,
     "src-tauri/tauri.conf.json": tauri_version,
 }
-if set(versions.values()) != {"0.9.1"}:
-    fail(f"release versions are not aligned at 0.9.1: {versions}")
+if set(versions.values()) != {"0.9.2"}:
+    fail(f"release versions are not aligned at 0.9.2: {versions}")
 
 release_notes_path = ROOT / "docs" / "releases" / f"v{package_version}.md"
 if not release_notes_path.is_file():
@@ -172,8 +174,10 @@ for artifact in (
 ):
     if artifact not in release_notes:
         fail(f"release notes do not document {artifact}")
-if "`v0.9.0`에는 updater가 없으므로" not in release_notes:
+if package_version == "0.9.1" and "`v0.9.0`에는 updater가 없으므로" not in release_notes:
     fail("bootstrap release notes do not explain the v0.9.0 manual-install boundary")
+if package_version == "0.9.2" and "## v0.9.1에서 업데이트하기" not in release_notes:
+    fail("follow-up release notes do not explain the v0.9.1 in-app update path")
 
 bundle = tauri_config.get("bundle", {})
 if bundle.get("active") is not True:
@@ -202,7 +206,7 @@ for fragment in (
     'pnpm tauri build --bundles app --config "$JJCAT_UPDATER_CONFIG"',
     "scripts/package-macos-release.sh",
     "scripts/verify-macos-release.sh",
-    "softprops/action-gh-release@v2",
+    "softprops/action-gh-release@v3",
     "body_path: docs/releases/${{ github.ref_name }}.md",
     "files: release-dist/*",
     "prerelease: true",

@@ -2,7 +2,7 @@
 
 Status: active
 
-Persistent signing setup: complete; v0.9.1 bootstrap publication pending owner approval
+v0.9.1 bootstrap: published and installed; v0.9.2 live update pending
 
 ## Goal
 
@@ -70,6 +70,7 @@ only later versions can prove the in-app path.
 | U7 | done | `scripts/check.sh` | Canonical repository, frontend, Rust, and publication self-test gates pass. |
 | U8 | done | cold diff review | No private key, machine inventory, production insecure endpoint, forced restart, or unrelated behavior is included. |
 | U9 | done | redacted persistent-key verification | The password-protected recovery copy, GitHub Actions credentials, and a locally signed release artifact use the same production public key without tracking secret material. |
+| U10 | pending | public two-version verification | The installed `v0.9.1` bootstrap discovers, downloads, verifies, installs, and explicitly restarts into published `v0.9.2`. |
 
 ## Required Evidence
 
@@ -82,9 +83,8 @@ only later versions can prove the in-app path.
 - Redacted persistent-key archive, GitHub credential-presence, public-key match,
   and signed release-artifact verification verdicts.
 - Canonical `scripts/check.sh` result and final `jj status`/diff review.
-- If publication is later authorized: remote revision, terminal CI, versioned
-  release assets, rolling beta manifest contents, clean install, and live
-  in-app update evidence.
+- Remote revisions, terminal CI, versioned release assets, rolling beta
+  manifest contents, clean install, and live in-app update evidence.
 
 ## Local Verification
 
@@ -102,10 +102,18 @@ only later versions can prove the in-app path.
 - The password-protected persistent key is retained in an owner-controlled
   recovery archive with restrictive permissions. The repository public
   variable matched the archived public key, both signing secrets were present,
-  and the `v0.9.1` release candidate signed from the recovery copy passed the
+  and the `v0.9.1` release signed from the recovery copy passed the
   app, DMG, updater archive, manifest, checksum, and signature verifiers. Its
   Gatekeeper rejection also matched the documented ad-hoc-signed/not-notarized
   boundary. No key value, password, or archive inventory is tracked.
+- The signed `v0.9.1` tag, same-SHA CI and Release workflow completed
+  successfully. A fresh download of all versioned assets passed the release
+  verifier, the rolling manifest matched the versioned manifest, and the public
+  DMG replaced an existing `v0.9.0` install with a running `v0.9.1` app while
+  retaining the registry.
+- A persistent-key `v0.9.2` release candidate passed the same local app, DMG,
+  updater archive, manifest, checksum, signature, and Gatekeeper-boundary
+  verification before publication.
 - An isolated updater-enabled `0.9.0` fixture discovered a signed `0.9.1`
   fixture over a loopback-only channel, downloaded and installed it, exposed
   `Restart to update`, relaunched as `0.9.1`, and then hid the action because no
@@ -119,9 +127,9 @@ only later versions can prove the in-app path.
 
 This work changes public runtime code, updater public-key injection, release
 automation, documented distribution behavior, and future executable artifacts.
-The owner authorized persistent key creation and GitHub Actions credential
-configuration; no private key or password is tracked. This does not authorize a
-push, tag, rolling-channel mutation, or release.
+The owner authorized persistent key creation, GitHub Actions credential
+configuration, main pushes, signed tags, rolling-channel mutation, and the
+two-version beta releases. No private key or password is tracked.
 
 ## Out Of Scope
 
@@ -136,6 +144,6 @@ push, tag, rolling-channel mutation, or release.
 
 All local acceptance items are backed by focused and canonical evidence.
 Persistent key recovery and GitHub Actions credential configuration are
-complete. Production channel activation remains incomplete until the owner
-authorizes publication. The first bootstrap release and a following live update
-must then be reverified before this todo is archived.
+complete. The `v0.9.1` bootstrap release and clean replacement install are
+verified. A following live update to published `v0.9.2` must still be verified
+before this todo is archived.

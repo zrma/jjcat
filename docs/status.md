@@ -8,9 +8,9 @@
 `v0.9.0` 이후의 manual bootstrap과 그 다음 버전부터의 signed in-app update path를
 구현한다. local runtime, release pipeline과 ephemeral-key two-version smoke는 완료됐고,
 password-protected persistent updater key recovery와 GitHub Actions
-secret/variable configuration도 완료됐다. bootstrap/channel publication은 owner
-approval을 기다린다. 현재 source version과 release notes는 첫 bootstrap release
-candidate인 `v0.9.1`에 맞춰져 있다.
+secret/variable configuration도 완료됐다. signed `v0.9.1` prerelease와 rolling beta
+manifest를 게시하고, 공개 DMG로 기존 `v0.9.0` 설치를 교체해 실행했다. 현재 source와
+release notes는 실제 public in-app update를 증명할 `v0.9.2` candidate에 맞춰져 있다.
 
 완료된 기반:
 
@@ -121,12 +121,11 @@ candidate인 `v0.9.1`에 맞춰져 있다.
 
 ## Latest Release
 
-`v0.9.0` Apple Silicon macOS public beta를 ad-hoc-signed/not-notarized artifact로
-게시했다. tag, release commit, terminal CI와 GitHub prerelease는 같은 revision을
-가리키며, 공개된 app archive, DMG와 checksum manifest를 다시 내려받아 검증했다.
-updater는 active 0.9.x follow-up이다. persistent signing key recovery와 GitHub Actions
-credential configuration은 완료됐고, local updater 구현과 ephemeral two-version
-verification도 통과했다. channel publication은 owner decision boundary로 남아 있어
-updater-enabled public bootstrap은 아직 게시되지 않았다. Developer ID distribution은
-별도 후속 경계다. Linux package 작업 전에는 accepted GTK advisory의 upstream
-resolution 또는 검증된 backport를 다시 판단한다.
+`v0.9.1` Apple Silicon macOS updater bootstrap을 ad-hoc-signed/not-notarized
+prerelease로 게시했다. signed tag, release commit, terminal CI와 Release workflow가
+같은 revision을 가리키며, 공개 app/DMG/updater assets와 rolling manifest를 다시
+내려받아 검증했다. 공개 DMG는 기존 `v0.9.0` 설치를 `v0.9.1`로 교체하고 registry를
+보존한 채 실행됐다. active 0.9.x follow-up은 `v0.9.2`의 실제 in-app
+download/verify/install/relaunch 증거를 기다린다. Developer ID distribution은 별도
+후속 경계다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution
+또는 검증된 backport를 다시 판단한다.

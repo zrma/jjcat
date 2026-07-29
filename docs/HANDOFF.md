@@ -56,9 +56,11 @@ Tauri 서명 검증, versioned updater artifacts, rolling beta manifest와 expli
 download/verify/install/relaunch smoke까지 통과했다. persistent password-protected
 updater key는 owner-controlled recovery archive에 보관하고 GitHub Actions
 secret/variable에 구성했으며, 그 키로 만든 release artifact도 서명 검증을 통과했다.
-source version과 release notes는 첫 updater-enabled bootstrap인 `v0.9.1`에 맞춰져
-있다. bootstrap 및 channel publication은 여전히 owner가 승인해야 하는 외부 경계다.
-Developer ID distribution과 remote helper도 후속 decision boundary로 남는다.
+첫 updater-enabled bootstrap인 `v0.9.1`은 signed tag, same-SHA CI와 Release
+workflow에서 게시됐고 공개 DMG 설치 및 rolling manifest 검증도 통과했다. source
+version과 release notes는 설치된 `v0.9.1`에서 실제 public in-app update를 검증할
+`v0.9.2` candidate에 맞춰져 있다. Developer ID distribution과 remote helper는 후속
+decision boundary로 남는다.
 
 ## Completion Rule
 

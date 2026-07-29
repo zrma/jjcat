@@ -50,8 +50,9 @@
   ephemeral-key two-version smoke
 - [x] password-protected persistent updater key recovery와 GitHub Actions
   secret/variable configuration
-- [ ] rolling beta channel을 활성화한 `v0.9.1` manual bootstrap과 이후 version의 live
-  in-app update (`docs/todo-v0-9-x-updater/spec.md`, active)
+- [x] rolling beta channel을 활성화한 `v0.9.1` manual bootstrap
+- [ ] `v0.9.2`의 live in-app update
+  (`docs/todo-v0-9-x-updater/spec.md`, active)
 - [ ] optional Developer ID signing/notarization
 - [ ] Linux와 Windows acceptance
 - [ ] Linux packaging 전에 `RUSTSEC-2024-0429` upstream resolution 또는 validated pinned backport 재검토
