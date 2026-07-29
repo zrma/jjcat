@@ -9,11 +9,25 @@ mod registry;
 mod ssh_config;
 
 use tauri::Manager;
+#[cfg(target_os = "macos")]
+use tauri::menu::{MenuItem, MenuItemKind, PredefinedMenuItem};
+use tauri::{Emitter, menu::Menu};
+
+const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
+const CHECK_FOR_UPDATES_EVENT: &str = "jjcat://check-for-updates";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .menu(app_menu)
+        .on_menu_event(|app, event| {
+            if event.id() == CHECK_FOR_UPDATES_MENU_ID {
+                let _ = app.emit(CHECK_FOR_UPDATES_EVENT, ());
+            }
+        })
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             app.manage(commands::AppState::new(app_data_dir.join("registry.json")));
@@ -46,4 +60,21 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run jjcat");
+}
+
+fn app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::default(app)?;
+    #[cfg(target_os = "macos")]
+    if let Some(MenuItemKind::Submenu(app_submenu)) = menu.items()?.first() {
+        let check_for_updates = MenuItem::with_id(
+            app,
+            CHECK_FOR_UPDATES_MENU_ID,
+            "Check for Updates…",
+            true,
+            None::<&str>,
+        )?;
+        let separator = PredefinedMenuItem::separator(app)?;
+        app_submenu.insert_items(&[&check_for_updates, &separator], 1)?;
+    }
+    Ok(menu)
 }

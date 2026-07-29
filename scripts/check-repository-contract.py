@@ -30,16 +30,27 @@ REQUIRED_PATHS = (
     "scripts/check-publication-boundary.py",
     "scripts/check-release-version.py",
     "scripts/check.sh",
+    "scripts/create-updater-config.py",
+    "scripts/create-updater-manifest.py",
     "scripts/finalize-change.sh",
+    "scripts/package-macos-release.sh",
     "scripts/start-work.sh",
+    "scripts/tests/test_updater_tools.py",
+    "scripts/verify-macos-release.sh",
+    "scripts/verify-updater-manifest.py",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     "package.json",
     "pnpm-lock.yaml",
     "src/App.tsx",
+    "src/appUpdater.ts",
+    "src/lib/appUpdate.ts",
     "src-tauri/Cargo.toml",
     "src-tauri/Cargo.lock",
+    "src-tauri/capabilities/default.json",
     "src-tauri/tauri.conf.json",
+    "src-tauri/tests/fixtures/updater-signature-payload.txt",
+    "src-tauri/tests/updater_artifact.rs",
 )
 
 
@@ -71,6 +82,11 @@ package_manifest = read("package.json")
 ci_workflow = read(".github/workflows/ci.yml")
 release_workflow = read(".github/workflows/release.yml")
 tauri_config = json.loads(read("src-tauri/tauri.conf.json"))
+tauri_capabilities = json.loads(read("src-tauri/capabilities/default.json"))
+app_source = read("src/App.tsx")
+app_updater_source = read("src/appUpdater.ts")
+app_update_state = read("src/lib/appUpdate.ts")
+tauri_source = read("src-tauri/src/lib.rs")
 
 for fragment in (
     "name: jjcat",
@@ -139,8 +155,25 @@ versions = {
     "src-tauri/Cargo.toml": cargo_version,
     "src-tauri/tauri.conf.json": tauri_version,
 }
-if set(versions.values()) != {"0.9.0"}:
-    fail(f"release versions are not aligned at 0.9.0: {versions}")
+if set(versions.values()) != {"0.9.1"}:
+    fail(f"release versions are not aligned at 0.9.1: {versions}")
+
+release_notes_path = ROOT / "docs" / "releases" / f"v{package_version}.md"
+if not release_notes_path.is_file():
+    fail(f"release notes are missing for v{package_version}")
+release_notes = release_notes_path.read_text(encoding="utf-8")
+for artifact in (
+    f"jjcat_{package_version}_aarch64.app.zip",
+    f"jjcat_{package_version}_aarch64.dmg",
+    f"jjcat_{package_version}_aarch64.app.tar.gz",
+    f"jjcat_{package_version}_aarch64.app.tar.gz.sig",
+    "latest-beta.json",
+    "SHA256SUMS",
+):
+    if artifact not in release_notes:
+        fail(f"release notes do not document {artifact}")
+if "`v0.9.0`에는 updater가 없으므로" not in release_notes:
+    fail("bootstrap release notes do not explain the v0.9.0 manual-install boundary")
 
 bundle = tauri_config.get("bundle", {})
 if bundle.get("active") is not True:
@@ -161,17 +194,69 @@ for fragment in (
     "runs-on: macos-15",
     "scripts/check-release-version.py",
     "scripts/check.sh",
-    "pnpm tauri build --bundles app",
+    "name: Require beta updater credentials",
+    "JJCAT_UPDATER_PUBLIC_KEY",
+    "TAURI_SIGNING_PRIVATE_KEY",
+    "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+    "scripts/create-updater-config.py",
+    'pnpm tauri build --bundles app --config "$JJCAT_UPDATER_CONFIG"',
     "scripts/package-macos-release.sh",
     "scripts/verify-macos-release.sh",
     "softprops/action-gh-release@v2",
-    "body_path: docs/releases/v0.9.0.md",
+    "body_path: docs/releases/${{ github.ref_name }}.md",
     "files: release-dist/*",
     "prerelease: true",
     "fail_on_unmatched_files: true",
+    "gh release view updater-beta",
+    "gh release upload",
+    "release-dist/latest-beta.json",
+    "--clobber",
+    "gh release create",
 ):
     if fragment not in release_workflow:
         fail(f"release workflow is missing {fragment!r}")
+
+credential_preflight = release_workflow.index("name: Require beta updater credentials")
+updater_configuration = release_workflow.index("name: Configure signed beta updater")
+dependency_setup = release_workflow.index("name: Set up pnpm")
+if not credential_preflight < updater_configuration < dependency_setup:
+    fail("updater credential/config preflight must run before macOS dependency setup")
+configuration_block = release_workflow[updater_configuration:dependency_setup]
+if "TAURI_SIGNING_PRIVATE_KEY" in configuration_block:
+    fail("updater config generation must not receive the private signing key")
+
+for fragment in (
+    '"@tauri-apps/plugin-process": "~2.3.1"',
+    '"@tauri-apps/plugin-updater": "~2.10.1"',
+):
+    if fragment not in package_manifest:
+        fail(f"frontend updater dependency is missing {fragment!r}")
+
+for fragment in (
+    'tauri-plugin-process = "2.3.1"',
+    'tauri-plugin-updater = "2.10.1"',
+    'minisign-verify = "0.2.5"',
+):
+    if fragment not in cargo_manifest:
+        fail(f"native updater dependency is missing {fragment!r}")
+
+permissions = set(tauri_capabilities.get("permissions", []))
+if not {"updater:default", "process:allow-restart"} <= permissions:
+    fail("Tauri capabilities do not grant the bounded updater and restart permissions")
+
+for fragment, source_name, source in (
+    ("appUpdater.check", "App.tsx", app_source),
+    ("appUpdateActionModel", "App.tsx", app_source),
+    ("jjcat://check-for-updates", "appUpdater.ts", app_updater_source),
+    ("downloadAndInstall", "appUpdater.ts", app_updater_source),
+    ("Download jjcat", "appUpdate.ts", app_update_state),
+    ("Restart to update", "appUpdate.ts", app_update_state),
+    ("tauri_plugin_updater::Builder", "src-tauri/src/lib.rs", tauri_source),
+    ("tauri_plugin_process::init", "src-tauri/src/lib.rs", tauri_source),
+    ("Check for Updates…", "src-tauri/src/lib.rs", tauri_source),
+):
+    if fragment not in source:
+        fail(f"{source_name} is missing updater contract fragment {fragment!r}")
 
 for fragment in (
     "APPLE_CERTIFICATE",
@@ -183,6 +268,8 @@ for fragment in (
     "pnpm tauri bundle --bundles dmg",
     "runs-on: macos-14",
     "scripts/sign-macos-adhoc.sh",
+    "--allow-insecure-localhost",
+    "dangerousInsecureTransportProtocol",
 ):
     if fragment in release_workflow:
         fail(f"unsigned public beta workflow must not contain {fragment!r}")

@@ -16,6 +16,35 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
 
+      - name: Require beta updater credentials
+        env:
+          JJCAT_UPDATER_PUBLIC_KEY: ${{ vars.JJCAT_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$JJCAT_UPDATER_PUBLIC_KEY" ]]; then
+            printf 'Missing repository variable JJCAT_UPDATER_PUBLIC_KEY\n' >&2
+            exit 1
+          fi
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            printf 'Missing repository secret TAURI_SIGNING_PRIVATE_KEY\n' >&2
+            exit 1
+          fi
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]]; then
+            printf 'Missing repository secret TAURI_SIGNING_PRIVATE_KEY_PASSWORD\n' >&2
+            exit 1
+          fi
+
+      - name: Configure signed beta updater
+        env:
+          JJCAT_UPDATER_PUBLIC_KEY: ${{ vars.JJCAT_UPDATER_PUBLIC_KEY }}
+        run: |
+          updater_config="${RUNNER_TEMP}/jjcat-updater.json"
+          scripts/create-updater-config.py \
+            --output "$updater_config" \
+            --public-key-env JJCAT_UPDATER_PUBLIC_KEY
+          printf 'JJCAT_UPDATER_CONFIG=%s\n' "$updater_config" >> "$GITHUB_ENV"
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -59,19 +88,43 @@ jobs:
         run: scripts/check.sh
 
       - name: Build macOS app
-        run: pnpm tauri build --bundles app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build --bundles app --config "$JJCAT_UPDATER_CONFIG"
 
       - name: Package Apple Silicon artifacts
         run: scripts/package-macos-release.sh
 
       - name: Verify release artifacts
+        env:
+          JJCAT_UPDATER_PUBLIC_KEY: ${{ vars.JJCAT_UPDATER_PUBLIC_KEY }}
         run: scripts/verify-macos-release.sh
 
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@v2
         with:
           name: jjcat ${{ github.ref_name }}
-          body_path: docs/releases/v0.9.0.md
+          body_path: docs/releases/${{ github.ref_name }}.md
           files: release-dist/*
           prerelease: true
           fail_on_unmatched_files: true
+
+      - name: Publish rolling beta updater manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view updater-beta >/dev/null 2>&1; then
+            gh release upload \
+              updater-beta \
+              release-dist/latest-beta.json \
+              --clobber
+          else
+            gh release create \
+              updater-beta \
+              release-dist/latest-beta.json \
+              --target "$GITHUB_SHA" \
+              --title "jjcat updater beta channel" \
+              --notes "Rolling manifest for signed jjcat beta updates." \
+              --prerelease
+          fi

@@ -46,5 +46,7 @@ if is_tag_ref and not tag:
     fail("tag ref is missing GITHUB_REF_NAME")
 if is_tag_ref and tag != expected_tag:
     fail(f"tag {tag!r} does not match {expected_tag!r}")
+if is_tag_ref and not (ROOT / "docs" / "releases" / f"{tag}.md").is_file():
+    fail(f"release notes are missing for {tag!r}")
 
 print(f"release version contract is valid: {package_version}")

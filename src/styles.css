@@ -4296,6 +4296,94 @@ body.workspace-resizing {
   flex: 1;
 }
 
+.status-update-divider {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 14px;
+  margin-left: 2px;
+  background: var(--border-default);
+}
+
+.status-update {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 20px;
+  overflow: hidden;
+  padding: 0 7px;
+  border: 1px solid var(--brand-border);
+  border-radius: 3px;
+  background: var(--brand-soft);
+  color: var(--brand-primary);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-update:hover:not(:disabled),
+.status-update:focus-visible {
+  border-color: var(--brand-border-strong);
+  background: var(--brand-node-fill);
+}
+
+.status-update:focus-visible {
+  outline: 2px solid var(--preview-border);
+  outline-offset: 1px;
+}
+
+.status-update:disabled {
+  opacity: 1;
+}
+
+.status-update > svg {
+  position: relative;
+  z-index: 1;
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  stroke-width: 2;
+}
+
+.status-update > span:not(.status-update-progress) {
+  position: relative;
+  z-index: 1;
+}
+
+.status-update-ready {
+  border-color: var(--brand-border-strong);
+  background: var(--brand-primary);
+  color: var(--surface-panel);
+}
+
+.status-update-error {
+  border-color: var(--reference-border);
+  background: var(--state-warning-soft);
+  color: var(--state-warning);
+}
+
+.status-update-progress {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  left: 2px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--border-row);
+}
+
+.status-update-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-primary);
+  transition: width 120ms ease-out;
+}
+
 .empty-repository {
   display: flex;
   align-items: center;
@@ -6067,7 +6155,8 @@ body.workspace-resizing {
     grid-template-columns: 230px minmax(0, 1fr);
   }
 
-  .statusbar > span:nth-last-child(-n + 2) {
+  .status-cache-age,
+  .status-secondary-repository {
     display: none;
   }
 }
@@ -6087,6 +6176,10 @@ body.workspace-resizing {
     padding: 0;
     justify-content: center;
     font-size: 0;
+  }
+
+  .status-jj-version {
+    display: none;
   }
 }
 

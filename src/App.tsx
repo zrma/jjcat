@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle,
@@ -34,6 +41,7 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { appUpdater } from "./appUpdater";
 import { bridge, isTauriRuntime } from "./bridge";
 import { ActivityCenter } from "./components/ActivityCenter";
 import { BookmarkLabels } from "./components/BookmarkLabels";
@@ -53,6 +61,13 @@ import {
   type ActivityCategory,
   type ActivityEntry,
 } from "./lib/activity";
+import {
+  appUpdateActionModel,
+  canCheckForAppUpdate,
+  reduceAppUpdate,
+  type AppUpdateEvent,
+  type AppUpdateState,
+} from "./lib/appUpdate";
 import {
   jjGitInitializationCommands,
   jjMutationCommands,
@@ -312,6 +327,9 @@ function App() {
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [activityCenterOpen, setActivityCenterOpen] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
+  const [appUpdate, dispatchAppUpdate] = useReducer(reduceAppUpdate, {
+    phase: "idle",
+  });
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const [tabDropTarget, setTabDropTarget] =
     useState<RepositoryTabDropTarget | null>(null);
@@ -334,6 +352,9 @@ function App() {
   const operationRequestRef = useRef(0);
   const repositorySelectionRequestRef = useRef(0);
   const historyStepExecutingRef = useRef(false);
+  const appUpdateCheckInFlightRef = useRef(false);
+  const appUpdateManualCheckRef = useRef(false);
+  const appUpdateStateRef = useRef<AppUpdateState>({ phase: "idle" });
   const tabOrderSavingRef = useRef(false);
   const tabPointerDragRef = useRef<RepositoryTabPointerDrag | null>(null);
   const suppressTabClickRef = useRef(false);
@@ -341,6 +362,15 @@ function App() {
   useEffect(() => {
     registryRef.current = registry;
   }, [registry]);
+
+  useEffect(() => {
+    appUpdateStateRef.current = appUpdate;
+  }, [appUpdate]);
+
+  const dispatchAppUpdateEvent = useCallback((event: AppUpdateEvent) => {
+    appUpdateStateRef.current = reduceAppUpdate(appUpdateStateRef.current, event);
+    dispatchAppUpdate(event);
+  }, []);
 
   const handleDiffViewModeChange = useCallback((mode: DiffViewMode) => {
     saveDiffViewMode(mode);
@@ -415,6 +445,56 @@ function App() {
     );
   }, []);
 
+  const checkForAppUpdate = useCallback(async (manual: boolean) => {
+    if (!canCheckForAppUpdate(appUpdateStateRef.current)) return;
+    if (appUpdateCheckInFlightRef.current) {
+      if (manual) {
+        appUpdateManualCheckRef.current = true;
+        dispatchAppUpdateEvent({ type: "checkStarted", manual: true });
+      }
+      return;
+    }
+    appUpdateCheckInFlightRef.current = true;
+    appUpdateManualCheckRef.current = manual;
+    dispatchAppUpdateEvent({ type: "checkStarted", manual });
+    try {
+      const update = await appUpdater.check();
+      dispatchAppUpdateEvent({ type: "checkCompleted", update });
+    } catch {
+      dispatchAppUpdateEvent({
+        type: "checkFailed",
+        manual: appUpdateManualCheckRef.current,
+      });
+    } finally {
+      appUpdateCheckInFlightRef.current = false;
+      appUpdateManualCheckRef.current = false;
+    }
+  }, [dispatchAppUpdateEvent]);
+
+  const downloadAppUpdate = useCallback(async () => {
+    dispatchAppUpdateEvent({ type: "downloadStarted" });
+    try {
+      await appUpdater.downloadAndInstall((chunkLength, contentLength) => {
+        dispatchAppUpdateEvent({
+          type: "downloadProgress",
+          chunkLength,
+          contentLength,
+        });
+      });
+      dispatchAppUpdateEvent({ type: "downloadCompleted" });
+    } catch {
+      dispatchAppUpdateEvent({ type: "downloadFailed" });
+    }
+  }, [dispatchAppUpdateEvent]);
+
+  const restartAfterAppUpdate = useCallback(async () => {
+    try {
+      await appUpdater.restart();
+    } catch {
+      dispatchAppUpdateEvent({ type: "restartFailed" });
+    }
+  }, [dispatchAppUpdateEvent]);
+
   useEffect(() => {
     document.body.dataset.runtime = isTauriRuntime ? "tauri" : "browser";
     bridge
@@ -425,6 +505,25 @@ function App() {
       })
       .catch((error: AppError) => setFatalError(error.message));
   }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+    const timer = window.setTimeout(() => {
+      void checkForAppUpdate(false);
+    }, 1_000);
+    void appUpdater.onManualCheck(() => {
+      void checkForAppUpdate(true);
+    }).then((nextUnlisten) => {
+      if (disposed) nextUnlisten();
+      else unlisten = nextUnlisten;
+    });
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      unlisten?.();
+    };
+  }, [checkForAppUpdate]);
 
   const selectedRepository = registry?.repositories.find(
     (repository) => repository.id === registry.selectedRepository,
@@ -1534,6 +1633,14 @@ function App() {
         errors,
       )
     : "empty";
+  const appUpdateRestartBlocked =
+    activities.some((entry) => entry.state === "running") ||
+    historyStepExecuting !== null ||
+    gitOnboardingRunning;
+  const updateAction = appUpdateActionModel(
+    appUpdate,
+    appUpdateRestartBlocked,
+  );
   const tabPresentations = repositoryTabPresentations(openRepositories);
   const repositoryCommandBand = selectedRepository ? (
     <div className="repository-command-row">
@@ -2288,8 +2395,14 @@ function App() {
             <span className="divider" />
             <strong>{stateLabel(selectedState)}</strong>
             <span className="status-spacer" />
-            <span>jj {selectedProjection?.capability.detectedVersion ?? "not detected"}</span>
-            {selectedCache && <span>{relativeTime(selectedCache.cachedAt)}</span>}
+            <span className="status-jj-version">
+              jj {selectedProjection?.capability.detectedVersion ?? "not detected"}
+            </span>
+            {selectedCache && (
+              <span className="status-cache-age">
+                {relativeTime(selectedCache.cachedAt)}
+              </span>
+            )}
             {registry.repositories
               .filter((repository) => repository.id !== selectedRepository.id)
               .slice(0, 1)
@@ -2305,7 +2418,7 @@ function App() {
                 return (
                   <button
                     type="button"
-                    className="status-repository-switch"
+                    className="status-repository-switch status-secondary-repository"
                     onClick={() => void selectRepository(repository.id)}
                     key={repository.id}
                   >
@@ -2318,7 +2431,48 @@ function App() {
               })}
           </>
         ) : (
-          <span>No repository selected</span>
+          <>
+            <span>No repository selected</span>
+            <span className="status-spacer" />
+          </>
+        )}
+        {updateAction && (
+          <>
+            <span className="status-update-divider" aria-hidden="true" />
+            <button
+              type="button"
+              className={`status-update status-update-${appUpdate.phase}`}
+              title={updateAction.title}
+              disabled={updateAction.disabled}
+              aria-live="polite"
+              onClick={() => {
+                if (updateAction.action === "check") {
+                  void checkForAppUpdate(true);
+                } else if (updateAction.action === "download") {
+                  void downloadAppUpdate();
+                } else if (updateAction.action === "restart") {
+                  void restartAfterAppUpdate();
+                }
+              }}
+            >
+              {appUpdate.phase === "available" ? (
+                <ArrowDownToLine aria-hidden="true" />
+              ) : appUpdate.phase === "ready" ? (
+                <RotateCw aria-hidden="true" />
+              ) : appUpdate.phase === "error" ? (
+                <AlertTriangle aria-hidden="true" />
+              ) : (
+                <RefreshCw className="spinning" aria-hidden="true" />
+              )}
+              <span>{updateAction.label}</span>
+              {appUpdate.phase === "downloading" &&
+                updateAction.progress !== null && (
+                  <span className="status-update-progress" aria-hidden="true">
+                    <span style={{ width: `${updateAction.progress}%` }} />
+                  </span>
+                )}
+            </button>
+          </>
         )}
       </footer>
 

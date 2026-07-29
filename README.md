@@ -22,10 +22,10 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 
 ## Current Status
 
-jjcat은 P3 기능을 완료하고 **0.9.0 macOS public beta를 준비 중**이다. local/SSH 저장소
-직접 등록과 folder source discovery, drag-reorder가 가능한 persistent tab과 quick
-switcher, cached background refresh, multi-lane history, bounded file diff와
-editor/terminal handoff가 동작한다.
+jjcat은 P3 기능과 `v0.9.0` macOS public beta 출고를 완료하고, 첫 updater-enabled
+bootstrap인 **v0.9.1**을 준비 중이다. local/SSH 저장소 직접 등록과 folder source
+discovery, drag-reorder가 가능한 persistent tab과 quick switcher, cached background
+refresh, multi-lane history, bounded file diff와 editor/terminal handoff가 동작한다.
 
 모든 repository mutation은 repository, exact target과 expected operation을 고정한 backend
 preview token을 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
@@ -34,12 +34,16 @@ Undo/Redo는 별도 확인 dialog 없이 한 번의 입력으로 실행하고 �
 preview를 보여준다. `jj undo`로 복원 가능한 local preview는 `Enter`/`Y`로 실행하고
 `Esc`/`N`으로 취소할 수 있다. directory를 삭제하는 workspace removal과 remote push는
 명시적 button 조작만 허용한다. 0.9.0 version contract와 macOS app/DMG build surface는
-[P4 Distribution](docs/roadmap.md#p4-distribution)에서 준비 중이다. 첫 public beta는
+[P4 Distribution](docs/roadmap.md#p4-distribution)에서 출고했다. 첫 public beta는
 번들 무결성용 ad-hoc 서명만 적용하고 Developer ID 서명과 공증 없이 Apple Silicon용
 prerelease로 배포하며, SHA-256 checksum, 표준 Gatekeeper 최초 실행 안내, clean
 install/restart와 local/SSH smoke evidence를 release contract로 삼는다. 자세한 설치 경계는
-[v0.9.0 release notes](docs/releases/v0.9.0.md)에 기록했다. updater와 signed/notarized
-distribution은 0.9.0의 release blocker가 아니다.
+[v0.9.0 release notes](docs/releases/v0.9.0.md)에 기록했다. `v0.9.0` 자체에는 updater가
+없다. available-only download와 signed in-app update runtime은 다음 manual bootstrap용으로
+구현했다. password-protected persistent updater key는 owner-controlled recovery
+archive와 GitHub Actions secret/variable에 구성했으며, beta channel activation과
+manual bootstrap 게시는 별도 owner decision이다. Developer ID signed/notarized
+distribution도 독립된 후속 경계다.
 
 ## Quick Start
 

@@ -66,5 +66,10 @@ push, tag/release, visibility 변경과 history rewrite는 각각 별도의 외�
   신원 보증을 제공하지 않는다. artifact checksum, 표준 Gatekeeper 최초 실행 안내,
   clean install, launch/restart와 대표 local/SSH repository smoke가 모두 통과해야
   한다.
+- updater-enabled beta는 versioned app archive와 Tauri Minisign signature를 먼저
+  게시하고 그 archive를 가리키는 rolling manifest를 마지막에 교체한다. release 전에는
+  archive/signature의 cryptographic match, 두 macOS platform alias, packaged app identity와
+  no-forced-restart behavior를 확인한다. private key와 password는 tracked artifact나
+  workflow log에 포함하지 않는다.
 - 사용자가 Gatekeeper를 끄거나 quarantine attribute를 제거하도록 안내하지 않는다.
   Developer ID 서명과 notarization은 별도의 후속 distribution 경계다.

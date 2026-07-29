@@ -36,7 +36,7 @@
 
 ## Current Work
 
-`P4: Distribution` complete
+`P4 follow-up: v0.9.x macOS in-app updater` active
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
@@ -46,11 +46,19 @@ preview를 연다. workspace manager는 current/non-empty workspace와 unsafe pa
 다른 empty workspace의 working-copy change, registration과 exact directory를 단일
 preview-first action으로 정리한다.
 
-완료된 todo는 `docs/todo-v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
+완료된 release todo는 `docs/todo-v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,
 DMG와 checksum manifest를 다시 내려받아 검증했다. 첫 public beta는 Apple Silicon용
 ad-hoc-signed/not-notarized prerelease이며 Developer ID 신뢰 체인을 제공하지 않는다.
-updater, Developer ID distribution과 remote helper는 후속 decision boundary다.
+현재 `docs/todo-v0-9-x-updater/spec.md`는 우하단의 available-only update action,
+Tauri 서명 검증, versioned updater artifacts, rolling beta manifest와 explicit restart를
+구현했다. focused/canonical gate와 ephemeral-key `0.9.0`→`0.9.1` fixture
+download/verify/install/relaunch smoke까지 통과했다. persistent password-protected
+updater key는 owner-controlled recovery archive에 보관하고 GitHub Actions
+secret/variable에 구성했으며, 그 키로 만든 release artifact도 서명 검증을 통과했다.
+source version과 release notes는 첫 updater-enabled bootstrap인 `v0.9.1`에 맞춰져
+있다. bootstrap 및 channel publication은 여전히 owner가 승인해야 하는 외부 경계다.
+Developer ID distribution과 remote helper도 후속 decision boundary로 남는다.
 
 ## Completion Rule
 

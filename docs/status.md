@@ -4,6 +4,13 @@
 
 `P3: Safe Shaping`과 `P4: Distribution`까지 완료됐다. preview-first safe shaping을
 포함한 local/SSH cockpit과 Apple Silicon macOS용 `v0.9.0` public beta가 게시됐다.
+현재 active follow-up은 `docs/todo-v0-9-x-updater/spec.md`이며, updater가 없는
+`v0.9.0` 이후의 manual bootstrap과 그 다음 버전부터의 signed in-app update path를
+구현한다. local runtime, release pipeline과 ephemeral-key two-version smoke는 완료됐고,
+password-protected persistent updater key recovery와 GitHub Actions
+secret/variable configuration도 완료됐다. bootstrap/channel publication은 owner
+approval을 기다린다. 현재 source version과 release notes는 첫 bootstrap release
+candidate인 `v0.9.1`에 맞춰져 있다.
 
 완료된 기반:
 
@@ -86,6 +93,12 @@
   pruning, rail이 접히는 narrow window의 compact fallback
 - action 선택 단계를 제거하고 선택한 작업의 parameter와 exact-target preview에 집중하는
   mutation dialog
+- available 상태에서만 우하단에 나타나는 `jjcat <version>` download action, 메뉴의
+  manual check, bounded progress와 explicit restart
+- Tauri Minisign archive, 두 macOS platform alias의 `latest-beta.json`, versioned asset 뒤
+  rolling beta manifest를 교체하는 release pipeline
+- known signature/tamper test와 updater-enabled 두 fixture 사이의
+  download/verify/install/relaunch local smoke
 
 ## Known Upstream Constraints
 
@@ -111,6 +124,9 @@
 `v0.9.0` Apple Silicon macOS public beta를 ad-hoc-signed/not-notarized artifact로
 게시했다. tag, release commit, terminal CI와 GitHub prerelease는 같은 revision을
 가리키며, 공개된 app archive, DMG와 checksum manifest를 다시 내려받아 검증했다.
-updater와 Developer ID distribution은 후속 decision boundary다. Linux package 작업
-전에는 accepted GTK advisory의 upstream resolution 또는 검증된 backport를 다시
-판단한다. 다음 milestone은 아직 선택하지 않았다.
+updater는 active 0.9.x follow-up이다. persistent signing key recovery와 GitHub Actions
+credential configuration은 완료됐고, local updater 구현과 ephemeral two-version
+verification도 통과했다. channel publication은 owner decision boundary로 남아 있어
+updater-enabled public bootstrap은 아직 게시되지 않았다. Developer ID distribution은
+별도 후속 경계다. Linux package 작업 전에는 accepted GTK advisory의 upstream
+resolution 또는 검증된 backport를 다시 판단한다.

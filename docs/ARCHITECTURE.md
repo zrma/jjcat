@@ -263,6 +263,28 @@ intent의 parameter와 exact targets만 보여준다. 따라서 change, reposito
 - command preview는 민감한 environment value를 포함하지 않는다.
 - mutation은 read-only query와 별도 capability 및 confirmation surface를 사용한다.
 
+### macOS Beta Updater
+
+desktop shell은 registry load와 분리된 10초 bounded beta-channel check를 startup 뒤 실행한다.
+no-update와 자동 check 실패는 repository readiness를 가리지 않는다. update가 확인된
+경우에만 status bar trailing edge에 `jjcat <version>` download action을 노출하고,
+download/install을 시작한 `Update` handle은 ready 또는 retry 경계까지 다른 check로
+교체하지 않는다. 다운로드가 끝나도 재시작은 자동 실행하지 않으며, running repository
+operation이 없을 때 사용자가 `Restart to update`를 선택해야 한다.
+
+production updater endpoint와 공개키는 release-only Tauri config overlay에 들어간다.
+workflow는 공개키를 repository variable에서 읽고 password-protected private key는 secret
+store에서만 읽는다. production endpoint는 HTTPS rolling beta manifest로 고정하며,
+insecure transport override는 explicit loopback-only local smoke에서만 생성할 수 있고
+release workflow에는 허용하지 않는다.
+
+versioned release는 Apple Silicon `.app.tar.gz`와 Tauri Minisign `.sig`를 immutable asset으로
+먼저 게시한다. `latest-beta.json`의 `darwin-aarch64`와 `darwin-aarch64-app` entry는 같은
+versioned URL과 signature를 가리키며, rolling `updater-beta` asset은 versioned asset 게시가
+끝난 뒤에만 교체한다. release verifier는 checksum, manifest shape, archive 안의 app
+identity/code seal과 Minisign signature를 모두 확인한다. 이 updater signature는 update
+authorization boundary지만 Developer ID identity나 notarization을 대신하지 않는다.
+
 ## P0 Technology Decision
 
 - **Desktop shell:** Tauri 2. native macOS bundle과 WebView window를 빌드하고 실제 IPC

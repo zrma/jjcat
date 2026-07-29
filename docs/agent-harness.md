@@ -125,5 +125,5 @@ push가 필요할 때만 사용자에게 최소 판단을 요청한다.
 - Current state and direction: `docs/status.md`, `docs/roadmap.md`.
 - Completed work: `docs/completed-milestones.md`.
 - Publication policy: `docs/PUBLICATION.md`.
-- Active work: `docs/todo-p1-multi-repository-cockpit/`.
+- Active work: `docs/todo-v0-9-x-updater/`.
 - Declared checks: `docs/REPO_MANIFEST.yaml`.

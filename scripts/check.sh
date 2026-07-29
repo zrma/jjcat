@@ -32,4 +32,6 @@ for path in sorted(Path("scripts").glob("*.py")):
 print("python syntax is valid")
 PY
 
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+
 printf 'jjcat checks passed\n'

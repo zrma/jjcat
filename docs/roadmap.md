@@ -46,7 +46,12 @@
 - [x] Apple Silicon용 ad-hoc-signed/not-notarized beta와 표준 Gatekeeper 최초 실행 정책
 - [x] macOS artifact, checksum, clean install/launch/restart와 local/SSH smoke
 - [x] reviewed tag, same-SHA CI와 GitHub prerelease
-- [ ] updater contract는 0.9.x 후속 slice에서 별도로 결정
+- [x] 0.9.x updater runtime, available-only status-bar action, signed artifact pipeline과
+  ephemeral-key two-version smoke
+- [x] password-protected persistent updater key recovery와 GitHub Actions
+  secret/variable configuration
+- [ ] rolling beta channel을 활성화한 `v0.9.1` manual bootstrap과 이후 version의 live
+  in-app update (`docs/todo-v0-9-x-updater/spec.md`, active)
 - [ ] optional Developer ID signing/notarization
 - [ ] Linux와 Windows acceptance
 - [ ] Linux packaging 전에 `RUSTSEC-2024-0429` upstream resolution 또는 validated pinned backport 재검토
