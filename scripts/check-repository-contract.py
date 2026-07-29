@@ -197,6 +197,17 @@ for fragment in (
     if fragment not in ci_workflow:
         fail(f"CI Jujutsu prerequisite is missing {fragment!r}")
 
+for fragment in (
+    "name: Install Jujutsu",
+    "JJCAT_JJ_VERSION: 0.43.0",
+    "JJCAT_JJ_AARCH64_MACOS_SHA256: 84336bbe5673a36ccc6395c494021ba632794da078eb8c8c513a60f8e1cc3083",
+    "aarch64-apple-darwin.tar.gz",
+    "shasum -a 256 --check",
+    '"$jj_bin_dir/jj" --version',
+):
+    if fragment not in release_workflow:
+        fail(f"release Jujutsu prerequisite is missing {fragment!r}")
+
 markdown_link_pattern = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 markdown_paths = set(ROOT.glob("*.md"))
 markdown_paths.update((ROOT / "docs").rglob("*.md"))
