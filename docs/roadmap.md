@@ -41,6 +41,8 @@
 - [x] current/other workspace 검토와 exact directory까지 정리하는 one-step removal
 - [x] restart-persistent window/splitter 배치와 recoverable/irreversible 단일 preview 확인 정책
   (`docs/todo-ui-state-and-confirmation/spec.md`, completed)
+- [x] 메인/별도 창이 공유하는 restart-persistent diff layout/whitespace preference
+  (`docs/todo-diff-viewer-preferences/spec.md`, completed)
 
 ## P4: Distribution
 

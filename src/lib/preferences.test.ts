@@ -2,12 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import {
   clearInspectorHeightRatio,
   DEFAULT_DIFF_VIEW_MODE,
+  DEFAULT_WHITESPACE_MODE,
   DIFF_VIEW_MODE_STORAGE_KEY,
   INSPECTOR_HEIGHT_RATIO_STORAGE_KEY,
   loadDiffViewMode,
   loadInspectorHeightRatio,
+  loadWhitespaceMode,
   saveDiffViewMode,
   saveInspectorHeightRatio,
+  saveWhitespaceMode,
+  WHITESPACE_MODE_STORAGE_KEY,
 } from "./preferences";
 
 function storageWith(value: string | null) {
@@ -58,6 +62,45 @@ describe("diff view mode preferences", () => {
       throw new Error("storage unavailable");
     });
     expect(() => saveDiffViewMode("unified", storage)).not.toThrow();
+  });
+});
+
+describe("diff whitespace preferences", () => {
+  it.each(["preserve", "ignoreAll"] as const)(
+    "restores the saved %s mode",
+    (mode) => {
+      const storage = storageWith(mode);
+
+      expect(loadWhitespaceMode(storage)).toBe(mode);
+      expect(storage.getItem).toHaveBeenCalledWith(
+        WHITESPACE_MODE_STORAGE_KEY,
+      );
+    },
+  );
+
+  it("falls back when the preference is missing, invalid, or unavailable", () => {
+    expect(loadWhitespaceMode(storageWith(null))).toBe(
+      DEFAULT_WHITESPACE_MODE,
+    );
+    expect(loadWhitespaceMode(storageWith("ignore-leading"))).toBe(
+      DEFAULT_WHITESPACE_MODE,
+    );
+    expect(loadWhitespaceMode(null, "ignoreAll")).toBe("ignoreAll");
+  });
+
+  it("saves the selected mode without surfacing storage failures", () => {
+    const storage = storageWith(null);
+
+    saveWhitespaceMode("ignoreAll", storage);
+    expect(storage.setItem).toHaveBeenCalledWith(
+      WHITESPACE_MODE_STORAGE_KEY,
+      "ignoreAll",
+    );
+
+    storage.setItem.mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+    expect(() => saveWhitespaceMode("preserve", storage)).not.toThrow();
   });
 });
 

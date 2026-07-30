@@ -73,7 +73,7 @@ import {
   jjMutationCommands,
 } from "./lib/jjCommand";
 import { locationLabel, relativeTime } from "./lib/format";
-import { loadDiffViewMode, saveDiffViewMode } from "./lib/preferences";
+import { useDiffViewerPreferences } from "./lib/useDiffViewerPreferences";
 import {
   compactStateLabel,
   isDisconnectedState,
@@ -108,7 +108,6 @@ import type {
   AppError,
   CachedProjection,
   ChangeRow,
-  DiffViewMode,
   FileDiffProjection,
   InspectorView,
   OperationLogProjection,
@@ -122,7 +121,6 @@ import type {
   RepositorySourceDraft,
   RepositorySourceRecord,
   SyncStatus,
-  WhitespaceMode,
 } from "./types";
 
 type RepositoryContextMenu = { repositoryId: string; x: number; y: number };
@@ -283,9 +281,12 @@ function App() {
   const [fileDiff, setFileDiff] = useState<FileDiffProjection | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
-  const [diffViewMode, setDiffViewMode] =
-    useState<DiffViewMode>(loadDiffViewMode);
-  const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>("preserve");
+  const {
+    viewMode: diffViewMode,
+    whitespaceMode,
+    setViewMode: setDiffViewMode,
+    setWhitespaceMode,
+  } = useDiffViewerPreferences();
   const [inspectorView, setInspectorView] = useState<InspectorView>("changes");
   const keyboardNavigationZoneRef = useRef<
     "graph" | "files" | "diff" | "operations"
@@ -370,11 +371,6 @@ function App() {
   const dispatchAppUpdateEvent = useCallback((event: AppUpdateEvent) => {
     appUpdateStateRef.current = reduceAppUpdate(appUpdateStateRef.current, event);
     dispatchAppUpdate(event);
-  }, []);
-
-  const handleDiffViewModeChange = useCallback((mode: DiffViewMode) => {
-    saveDiffViewMode(mode);
-    setDiffViewMode(mode);
   }, []);
 
   const startActivity = useCallback(
@@ -2319,7 +2315,7 @@ function App() {
               diffError={diffError}
               diffViewMode={diffViewMode}
               whitespaceMode={whitespaceMode}
-              onDiffViewModeChange={handleDiffViewModeChange}
+              onDiffViewModeChange={setDiffViewMode}
               onWhitespaceModeChange={setWhitespaceMode}
               onOpenDiffQuickLook={(
                 change,

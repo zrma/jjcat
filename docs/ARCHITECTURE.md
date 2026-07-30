@@ -180,6 +180,10 @@ projection을 unified 또는 side-by-side로 렌더링하고 whitespace mode 변
 한쪽의 긴 source line이 반대쪽 pane을 밀어내지 않는다. macOS의 overlay scrollbar 설정과
 무관하게 overflow를 발견할 수 있도록 각 pane은 실제 scroll position과 동기화된 proportional
 thumb를 항상 표시하고 track click, drag와 keyboard range navigation을 제공한다.
+unified/side-by-side와 preserve/ignore-all 선택은 app-owned local preference이며 메인
+창의 모든 diff surface가 한 상태를 공유한다. 별도 diff window는 열 때 현재 값을
+fallback으로 받고, Tauri app event와 browser storage event를 통해 메인 창과 변경을
+양방향 동기화한다. 두 값은 quit/relaunch와 updater restart 뒤에도 복원된다.
 rename/copy의 display-formatted summary는 command selector로 사용하지 않는다. projection에는
 target의 canonical repository path와 별도의 display path를 저장하고 local/SSH driver 모두 escaped
 `root-file:"<path>"` exact fileset으로 diff 범위를 제한한다.

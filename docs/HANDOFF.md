@@ -52,6 +52,9 @@ history/inspector 배치를 restart 뒤 복원하고, rebase drop을 단일 exac
 typed confirmation은 제거했으며 `jj op`로 되감을 수 있는 mutation만 `Enter`/`Y` 실행을
 허용한다. directory 삭제와 remote push는 exact target이 표시된 pointer click으로만 실행한다.
 이 변경은 `v0.9.3` release에 포함된다.
+완료된 `docs/todo-diff-viewer-preferences/spec.md`는 unified/side-by-side와 whitespace
+선택을 app-owned preference로 저장하고, 메인 창의 모든 viewer와 별도 diff 창이 같은 값을
+양방향 공유하도록 한다. 이 변경은 `v0.9.4` release 대상이다.
 
 완료된 release todo는 `docs/todo-v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

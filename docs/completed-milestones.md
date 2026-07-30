@@ -1,5 +1,16 @@
 # Completed Milestones
 
+## 2026-07-31: Persistent Shared Diff Viewer Preferences
+
+- unified/side-by-side와 whitespace 선택을 app-owned local preference로 저장하고 메인
+  창의 모든 diff surface에서 공유한다.
+- 별도 diff window는 현재 선택을 이어받고, 그 창에서 바꾼 값도 메인 창에 즉시 반영해
+  이후 quit/relaunch와 updater restart에 복원한다.
+- valid/invalid/storage-failure 및 cross-window payload 회귀 테스트, production frontend
+  build, canonical repository gate와 메인/별도 창 양방향 browser smoke를 통과했다.
+- `v0.9.4` native app/DMG package의 ad-hoc code seal, app version, arm64 architecture와
+  disk image checksum을 확인했다.
+
 ## 2026-07-30: Persistent UI State and Single-confirm Mutations
 
 - main window의 size, position과 maximized state를 app-owned local data로 복원하고

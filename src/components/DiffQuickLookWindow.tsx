@@ -4,12 +4,8 @@ import { Files } from "lucide-react";
 import { bridge, isTauriRuntime } from "../bridge";
 import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
 import type { DiffQuickLookRequest } from "../lib/diffQuickLook";
-import type {
-  ChangeRow,
-  DiffViewMode,
-  FileDiffProjection,
-  WhitespaceMode,
-} from "../types";
+import { useDiffViewerPreferences } from "../lib/useDiffViewerPreferences";
+import type { ChangeRow, FileDiffProjection } from "../types";
 import { ChangedFileTree } from "./ChangeWorkspace";
 import { DiffViewer } from "./DiffViewer";
 
@@ -30,10 +26,11 @@ export function DiffQuickLookWindow({
   const [selectedFilePath, setSelectedFilePath] = useState(
     request.selectedFilePath,
   );
-  const [viewMode, setViewMode] = useState<DiffViewMode>(request.viewMode);
-  const [whitespaceMode, setWhitespaceMode] = useState<WhitespaceMode>(
-    request.whitespaceMode,
-  );
+  const { viewMode, whitespaceMode, setViewMode, setWhitespaceMode } =
+    useDiffViewerPreferences(
+      request.viewMode,
+      request.whitespaceMode,
+    );
   const [diff, setDiff] = useState<FileDiffProjection | null>(null);
   const [changeError, setChangeError] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);

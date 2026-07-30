@@ -10,7 +10,8 @@ Actions secret/variable configuration, signed `v0.9.1` bootstrap, rolling beta
 manifest와 `v0.9.2` prerelease를 게시했다. 설치된 `v0.9.1`은 공개 updater를
 download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실행됐다. 현재
 `v0.9.3`은 restart-persistent window/splitter 배치와 단일-confirm mutation UX를
-배포한다. 선택된 active milestone은 없다.
+배포했다. `v0.9.4`는 모든 diff viewer의 layout/whitespace 선택을 앱 재시작과 update
+restart 뒤에도 복원하고 메인/별도 창 사이에서 공유한다. 선택된 active milestone은 없다.
 
 완료된 기반:
 
@@ -104,6 +105,8 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
   download/verify/install/explicit-restart live update
 - quit/relaunch와 updater restart 뒤 native window size/position/maximized state 및
   ratio-based history/inspector splitter 배치 복원
+- unified/side-by-side와 whitespace 선택을 메인 창의 모든 diff viewer 및 별도 diff
+  창이 양방향 공유하고 quit/relaunch와 updater restart 뒤 복원
 - 중간 inline rebase checkpoint와 모든 typed confirmation을 제거하고 recoverable
   `Enter`/`Y` 대 irreversible pointer-only execution으로 정리한 단일 preview 확인 정책
 
@@ -128,12 +131,12 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
 
 ## Latest Release
 
-`v0.9.3` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
-window/splitter 배치 복원과 단일-confirm mutation UX를 배포한다. `v0.9.2` 사용자는
-시작 시 한 번 실행되는 자동 확인 또는 app menu의 명시적인 확인으로 signed updater를
-받는다. 설치된 `v0.9.2`에는 저장된 배치가 없으므로 첫 `v0.9.3` 실행에서 한 번 조정한
-뒤부터 quit/relaunch와 update restart에 복원된다. 유료 Apple Developer Program을
-사용하는 Developer ID signing/notarization은 현재 계획된 작업이 아니며, 배포량 또는
-지원 비용이 구독을 정당화할 때만 새 decision으로 재검토한다. Linux package 작업
-전에는 accepted GTK advisory의 upstream resolution 또는 검증된 backport를 다시
-판단한다.
+`v0.9.4` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
+메인 창과 별도 창의 diff layout/whitespace preference 공유 및 복원을 배포한다.
+`v0.9.3` 사용자는 시작 시 한 번 실행되는 자동 확인 또는 app menu의 명시적인 확인으로
+signed updater를 받는다. 기존 diff layout 선택은 유지되며 whitespace는 첫 실행에서
+`Show all`로 시작한 뒤 사용자가 고른 값을 quit/relaunch와 update restart에 복원한다.
+유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
+계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
+재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution
+또는 검증된 backport를 다시 판단한다.
