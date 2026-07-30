@@ -25,6 +25,8 @@
 
 - [x] multi-lane change DAG와 revision navigation
 - [x] file list, 긴 줄을 격리하는 unified와 side-by-side diff
+- [x] side-by-side 상대 가로 위치 동기화와 bounded 단어/문자 단위 intraline 강조
+  (`docs/todo-diff-readability/spec.md`, completed)
 - [x] conflict, outgoing와 behind projection
 - [x] operation log와 read-only undo eligibility surface
 - [x] reference/conflict navigation과 resizable overview/changes/operations inspector

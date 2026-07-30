@@ -3729,6 +3729,24 @@ body.workspace-resizing {
   background: var(--state-danger-soft);
 }
 
+.diff-intraline-change {
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.diff-line.addition .diff-intraline-change,
+.diff-side.addition .diff-intraline-change {
+  background: var(--state-success-emphasis);
+}
+
+.diff-line.deletion .diff-intraline-change,
+.diff-side.deletion .diff-intraline-change {
+  background: var(--state-danger-emphasis);
+}
+
 .diff-line.addition > span,
 .diff-side.addition > span {
   color: var(--brand-primary);

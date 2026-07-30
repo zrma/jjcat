@@ -176,10 +176,14 @@ commit identity와 cached file membership을 다시 확인한 뒤 읽는다. loc
 structured hunk contract를 반환하며 capture는 512 KiB로 제한한다. binary와 truncated output은
 명시적 metadata state로 표시하고 content를 registry/cache에 저장하지 않는다. frontend는 같은
 projection을 unified 또는 side-by-side로 렌더링하고 whitespace mode 변경 시 선택 file만 다시
-조회한다. side-by-side의 Before/After는 같은 폭의 독립 pane과 개별 가로 스크롤을 사용해
-한쪽의 긴 source line이 반대쪽 pane을 밀어내지 않는다. macOS의 overlay scrollbar 설정과
-무관하게 overflow를 발견할 수 있도록 각 pane은 실제 scroll position과 동기화된 proportional
-thumb를 항상 표시하고 track click, drag와 keyboard range navigation을 제공한다.
+조회한다. side-by-side의 Before/After는 같은 폭의 독립 overflow pane을 사용해 한쪽의 긴
+source line이 반대쪽 pane을 밀어내지 않으며, 어느 pane을 조작해도 양쪽의 상대 가로 위치를
+동기화한다. macOS의 overlay scrollbar 설정과 무관하게 overflow를 발견할 수 있도록 각 pane은
+실제 scroll position과 동기화된 proportional thumb를 항상 표시하고 track click, drag와
+keyboard range navigation을 제공한다. 인접한 deletion/addition 교체 줄은 단어 단위로
+비교하고 충분히 유사한 단어는 문자 단위로 세분화해 unified와 side-by-side 양쪽에서 실제
+변경 구간을 강조한다. 과도하게 긴 줄이나 유사도가 낮은 줄은 bounded 계산을 넘기지 않고
+기존 whole-line styling으로 fallback한다.
 unified/side-by-side와 preserve/ignore-all 선택은 app-owned local preference이며 메인
 창의 모든 diff surface가 한 상태를 공유한다. 별도 diff window는 열 때 현재 값을
 fallback으로 받고, Tauri app event와 browser storage event를 통해 메인 창과 변경을

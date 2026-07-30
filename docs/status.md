@@ -11,7 +11,9 @@ manifest와 `v0.9.2` prerelease를 게시했다. 설치된 `v0.9.1`은 공개 up
 download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실행됐다. 현재
 `v0.9.3`은 restart-persistent window/splitter 배치와 단일-confirm mutation UX를
 배포했다. `v0.9.4`는 모든 diff viewer의 layout/whitespace 선택을 앱 재시작과 update
-restart 뒤에도 복원하고 메인/별도 창 사이에서 공유한다. 선택된 active milestone은 없다.
+restart 뒤에도 복원하고 메인/별도 창 사이에서 공유한다. `v0.9.5`는 side-by-side
+Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side에서 교체 줄의
+단어/문자 단위 변경 구간을 강조한다. 선택된 active milestone은 없다.
 
 완료된 기반:
 
@@ -65,8 +67,10 @@ restart 뒤에도 복원하고 메인/별도 창 사이에서 공유한다. 선�
 - selected revision/file만 읽는 512 KiB bounded local/SSH structured diff
 - rename display path와 target canonical path를 분리하고 escaped exact fileset을 사용하는
   local/SSH diff selection
-- 긴 줄에서도 같은 폭과 항상 보이는 독립 가로 scrollbar를 유지하는
-  unified/side-by-side renderer, whitespace mode와 binary/truncated fallback
+- 긴 줄에서도 같은 폭의 overflow pane과 항상 보이는 scrollbar를 유지하고 양쪽의 상대
+  가로 위치를 동기화하는 unified/side-by-side renderer
+- 인접한 교체 줄을 bounded 단어/문자 단위로 강조하고 유사도가 낮거나 과도하게 긴 줄은
+  whole-line styling으로 fallback하는 intraline diff
 - cache freshness와 분리된 conflict 및 last-fetched outgoing/behind 상태
 - operation identity를 변경하지 않는 recent operation log, 상단의 명확한 Undo/Redo button과
   input-safe platform shortcut
@@ -131,11 +135,10 @@ restart 뒤에도 복원하고 메인/별도 창 사이에서 공유한다. 선�
 
 ## Latest Release
 
-`v0.9.4` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
-메인 창과 별도 창의 diff layout/whitespace preference 공유 및 복원을 배포한다.
-`v0.9.3` 사용자는 시작 시 한 번 실행되는 자동 확인 또는 app menu의 명시적인 확인으로
-signed updater를 받는다. 기존 diff layout 선택은 유지되며 whitespace는 첫 실행에서
-`Show all`로 시작한 뒤 사용자가 고른 값을 quit/relaunch와 update restart에 복원한다.
+`v0.9.5` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
+side-by-side 가로 스크롤 동기화와 bounded 단어/문자 단위 intraline 강조를 배포한다.
+`v0.9.4` 사용자는 시작 시 한 번 실행되는 자동 확인 또는 app menu의 명시적인 확인으로
+signed updater를 받는다. 기존 diff layout/whitespace 선택과 창 배치는 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

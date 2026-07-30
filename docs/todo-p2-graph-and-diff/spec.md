@@ -39,7 +39,7 @@ lane projection이고 file inspector는 path/status metadata만 표시한다. da
 | C5 | done | operation fixture | operation log와 undo eligibility preview |
 | C6 | done | `scripts/check.sh` | full local gate와 current docs |
 | C7 | done | rename local/SSH integration fixture | canonical target path와 exact fileset selector |
-| C8 | done | long-line native smoke | side-by-side의 Before/After pane이 긴 줄에서도 같은 폭을 유지하고 항상 보이는 독립 가로 scrollbar를 제공한다. |
+| C8 | done | long-line native smoke | side-by-side의 Before/After pane이 긴 줄에서도 같은 폭과 독립 overflow 경계를 유지하며 항상 보이는 가로 scrollbar를 제공한다. |
 
 ## Required Evidence
 

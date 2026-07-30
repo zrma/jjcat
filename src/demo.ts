@@ -360,7 +360,7 @@ export class DemoBridge {
               oldLine: 1,
               newLine: 1,
               content:
-                `// ${fileName}: long context remains independently scrollable in both comparison panes`,
+                `// ${fileName}: long context stays clipped while both comparison panes scroll together`,
             },
             { kind: "deletion", oldLine: 2, newLine: null, content: "const mode = \"legacy\";" },
             { kind: "addition", oldLine: null, newLine: 2, content: "const mode = \"jjcat\";" },

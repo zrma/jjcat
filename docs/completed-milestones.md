@@ -1,5 +1,16 @@
 # Completed Milestones
 
+## 2026-07-31: Synchronized and Intraline Diff Reading
+
+- side-by-side Before/After의 독립 overflow 경계는 유지하면서 어느 pane의 native 또는
+  custom scrollbar를 조작해도 양쪽 상대 가로 위치가 함께 이동하도록 연결했다.
+- 인접한 deletion/addition 교체 줄을 단어 단위로 비교하고 충분히 유사한 단어는 문자
+  단위로 세분화해 unified와 side-by-side 양쪽에서 실제 변경 구간만 더 강하게 강조한다.
+- 유사도가 낮거나 과도하게 긴 줄은 bounded 계산을 넘기지 않고 기존 whole-line
+  styling으로 fallback한다.
+- focused unit test, production frontend build와 browser keyboard interaction smoke에서
+  양쪽 pane의 동일한 scroll progress와 intraline 강조를 확인했다.
+
 ## 2026-07-31: Persistent Shared Diff Viewer Preferences
 
 - unified/side-by-side와 whitespace 선택을 app-owned local preference로 저장하고 메인

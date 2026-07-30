@@ -50,10 +50,12 @@
   --preview-node-fill: #e7f2fb;
   --state-success: #087f5b;
   --state-success-soft: rgb(8 127 91 / 9%);
+  --state-success-emphasis: rgb(8 127 91 / 32%);
   --state-warning: #a45b00;
   --state-warning-soft: rgb(164 91 0 / 10%);
   --state-danger: #bf3434;
   --state-danger-soft: rgb(191 52 52 / 9%);
+  --state-danger-emphasis: rgb(191 52 52 / 32%);
   --state-info: #477887;
   --shadow-floating: rgba(31, 35, 40, 0.22);
 }
@@ -106,10 +108,12 @@
     --preview-node-fill: #162b3d;
     --state-success: #57c99a;
     --state-success-soft: rgb(87 201 154 / 11%);
+    --state-success-emphasis: rgb(87 201 154 / 32%);
     --state-warning: #e79b45;
     --state-warning-soft: rgb(231 155 69 / 12%);
     --state-danger: #f17878;
     --state-danger-soft: rgb(241 120 120 / 12%);
+    --state-danger-emphasis: rgb(241 120 120 / 32%);
     --state-info: #8ab6c7;
     --shadow-floating: rgba(0, 0, 0, 0.45);
   }

@@ -2,11 +2,18 @@ import {
   useCallback,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import type { RefObject } from "react";
 import { Columns2, Maximize2, Rows3 } from "lucide-react";
-import { pairSideBySide } from "../lib/diff";
+import {
+  calculateSynchronizedScrollLeft,
+  intralineSegmentsForLines,
+  pairSideBySide,
+} from "../lib/diff";
+import type { IntralineSegment } from "../lib/diff";
 import type {
   DiffLine,
   DiffHunk,
@@ -155,19 +162,34 @@ function UnifiedDiff({ projection }: { projection: FileDiffProjection }) {
   return (
     <div className="unified-diff">
       {projection.hunks.map((hunk, hunkIndex) => (
-        <section className="diff-hunk" key={`${hunk.header}-${hunkIndex}`}>
-          <header>{hunk.header}</header>
-          {hunk.lines.map((line, lineIndex) => (
-            <div className={`diff-line ${line.kind}`} key={`${lineIndex}-${line.content}`}>
-              <code>{line.oldLine ?? ""}</code>
-              <code>{line.newLine ?? ""}</code>
-              <span aria-hidden="true">{lineMarker(line)}</span>
-              <pre>{line.content || " "}</pre>
-            </div>
-          ))}
-        </section>
+        <UnifiedHunk hunk={hunk} key={`${hunk.header}-${hunkIndex}`} />
       ))}
     </div>
+  );
+}
+
+function UnifiedHunk({ hunk }: { hunk: DiffHunk }) {
+  const intralineSegments = useMemo(
+    () => intralineSegmentsForLines(hunk.lines),
+    [hunk.lines],
+  );
+  return (
+    <section className="diff-hunk">
+      <header>{hunk.header}</header>
+      {hunk.lines.map((line, lineIndex) => (
+        <div className={`diff-line ${line.kind}`} key={`${lineIndex}-${line.content}`}>
+          <code>{line.oldLine ?? ""}</code>
+          <code>{line.newLine ?? ""}</code>
+          <span aria-hidden="true">{lineMarker(line)}</span>
+          <pre>
+            <DiffText
+              content={line.content}
+              segments={intralineSegments[lineIndex]}
+            />
+          </pre>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -185,13 +207,70 @@ function SideBySideDiff({ projection }: { projection: FileDiffProjection }) {
 }
 
 function SideBySideHunk({ hunk }: { hunk: DiffHunk }) {
-  const rows = pairSideBySide(hunk.lines);
+  const rows = useMemo(() => pairSideBySide(hunk.lines), [hunk.lines]);
+  const intralineSegments = useMemo(
+    () => intralineSegmentsForLines(hunk.lines),
+    [hunk.lines],
+  );
+  const segmentsByLine = useMemo(
+    () =>
+      new Map(
+        hunk.lines.map((line, lineIndex) => [
+          line,
+          intralineSegments[lineIndex],
+        ]),
+      ),
+    [hunk.lines, intralineSegments],
+  );
+  const oldViewportRef = useRef<HTMLDivElement>(null);
+  const newViewportRef = useRef<HTMLDivElement>(null);
+  const synchronizeScroll = useCallback(
+    (sourceSide: "old" | "new", sourceViewport: HTMLDivElement) => {
+      const targetViewport =
+        sourceSide === "old"
+          ? newViewportRef.current
+          : oldViewportRef.current;
+      if (!targetViewport) return;
+
+      const sourceRange = Math.max(
+        0,
+        sourceViewport.scrollWidth - sourceViewport.clientWidth,
+      );
+      const targetRange = Math.max(
+        0,
+        targetViewport.scrollWidth - targetViewport.clientWidth,
+      );
+      const nextScrollLeft = calculateSynchronizedScrollLeft(
+        sourceViewport.scrollLeft,
+        sourceRange,
+        targetRange,
+      );
+      if (Math.abs(targetViewport.scrollLeft - nextScrollLeft) > 0.5) {
+        targetViewport.scrollLeft = nextScrollLeft;
+      }
+    },
+    [],
+  );
   return (
     <section className="diff-hunk">
       <header>{hunk.header}</header>
       <div className="diff-panes">
-        <DiffPane rows={rows} side="old" label="Before" />
-        <DiffPane rows={rows} side="new" label="After" />
+        <DiffPane
+          rows={rows}
+          side="old"
+          label="Before"
+          viewportRef={oldViewportRef}
+          segmentsByLine={segmentsByLine}
+          onViewportScroll={synchronizeScroll}
+        />
+        <DiffPane
+          rows={rows}
+          side="new"
+          label="After"
+          viewportRef={newViewportRef}
+          segmentsByLine={segmentsByLine}
+          onViewportScroll={synchronizeScroll}
+        />
       </div>
     </section>
   );
@@ -201,12 +280,20 @@ function DiffPane({
   rows,
   side,
   label,
+  viewportRef,
+  segmentsByLine,
+  onViewportScroll,
 }: {
   rows: ReturnType<typeof pairSideBySide>;
   side: "old" | "new";
   label: "Before" | "After";
+  viewportRef: RefObject<HTMLDivElement | null>;
+  segmentsByLine: Map<DiffLine, IntralineSegment[] | null>;
+  onViewportScroll: (
+    side: "old" | "new",
+    viewport: HTMLDivElement,
+  ) => void;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -269,16 +356,23 @@ function DiffPane({
         ref={viewportRef}
         tabIndex={0}
         aria-label={`Scroll ${label.toLowerCase()} diff horizontally`}
-        onScroll={updateMetrics}
+        onScroll={(event) => {
+          updateMetrics();
+          onViewportScroll(side, event.currentTarget);
+        }}
       >
         <div className="diff-pane-lines">
-          {rows.map((row, rowIndex) => (
-            <DiffSide
-              line={side === "old" ? row.left : row.right}
-              side={side}
-              key={rowIndex}
-            />
-          ))}
+          {rows.map((row, rowIndex) => {
+            const line = side === "old" ? row.left : row.right;
+            return (
+              <DiffSide
+                line={line}
+                side={side}
+                segments={line ? segmentsByLine.get(line) : null}
+                key={rowIndex}
+              />
+            );
+          })}
         </div>
       </div>
       <div
@@ -367,14 +461,43 @@ function DiffPane({
   );
 }
 
-function DiffSide({ line, side }: { line: DiffLine | null; side: "old" | "new" }) {
+function DiffSide({
+  line,
+  side,
+  segments,
+}: {
+  line: DiffLine | null;
+  side: "old" | "new";
+  segments: IntralineSegment[] | null | undefined;
+}) {
   const number = side === "old" ? line?.oldLine : line?.newLine;
   return (
     <div className={`diff-side ${line?.kind ?? "empty"}`}>
       <code>{number ?? ""}</code>
       <span aria-hidden="true">{line ? lineMarker(line) : ""}</span>
-      <pre>{line?.content || " "}</pre>
+      <pre>
+        <DiffText content={line?.content ?? ""} segments={segments} />
+      </pre>
     </div>
+  );
+}
+
+function DiffText({
+  content,
+  segments,
+}: {
+  content: string;
+  segments: IntralineSegment[] | null | undefined;
+}) {
+  if (!segments) return content || " ";
+  return segments.map((segment, index) =>
+    segment.changed ? (
+      <mark className="diff-intraline-change" key={index}>
+        {segment.text}
+      </mark>
+    ) : (
+      <span key={index}>{segment.text}</span>
+    ),
   );
 }
 
