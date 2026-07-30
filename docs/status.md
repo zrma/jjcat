@@ -141,8 +141,9 @@ Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side�
 
 `v0.9.6` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
 main window가 3초간 focus된 뒤 1시간 cooldown의 background update check를 실행한다.
-`v0.9.5` 사용자는 이 focus-triggered 확인 또는 app menu의 명시적인 확인으로 signed
-updater를 받는다. 기존 diff 가독성, layout/whitespace 선택과 창 배치는 그대로 유지된다.
+`v0.9.5` 사용자는 startup check 또는 app menu의 명시적인 확인으로 이번 signed updater를
+받으며, focus-triggered 확인은 `v0.9.6` 설치 뒤의 다음 update부터 동작한다. 기존 diff
+가독성, layout/whitespace 선택과 창 배치는 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution
