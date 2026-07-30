@@ -5,6 +5,9 @@ export interface AppUpdateInfo {
   notes: string | null;
 }
 
+export const APP_UPDATE_FOCUS_DELAY_MS = 3_000;
+export const APP_UPDATE_CHECK_COOLDOWN_MS = 60 * 60 * 1_000;
+
 export type AppUpdateState =
   | { phase: "idle" }
   | { phase: "checking"; manual: boolean }
@@ -46,6 +49,16 @@ export function canCheckForAppUpdate(state: AppUpdateState) {
     state.phase === "idle" ||
     state.phase === "checking" ||
     (state.phase === "error" && state.action === "check")
+  );
+}
+
+export function shouldRunAutomaticAppUpdateCheck(
+  lastCheckAttemptAt: number | null,
+  now: number,
+) {
+  return (
+    lastCheckAttemptAt === null ||
+    now - lastCheckAttemptAt >= APP_UPDATE_CHECK_COOLDOWN_MS
   );
 }
 

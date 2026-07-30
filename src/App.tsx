@@ -68,6 +68,7 @@ import {
   type AppUpdateEvent,
   type AppUpdateState,
 } from "./lib/appUpdate";
+import { createAppUpdateFocusScheduler } from "./lib/appUpdateFocusScheduler";
 import {
   jjGitInitializationCommands,
   jjMutationCommands,
@@ -355,6 +356,7 @@ function App() {
   const historyStepExecutingRef = useRef(false);
   const appUpdateCheckInFlightRef = useRef(false);
   const appUpdateManualCheckRef = useRef(false);
+  const appUpdateLastCheckAttemptAtRef = useRef<number | null>(null);
   const appUpdateStateRef = useRef<AppUpdateState>({ phase: "idle" });
   const tabOrderSavingRef = useRef(false);
   const tabPointerDragRef = useRef<RepositoryTabPointerDrag | null>(null);
@@ -452,6 +454,7 @@ function App() {
     }
     appUpdateCheckInFlightRef.current = true;
     appUpdateManualCheckRef.current = manual;
+    appUpdateLastCheckAttemptAtRef.current = Date.now();
     dispatchAppUpdateEvent({ type: "checkStarted", manual });
     try {
       const update = await appUpdater.check();
@@ -504,20 +507,43 @@ function App() {
 
   useEffect(() => {
     let disposed = false;
-    let unlisten: (() => void) | null = null;
-    const timer = window.setTimeout(() => {
+    let unlistenManualCheck: (() => void) | null = null;
+    let unlistenFocus: (() => void) | null = null;
+    const focusScheduler = createAppUpdateFocusScheduler({
+      getLastCheckAttemptAt: () => appUpdateLastCheckAttemptAtRef.current,
+      check: () => {
+        void checkForAppUpdate(false);
+      },
+    });
+
+    const startupTimer = window.setTimeout(() => {
       void checkForAppUpdate(false);
     }, 1_000);
     void appUpdater.onManualCheck(() => {
       void checkForAppUpdate(true);
-    }).then((nextUnlisten) => {
-      if (disposed) nextUnlisten();
-      else unlisten = nextUnlisten;
-    });
+    })
+      .then((nextUnlisten) => {
+        if (disposed) nextUnlisten();
+        else unlistenManualCheck = nextUnlisten;
+      })
+      .catch(() => undefined);
+    if (isTauriRuntime) {
+      void getCurrentWindow()
+        .onFocusChanged(({ payload: focused }) => {
+          focusScheduler.focusChanged(focused);
+        })
+        .then((nextUnlisten) => {
+          if (disposed) nextUnlisten();
+          else unlistenFocus = nextUnlisten;
+        })
+        .catch(() => undefined);
+    }
     return () => {
       disposed = true;
-      window.clearTimeout(timer);
-      unlisten?.();
+      window.clearTimeout(startupTimer);
+      focusScheduler.dispose();
+      unlistenManualCheck?.();
+      unlistenFocus?.();
     };
   }, [checkForAppUpdate]);
 

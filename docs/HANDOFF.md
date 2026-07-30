@@ -58,7 +58,11 @@ typed confirmation은 제거했으며 `jj op`로 되감을 수 있는 mutation�
 완료된 `docs/todo-diff-readability/spec.md`는 side-by-side pane의 상대 가로 위치를
 양방향 동기화하고, unified와 side-by-side 교체 줄을 bounded 단어/문자 단위로 강조한다.
 유사도가 낮거나 과도하게 긴 줄은 whole-line styling으로 fallback한다. 이 변경은
-`v0.9.5` release 대상이다.
+`v0.9.5` release에 포함된다.
+완료된 `docs/todo-update-check-cadence/spec.md`는 기존 startup check를 유지하면서 main
+window focus가 3초간 이어질 때 background update check를 예약한다. 실제 확인 시도에는
+1시간 cooldown을 적용하고 manual check는 언제나 즉시 실행한다. 이 변경은 `v0.9.6`
+release 대상이다.
 
 완료된 release todo는 `docs/todo-v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

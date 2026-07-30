@@ -13,7 +13,9 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
 배포했다. `v0.9.4`는 모든 diff viewer의 layout/whitespace 선택을 앱 재시작과 update
 restart 뒤에도 복원하고 메인/별도 창 사이에서 공유한다. `v0.9.5`는 side-by-side
 Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side에서 교체 줄의
-단어/문자 단위 변경 구간을 강조한다. 선택된 active milestone은 없다.
+단어/문자 단위 변경 구간을 강조한다. `v0.9.6`은 main window focus가 3초간 이어질 때
+1시간 cooldown의 background update check를 실행하고 manual check는 즉시 실행한다.
+선택된 active milestone은 없다.
 
 완료된 기반:
 
@@ -107,6 +109,8 @@ Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side�
   download/verify/install/relaunch local smoke
 - 공개 `v0.9.1` bootstrap에서 `v0.9.2`로 이어지는 available-only
   download/verify/install/explicit-restart live update
+- startup check를 유지하면서 main window focus 3초 뒤 1시간 cooldown으로 실행되는
+  background update check와 cooldown을 우회하는 manual check
 - quit/relaunch와 updater restart 뒤 native window size/position/maximized state 및
   ratio-based history/inspector splitter 배치 복원
 - unified/side-by-side와 whitespace 선택을 메인 창의 모든 diff viewer 및 별도 diff
@@ -135,10 +139,10 @@ Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side�
 
 ## Latest Release
 
-`v0.9.5` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
-side-by-side 가로 스크롤 동기화와 bounded 단어/문자 단위 intraline 강조를 배포한다.
-`v0.9.4` 사용자는 시작 시 한 번 실행되는 자동 확인 또는 app menu의 명시적인 확인으로
-signed updater를 받는다. 기존 diff layout/whitespace 선택과 창 배치는 그대로 유지된다.
+`v0.9.6` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
+main window가 3초간 focus된 뒤 1시간 cooldown의 background update check를 실행한다.
+`v0.9.5` 사용자는 이 focus-triggered 확인 또는 app menu의 명시적인 확인으로 signed
+updater를 받는다. 기존 diff 가독성, layout/whitespace 선택과 창 배치는 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

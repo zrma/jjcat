@@ -59,6 +59,8 @@
 - [x] rolling beta channel을 활성화한 `v0.9.1` manual bootstrap
 - [x] `v0.9.2`의 live in-app update
   (`docs/todo-v0-9-x-updater/spec.md`, completed)
+- [x] main window focus 3초 뒤 1시간 cooldown으로 실행되는 background update check
+  (`docs/todo-update-check-cadence/spec.md`, completed)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  APP_UPDATE_CHECK_COOLDOWN_MS,
   appUpdateActionModel,
   canCheckForAppUpdate,
   reduceAppUpdate,
+  shouldRunAutomaticAppUpdateCheck,
   type AppUpdateInfo,
   type AppUpdateState,
 } from "./appUpdate";
@@ -15,6 +17,23 @@ const update: AppUpdateInfo = {
 };
 
 describe("app update state", () => {
+  it("rate-limits automatic checks while manual checks remain a caller decision", () => {
+    const lastAttemptAt = 10_000;
+    expect(shouldRunAutomaticAppUpdateCheck(null, lastAttemptAt)).toBe(true);
+    expect(
+      shouldRunAutomaticAppUpdateCheck(
+        lastAttemptAt,
+        lastAttemptAt + APP_UPDATE_CHECK_COOLDOWN_MS - 1,
+      ),
+    ).toBe(false);
+    expect(
+      shouldRunAutomaticAppUpdateCheck(
+        lastAttemptAt,
+        lastAttemptAt + APP_UPDATE_CHECK_COOLDOWN_MS,
+      ),
+    ).toBe(true);
+  });
+
   it("keeps automatic no-update and check failures invisible", () => {
     const checking = reduceAppUpdate(
       { phase: "idle" },

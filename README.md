@@ -24,8 +24,8 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 
 jjcat은 P3 기능과 `v0.9.0` macOS public beta 출고를 완료하고, updater-enabled
 bootstrap인 `v0.9.1`과 live in-app update를 검증한 `v0.9.2`, 창 배치를 복원한
-`v0.9.3`, diff 설정을 보존한 `v0.9.4`에 이어 **v0.9.5**에서 side-by-side 가로
-스크롤 동기화와 단어/문자 단위 변경 강조를 제공한다.
+`v0.9.3`, diff 설정을 보존한 `v0.9.4`, diff 가독성을 개선한 `v0.9.5`에 이어
+**v0.9.6**에서 포커스 기반 background update check를 제공한다.
 local/SSH 저장소 직접 등록과 folder source discovery, drag-reorder가 가능한 persistent
 tab과 quick switcher, cached background refresh, multi-lane history, bounded file diff와
 editor/terminal handoff가 동작한다.
@@ -54,6 +54,8 @@ mutation 확인 정책을 설명한다.
 restart-persistent viewer 설정을 설명한다.
 [v0.9.5 release notes](docs/releases/v0.9.5.md)는 동기화된 side-by-side 탐색과
 intraline 변경 강조를 설명한다.
+[v0.9.6 release notes](docs/releases/v0.9.6.md)는 main window focus 3초 뒤 1시간
+cooldown으로 실행되는 background update check를 설명한다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
 distribution decision으로 재검토한다.
