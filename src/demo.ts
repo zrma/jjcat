@@ -519,11 +519,7 @@ export class DemoBridge {
         message: "Mutation preview is missing, expired, or already used.",
       } satisfies AppError;
     }
-    if (
-      !request.confirmed ||
-      (stored.preview.requiresTypedConfirmation &&
-        request.confirmation !== stored.preview.confirmationPhrase)
-    ) {
+    if (!request.confirmed) {
       throw {
         kind: "confirmation",
         message: "Confirm the exact mutation preview before execution.",
@@ -1056,13 +1052,13 @@ function mutationPreviewContent(
       ];
       break;
   }
-  const confirmationPhrase =
-    intent.kind === "push" ? `Push ${intent.name}` : "Confirm";
   return {
     ...details[intent.kind],
+    title:
+      intent.kind === "push"
+        ? `Push ${intent.name} to ${intent.remote}`
+        : details[intent.kind].title,
     targets,
-    requiresTypedConfirmation: intent.kind === "push",
-    confirmationPhrase,
   };
 }
 

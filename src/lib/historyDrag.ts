@@ -30,7 +30,7 @@ export function historyDropLaunch(
             sourceCommitId: drag.sourceCommitId,
             destinationCommitId,
           },
-          previewImmediately: false,
+          previewImmediately: true,
         }
       : null;
   }

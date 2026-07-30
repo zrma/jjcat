@@ -25,7 +25,8 @@ only later versions can prove the in-app path.
 ## Scope
 
 - Add the Tauri updater and process plugins for desktop builds.
-- Check the beta update channel after startup without blocking repository load.
+- Check the beta update channel once after startup without blocking repository
+  load, and leave later checks to the explicit app-menu action.
 - Render nothing when no update is available.
 - Render an explicit `jjcat <version>` download action at the trailing edge of
   the status bar when an update is available.

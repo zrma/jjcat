@@ -1,5 +1,17 @@
 # Completed Milestones
 
+## 2026-07-30: Persistent UI State and Single-confirm Mutations
+
+- main window의 size, position과 maximized state를 app-owned local data로 복원하고
+  history/inspector splitter는 window 크기에 적응하는 versioned ratio로 저장한다.
+- pointer rebase의 hover topology는 유지하면서 drop 뒤 inline checkpoint를 제거하고
+  backend exact preview를 즉시 열어 실행 확인을 한 번으로 줄였다.
+- typed confirmation UI와 IPC field를 제거했다. `jj op`로 되감을 수 있는 mutation만
+  `Enter`/`Y` 실행을 제공하고 workspace directory 삭제와 remote push는 exact target이
+  표시된 pointer click으로만 실행한다.
+- focused frontend/Rust tests, isolated native restart/interaction smoke와 canonical
+  repository gate를 통과했다. 실제 repository mutation과 remote write는 수행하지 않았다.
+
 ## 2026-07-30: v0.9.x macOS In-App Updater
 
 - 우하단에 available-only `jjcat <version>` action과 bounded progress,

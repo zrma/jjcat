@@ -5349,126 +5349,6 @@ body.workspace-resizing {
   white-space: nowrap;
 }
 
-.rebase-topology-card {
-  position: absolute;
-  z-index: 8;
-  left: var(--history-detail-offset);
-  display: flex;
-  min-width: 500px;
-  height: 48px;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 7px 6px 9px;
-  border: 1px solid #568e9d;
-  border-radius: 4px;
-  background: var(--surface-raised);
-  box-shadow: 0 7px 22px rgba(0, 0, 0, 0.48);
-  color: var(--text-primary);
-}
-
-.rebase-topology-summary {
-  display: flex;
-  min-width: 178px;
-  flex: 1;
-  align-items: center;
-  gap: 8px;
-}
-
-.rebase-topology-summary > svg {
-  width: 17px;
-  height: 17px;
-  color: var(--brand-primary);
-}
-
-.rebase-topology-summary > span {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.rebase-topology-summary strong,
-.rebase-topology-summary small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rebase-topology-summary strong {
-  font-size: 11px;
-}
-
-.rebase-topology-summary small {
-  color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 10px;
-}
-
-.rebase-topology-legend {
-  display: grid;
-  flex: 0 0 auto;
-  gap: 1px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.rebase-topology-legend > span {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  white-space: nowrap;
-}
-
-.rebase-topology-legend svg {
-  width: 14px;
-  height: 9px;
-  stroke-width: 2.4;
-}
-
-.rebase-topology-legend svg.current {
-  color: var(--text-disabled);
-  opacity: 0.55;
-}
-
-.rebase-topology-legend svg.proposed {
-  color: var(--preview-emphasis);
-}
-
-.rebase-topology-card > button {
-  display: inline-flex;
-  height: 25px;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  border: 1px solid #55585d;
-  border-radius: 3px;
-  background: var(--surface-selected);
-  color: var(--text-primary);
-  font-size: 10px;
-}
-
-.rebase-topology-card > button:hover,
-.rebase-topology-card > button:focus-visible {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
-}
-
-.rebase-topology-card > button.primary {
-  border-color: #54c9ad;
-  background: #4ec7aa;
-  color: #10231e;
-  font-weight: 700;
-}
-
-.rebase-topology-card > button.primary:hover,
-.rebase-topology-card > button.primary:focus-visible {
-  background: #67d8bd;
-}
-
-.rebase-topology-card > button svg {
-  width: 12px;
-  height: 12px;
-}
-
 .mutation-backdrop {
   z-index: 60;
 }
@@ -5575,8 +5455,7 @@ body.workspace-resizing {
   white-space: nowrap;
 }
 
-.mutation-form > label,
-.typed-confirmation {
+.mutation-form > label {
   display: grid;
   gap: 6px;
   color: var(--text-secondary);
@@ -5586,8 +5465,7 @@ body.workspace-resizing {
 
 .mutation-form input,
 .mutation-form select,
-.mutation-form textarea,
-.typed-confirmation input {
+.mutation-form textarea {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border-default);
@@ -5600,8 +5478,7 @@ body.workspace-resizing {
 }
 
 .mutation-form input,
-.mutation-form select,
-.typed-confirmation input {
+.mutation-form select {
   height: 30px;
   padding: 0 9px;
 }
@@ -5615,8 +5492,7 @@ body.workspace-resizing {
 
 .mutation-form input:focus,
 .mutation-form select:focus,
-.mutation-form textarea:focus,
-.typed-confirmation input:focus {
+.mutation-form textarea:focus {
   border-color: var(--brand-primary);
 }
 
@@ -5859,10 +5735,6 @@ body.workspace-resizing {
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.typed-confirmation code {
-  color: var(--state-warning);
 }
 
 .mutation-preview .dialog-error {

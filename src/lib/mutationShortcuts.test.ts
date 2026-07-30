@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mutationDecisionForKey,
+  requiresExplicitPointerConfirmation,
   supportsMutationDecisionShortcuts,
 } from "./mutationShortcuts";
 import type { MutationKind } from "../types";
@@ -16,6 +17,8 @@ const recoverableKinds: MutationKind[] = [
   "abandon",
   "pruneEmpty",
   "bookmarkMove",
+  "undo",
+  "redo",
 ];
 
 describe("mutation confirmation shortcuts", () => {
@@ -29,17 +32,19 @@ describe("mutation confirmation shortcuts", () => {
       expect(mutationDecisionForKey(kind, "Escape", true)).toBe("cancel");
       expect(mutationDecisionForKey(kind, "n", true)).toBe("cancel");
       expect(mutationDecisionForKey(kind, "N", true)).toBe("cancel");
+      expect(requiresExplicitPointerConfirmation(kind)).toBe(false);
     },
   );
 
-  it.each<MutationKind>(["removeWorkspace", "push", "undo", "redo"])(
-    "does not intercept decision keys for non-confirmable %s operations",
+  it.each<MutationKind>(["removeWorkspace", "push"])(
+    "requires a pointer confirmation to execute irreversible %s operations",
     (kind) => {
       expect(supportsMutationDecisionShortcuts(kind)).toBe(false);
+      expect(requiresExplicitPointerConfirmation(kind)).toBe(true);
       expect(mutationDecisionForKey(kind, "Enter", true)).toBeNull();
       expect(mutationDecisionForKey(kind, "Y", true)).toBeNull();
-      expect(mutationDecisionForKey(kind, "Escape", true)).toBeNull();
-      expect(mutationDecisionForKey(kind, "N", true)).toBeNull();
+      expect(mutationDecisionForKey(kind, "Escape", true)).toBe("cancel");
+      expect(mutationDecisionForKey(kind, "N", true)).toBe("cancel");
     },
   );
 

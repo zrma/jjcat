@@ -2,6 +2,9 @@
 
 Status: completed
 
+Current follow-up: `docs/todo-ui-state-and-confirmation/spec.md`에서 remote push의 typed
+confirmation도 제거하고 exact-target pointer confirmation으로 대체했다.
+
 ## Goal
 
 - mutation 기능을 범용 `Actions` 허브에서 작업 대상 가까이 재배치해 발견성과 조작

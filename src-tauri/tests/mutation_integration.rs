@@ -11,6 +11,7 @@ use tokio_util::sync::CancellationToken;
 
 fn jj_output(args: &[&str], current_dir: &Path) -> Output {
     Command::new("jj")
+        .args(["--config", "signing.behavior=drop"])
         .args(args)
         .current_dir(current_dir)
         .output()
@@ -29,13 +30,24 @@ fn jj(args: &[&str], current_dir: &Path) {
 fn init_repository(path: &Path) {
     fs::create_dir_all(path).unwrap();
     let output = Command::new("jj")
-        .args(["git", "init", "--colocate", path.to_str().unwrap()])
+        .args([
+            "--config",
+            "signing.behavior=drop",
+            "git",
+            "init",
+            "--colocate",
+            path.to_str().unwrap(),
+        ])
         .output()
         .expect("jj must be installed for integration tests");
     assert!(
         output.status.success(),
         "fixture init failed: {}",
         String::from_utf8_lossy(&output.stderr)
+    );
+    jj(
+        &["config", "set", "--repo", "signing.behavior", "drop"],
+        path,
     );
     jj(
         &["config", "set", "--repo", "user.name", "Fixture Bot"],

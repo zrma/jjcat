@@ -45,6 +45,11 @@ push가 구현됐다. graph drag/drop과 keyboard shaping은 execute를 우회�
 preview를 연다. workspace manager는 current/non-empty workspace와 unsafe path를 보호하면서
 다른 empty workspace의 working-copy change, registration과 exact directory를 단일
 preview-first action으로 정리한다.
+완료된 `docs/todo-ui-state-and-confirmation/spec.md`는 native window와 ratio-based
+history/inspector 배치를 restart 뒤 복원하고, rebase drop을 단일 exact preview로 연결한다.
+typed confirmation은 제거했으며 `jj op`로 되감을 수 있는 mutation만 `Enter`/`Y` 실행을
+허용한다. directory 삭제와 remote push는 exact target이 표시된 pointer click으로만 실행한다.
+이 변경은 `v0.9.3` release에 포함된다.
 
 완료된 release todo는 `docs/todo-v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

@@ -96,7 +96,7 @@ impl MutationPreviews {
         &mut self,
         request: &ExecuteMutationRequest,
     ) -> Result<StoredMutationPreview, AppError> {
-        let stored = self.by_token.get(&request.token).ok_or_else(|| AppError {
+        self.by_token.get(&request.token).ok_or_else(|| AppError {
             kind: AppErrorKind::Stale,
             message: "mutation preview is missing, expired, or already used".into(),
         })?;
@@ -106,15 +106,6 @@ impl MutationPreviews {
                 message: "mutation execution requires explicit confirmation".into(),
             });
         }
-        if stored.preview.requires_typed_confirmation
-            && request.confirmation.as_deref() != Some(stored.preview.confirmation_phrase.as_str())
-        {
-            return Err(AppError {
-                kind: AppErrorKind::Confirmation,
-                message: "typed confirmation does not match the mutation preview".into(),
-            });
-        }
-
         let stored = self
             .by_token
             .remove(&request.token)
@@ -1375,14 +1366,13 @@ mod tests {
         let request = ExecuteMutationRequest {
             token: "second-token".into(),
             confirmed: true,
-            confirmation: None,
         };
         previews.take_confirmed(&request).unwrap();
         assert!(previews.take_confirmed(&request).is_err());
     }
 
     #[test]
-    fn typed_confirmation_mismatch_keeps_preview_available() {
+    fn remote_write_button_confirmation_consumes_preview() {
         let repository = RepositoryRecord::new(
             "fixture",
             RepositoryLocation::Local {
@@ -1409,11 +1399,10 @@ mod tests {
         let request = ExecuteMutationRequest {
             token: "push-token".into(),
             confirmed: true,
-            confirmation: Some("wrong".into()),
         };
 
-        assert!(previews.take_confirmed(&request).is_err());
-        assert!(previews.repository_id("push-token").is_some());
+        assert!(previews.take_confirmed(&request).is_ok());
+        assert!(previews.repository_id("push-token").is_none());
     }
 
     #[test]

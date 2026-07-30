@@ -15,6 +15,7 @@ import {
 import { bridge } from "../bridge";
 import {
   mutationDecisionForKey,
+  requiresExplicitPointerConfirmation,
   supportsMutationDecisionShortcuts,
 } from "../lib/mutationShortcuts";
 import { jjMutationCommands } from "../lib/jjCommand";
@@ -131,7 +132,6 @@ export function MutationDialog({
   const [preview, setPreview] = useState<MutationPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
-  const [typedConfirmation, setTypedConfirmation] = useState("");
   const activeWorkspaceCopies = changes.flatMap((change) =>
     (change.workspaceCopies ?? []).map((name) => ({
       name,
@@ -194,7 +194,6 @@ export function MutationDialog({
     setError(null);
     try {
       setPreview(await bridge.previewMutation(repositoryId, intent));
-      setTypedConfirmation("");
     } catch (requestError) {
       setError((requestError as AppError).message);
     } finally {
@@ -240,9 +239,6 @@ export function MutationDialog({
       const execution = await bridge.executeMutation({
         token: preview.token,
         confirmed: true,
-        confirmation: preview.requiresTypedConfirmation
-          ? typedConfirmation
-          : null,
       });
       onExecuted(execution, activityId);
     } catch (executionError) {
@@ -257,12 +253,12 @@ export function MutationDialog({
   const configurable = CONFIGURABLE_ACTIONS.has(kind);
   const executeDisabled =
     executing ||
-    (preview?.requiresTypedConfirmation &&
-      typedConfirmation !== preview.confirmationPhrase) ||
     (preview?.kind === "pruneEmpty" && preview.candidates.length === 0);
-  const keyboardDecisionSupported =
+  const keyboardExecutionSupported =
     preview !== null &&
     supportsMutationDecisionShortcuts(preview.kind);
+  const pointerConfirmationRequired =
+    preview !== null && requiresExplicitPointerConfirmation(preview.kind);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -535,18 +531,6 @@ export function MutationDialog({
               </section>
             )}
 
-            {preview.requiresTypedConfirmation && (
-              <label className="typed-confirmation">
-                Type <code>{preview.confirmationPhrase}</code> to continue
-                <input
-                  autoFocus
-                  value={typedConfirmation}
-                  onChange={(event) => setTypedConfirmation(event.target.value)}
-                  spellCheck={false}
-                />
-              </label>
-            )}
-
             {error && (
               <p className="dialog-error">
                 <AlertTriangle aria-hidden="true" /> {error}
@@ -571,28 +555,44 @@ export function MutationDialog({
                 className="secondary"
                 onClick={onClose}
                 disabled={executing}
-                aria-keyshortcuts={
-                  keyboardDecisionSupported ? "Escape N" : undefined
-                }
+                aria-keyshortcuts="Escape N"
               >
                 <span>Cancel</span>
-                {keyboardDecisionSupported && (
-                  <MutationButtonShortcuts keys={["Esc", "N"]} />
-                )}
+                <MutationButtonShortcuts keys={["Esc", "N"]} />
               </button>
               <button
                 type="button"
-                className={preview.risk === "destructive" ? "danger" : "primary"}
+                className={
+                  preview.risk === "destructive" ||
+                  preview.risk === "remoteWrite"
+                    ? "danger"
+                    : "primary"
+                }
                 disabled={executeDisabled}
-                onClick={() => void execute()}
+                onClick={(event) => {
+                  if (pointerConfirmationRequired && event.detail === 0) {
+                    event.preventDefault();
+                    return;
+                  }
+                  void execute();
+                }}
+                onKeyDown={
+                  pointerConfirmationRequired
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                        }
+                      }
+                    : undefined
+                }
                 aria-keyshortcuts={
-                  keyboardDecisionSupported && !executeDisabled
+                  keyboardExecutionSupported && !executeDisabled
                     ? "Enter Y"
                     : undefined
                 }
               >
                 <span>{executing ? "Executing…" : executeLabel}</span>
-                {keyboardDecisionSupported && !executeDisabled && (
+                {keyboardExecutionSupported && !executeDisabled && (
                   <MutationButtonShortcuts keys={["Enter", "Y"]} />
                 )}
               </button>

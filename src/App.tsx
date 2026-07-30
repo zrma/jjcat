@@ -1467,7 +1467,6 @@ function App() {
       const execution = await bridge.executeMutation({
         token: preview.token,
         confirmed: true,
-        confirmation: null,
       });
       mutationExecuted(execution, activityId);
     } catch (error) {
@@ -2352,29 +2351,22 @@ function App() {
               operationError={operationError}
               historyStepExecuting={historyStepExecuting}
               rebaseSourceCommitId={rebaseSourceCommitId}
-              onRequestRebase={(sourceCommitId, destinationCommitId) => {
-                setMutationDialog({
-                  initialIntent: {
-                    kind: "rebase",
-                    sourceCommitId,
-                    destinationCommitId,
-                  },
-                  previewImmediately: true,
-                });
-                setRebaseSourceCommitId(null);
-              }}
               onRequestUndo={(operationId) =>
                 void executeHistoryStep("undo", operationId)
               }
               onRequestRedo={(operationId) =>
                 void executeHistoryStep("redo", operationId)
               }
-              onLaunchMutation={({ intent, previewImmediately }) =>
+              onLaunchMutation={({ intent, previewImmediately }) => {
                 setMutationDialog({
                   initialIntent: intent,
                   previewImmediately,
-                })
-              }
+                });
+                if (intent.kind === "rebase") {
+                  setRebaseSourceCommitId(null);
+                  setRebaseSelectionNotice(null);
+                }
+              }}
               onSelectFile={(path) => {
                 setSelectedFilePath(path);
                 setInspectorView("changes");

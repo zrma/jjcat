@@ -39,6 +39,8 @@
 - [x] operation precondition, preview와 recovery acceptance
 - [x] pointer drag/drop, cycle-safe 예상 topology와 keyboard-equivalent shaping preview
 - [x] current/other workspace 검토와 exact directory까지 정리하는 one-step removal
+- [x] restart-persistent window/splitter 배치와 recoverable/irreversible 단일 preview 확인 정책
+  (`docs/todo-ui-state-and-confirmation/spec.md`, completed)
 
 ## P4: Distribution
 

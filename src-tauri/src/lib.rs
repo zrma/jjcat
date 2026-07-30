@@ -12,6 +12,7 @@ use tauri::Manager;
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuItem, MenuItemKind, PredefinedMenuItem};
 use tauri::{Emitter, menu::Menu};
+use tauri_plugin_window_state::StateFlags;
 
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const CHECK_FOR_UPDATES_EVENT: &str = "jjcat://check-for-updates";
@@ -19,6 +20,11 @@ const CHECK_FOR_UPDATES_EVENT: &str = "jjcat://check-for-updates";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())

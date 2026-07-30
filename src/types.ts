@@ -258,8 +258,6 @@ export interface MutationPreview {
   expectedOperationId: string;
   targets: MutationTarget[];
   candidates: MutationCandidate[];
-  requiresTypedConfirmation: boolean;
-  confirmationPhrase: string;
 }
 
 export interface MutationExecution {
@@ -277,5 +275,4 @@ export interface MutationExecution {
 export interface ExecuteMutationRequest {
   token: string;
   confirmed: boolean;
-  confirmation: string | null;
 }

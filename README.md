@@ -23,7 +23,8 @@ local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라
 ## Current Status
 
 jjcat은 P3 기능과 `v0.9.0` macOS public beta 출고를 완료하고, updater-enabled
-bootstrap인 `v0.9.1`과 live in-app update를 검증한 **v0.9.2** prerelease를 게시했다.
+bootstrap인 `v0.9.1`과 live in-app update를 검증한 `v0.9.2`에 이어 **v0.9.3**에서
+창 배치 복원과 단일-confirm mutation UX를 제공한다.
 local/SSH 저장소 직접 등록과 folder source discovery, drag-reorder가 가능한 persistent
 tab과 quick switcher, cached background refresh, multi-lane history, bounded file diff와
 editor/terminal handoff가 동작한다.
@@ -46,6 +47,8 @@ archive와 GitHub Actions secret/variable에 구성했다. `v0.9.1` manual boots
 rolling beta channel과 `v0.9.2`를 게시했으며, 설치된 `v0.9.1`에서 공개 updater의
 download/verify/install/explicit-restart를 거쳐 `v0.9.2`로 실행되는 경로를 검증했다.
 [v0.9.2 release notes](docs/releases/v0.9.2.md)는 이 in-app update 절차를 설명한다.
+[v0.9.3 release notes](docs/releases/v0.9.3.md)는 창/inspector 배치 복원과 단순화한
+mutation 확인 정책을 설명한다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
 distribution decision으로 재검토한다.

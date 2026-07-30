@@ -9,7 +9,8 @@ update path도 완료됐다. password-protected persistent updater key recovery�
 Actions secret/variable configuration, signed `v0.9.1` bootstrap, rolling beta
 manifest와 `v0.9.2` prerelease를 게시했다. 설치된 `v0.9.1`은 공개 updater를
 download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실행됐다. 현재
-선택된 active milestone은 없다.
+`v0.9.3`은 restart-persistent window/splitter 배치와 단일-confirm mutation UX를
+배포한다. 선택된 active milestone은 없다.
 
 완료된 기반:
 
@@ -76,13 +77,14 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
   target을 보존하는 enumerated empty-change pruning
 - current/other workspace working copy를 구분하는 graph badge와 semantic node color
 - exact current operation을 고정하고 별도 confirmation dialog 없이 `jj` operation history를
-  여러 step 왕복하는 direct `undo`/`redo`, local bookmark move와 typed-confirmation remote push
+  여러 step 왕복하는 direct `undo`/`redo`, local bookmark move와 exact-target pointer-only remote push
 - `jj undo`로 복원 가능한 local mutation preview의 `Enter`/`Y` 실행과 `Esc`/`N` 취소;
-  directory를 삭제하는 workspace removal과 remote push는 명시적 button만 사용
+  directory를 삭제하는 workspace removal과 remote push는 typed input이나 실행 shortcut 없이
+  명시적 pointer click만 사용
 - graph mouse drag/drop과 `R`/방향키/`Enter` keyboard path가 공유하는 rebase preview
 - local bookmark label drag/drop이 여는 exact-target bookmark move preview
-- pointer drag 중 cycle-safe 예상 DAG, source/new-parent label과 drop 뒤 inline
-  Cancel/Review rebase checkpoint
+- pointer drag 중 cycle-safe 예상 DAG와 source/new-parent label, drop 뒤 즉시 여는 단일
+  exact rebase preview
 - 아래쪽 branch를 위쪽 parent로 옮길 때도 제안 change를 stable topological order로
   재배치하고 source/descendants/new-parent에만 blue comparison을 적용하는 folded preview
 - fresh projection/operation log 기반 action postcondition과 cache refresh
@@ -100,6 +102,10 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
   download/verify/install/relaunch local smoke
 - 공개 `v0.9.1` bootstrap에서 `v0.9.2`로 이어지는 available-only
   download/verify/install/explicit-restart live update
+- quit/relaunch와 updater restart 뒤 native window size/position/maximized state 및
+  ratio-based history/inspector splitter 배치 복원
+- 중간 inline rebase checkpoint와 모든 typed confirmation을 제거하고 recoverable
+  `Enter`/`Y` 대 irreversible pointer-only execution으로 정리한 단일 preview 확인 정책
 
 ## Known Upstream Constraints
 
@@ -122,12 +128,12 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
 
 ## Latest Release
 
-`v0.9.2` Apple Silicon macOS beta를 ad-hoc-signed/not-notarized prerelease로
-게시했다. signed tag, release commit, terminal CI와 Release workflow가 같은 revision을
-가리키며, 공개 app/DMG/updater assets와 rolling manifest를 다시 내려받아 검증했다.
-설치된 `v0.9.1`은 available-only action으로 `v0.9.2`를 내려받아 서명을 검증하고
-설치했으며, 명시적 restart 뒤 registry를 보존한 채 `v0.9.2`로 실행됐다. 유료 Apple
-Developer Program을 사용하는 Developer ID signing/notarization은 현재 계획된 작업이
-아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로 재검토한다.
-Linux package 작업 전에는 accepted GTK advisory의 upstream resolution 또는 검증된
-backport를 다시 판단한다.
+`v0.9.3` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
+window/splitter 배치 복원과 단일-confirm mutation UX를 배포한다. `v0.9.2` 사용자는
+시작 시 한 번 실행되는 자동 확인 또는 app menu의 명시적인 확인으로 signed updater를
+받는다. 설치된 `v0.9.2`에는 저장된 배치가 없으므로 첫 `v0.9.3` 실행에서 한 번 조정한
+뒤부터 quit/relaunch와 update restart에 복원된다. 유료 Apple Developer Program을
+사용하는 Developer ID signing/notarization은 현재 계획된 작업이 아니며, 배포량 또는
+지원 비용이 구독을 정당화할 때만 새 decision으로 재검토한다. Linux package 작업
+전에는 accepted GTK advisory의 upstream resolution 또는 검증된 backport를 다시
+판단한다.

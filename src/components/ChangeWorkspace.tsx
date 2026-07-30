@@ -18,12 +18,9 @@ import {
   Folder,
   FolderGit2,
   GitCommitHorizontal,
-  GitFork,
   History,
   Maximize2,
-  Minus,
   UserRound,
-  X,
 } from "lucide-react";
 import { absoluteTime, relativeTime } from "../lib/format";
 import {
@@ -37,7 +34,6 @@ import {
 } from "../lib/dag";
 import {
   estimateRebaseTopology,
-  type RebaseTopologyPreview,
 } from "../lib/rebaseTopology";
 import {
   foldHistory,
@@ -70,6 +66,11 @@ import {
   historyDropLaunch,
   type HistoryDragIntent,
 } from "../lib/historyDrag";
+import {
+  clearInspectorHeightRatio,
+  loadInspectorHeightRatio,
+  saveInspectorHeightRatio,
+} from "../lib/preferences";
 
 interface ChangeWorkspaceProps {
   changes: ChangeRow[];
@@ -103,7 +104,6 @@ interface ChangeWorkspaceProps {
   operationError: string | null;
   historyStepExecuting: "undo" | "redo" | null;
   rebaseSourceCommitId: string | null;
-  onRequestRebase: (sourceCommitId: string, destinationCommitId: string) => void;
   onRequestUndo: (operationId: string) => void;
   onRequestRedo: (operationId: string) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
@@ -145,7 +145,6 @@ export function ChangeWorkspace({
   operationError,
   historyStepExecuting,
   rebaseSourceCommitId,
-  onRequestRebase,
   onRequestUndo,
   onRequestRedo,
   onLaunchMutation,
@@ -158,17 +157,17 @@ export function ChangeWorkspace({
     pointerId: number;
     startY: number;
     startHeight: number;
+    contentHeight: number;
   } | null>(null);
   const [contentHeight, setContentHeight] = useState(0);
-  const [inspectorHeight, setInspectorHeight] = useState<number | null>(null);
+  const [inspectorHeightRatio, setInspectorHeightRatio] = useState<number | null>(
+    () => loadInspectorHeightRatio(),
+  );
+  const inspectorHeightRatioRef = useRef(inspectorHeightRatio);
   const [changeActionMenu, setChangeActionMenu] = useState<{
     changeId: string;
     x: number;
     y: number;
-  } | null>(null);
-  const [stagedRebase, setStagedRebase] = useState<{
-    sourceCommitId: string;
-    destinationCommitId: string;
   } | null>(null);
   const bounds = splitterBounds(
     contentHeight,
@@ -177,8 +176,7 @@ export function ChangeWorkspace({
     SPLITTER_SIZE,
   );
   const currentInspectorHeight = clampSplitterSize(
-    inspectorHeight ??
-      Math.round(contentHeight * 0.4),
+    contentHeight * (inspectorHeightRatio ?? 0.4),
     bounds,
   );
   const gridStyle = contentHeight === 0
@@ -194,6 +192,10 @@ export function ChangeWorkspace({
   const finishSplitterDrag = useCallback(
     (pointerId: number) => {
       if (splitterDragRef.current?.pointerId !== pointerId) return;
+      const ratio = inspectorHeightRatioRef.current;
+      if (ratio !== null) {
+        saveInspectorHeightRatio(ratio);
+      }
       clearSplitterDrag();
     },
     [clearSplitterDrag],
@@ -203,14 +205,15 @@ export function ChangeWorkspace({
     (pointerId: number, clientY: number) => {
       const drag = splitterDragRef.current;
       if (!drag || drag.pointerId !== pointerId) return false;
-      setInspectorHeight(
-        splitterSizeForPointer(
-          drag.startHeight,
-          drag.startY,
-          clientY,
-          splitterBoundsRef.current,
-        ),
+      const nextHeight = splitterSizeForPointer(
+        drag.startHeight,
+        drag.startY,
+        clientY,
+        splitterBoundsRef.current,
       );
+      const nextRatio = nextHeight / drag.contentHeight;
+      inspectorHeightRatioRef.current = nextRatio;
+      setInspectorHeightRatio(nextRatio);
       return true;
     },
     [],
@@ -225,15 +228,6 @@ export function ChangeWorkspace({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-
-  useEffect(() => {
-    if (inspectorHeight === null || contentHeight === 0) return;
-    setInspectorHeight((current) => {
-      if (current === null) return null;
-      const next = clampSplitterSize(current, bounds);
-      return next === current ? current : next;
-    });
-  }, [bounds.max, bounds.min, contentHeight, inspectorHeight]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -272,19 +266,6 @@ export function ChangeWorkspace({
     };
   }, [changeActionMenu]);
 
-  useEffect(() => {
-    if (!stagedRebase) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setStagedRebase(null);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [stagedRebase]);
-
-  useEffect(() => {
-    setStagedRebase(null);
-  }, [changes]);
-
   const menuChange =
     selectedChange?.changeId === changeActionMenu?.changeId
       ? selectedChange
@@ -320,19 +301,6 @@ export function ChangeWorkspace({
         onSelect={onSelect}
         refreshing={refreshing}
         rebaseSourceCommitId={rebaseSourceCommitId}
-        stagedRebase={stagedRebase}
-        onStageRebase={(sourceCommitId, destinationCommitId) =>
-          setStagedRebase({ sourceCommitId, destinationCommitId })
-        }
-        onCancelStagedRebase={() => setStagedRebase(null)}
-        onReviewStagedRebase={() => {
-          if (!stagedRebase) return;
-          onRequestRebase(
-            stagedRebase.sourceCommitId,
-            stagedRebase.destinationCommitId,
-          );
-          setStagedRebase(null);
-        }}
         onOpenActionMenu={(change, x, y) => {
           onSelect(change.changeId);
           setChangeActionMenu({
@@ -353,7 +321,11 @@ export function ChangeWorkspace({
         aria-valuenow={currentInspectorHeight}
         tabIndex={0}
         title="Drag to resize · Double-click to reset"
-        onDoubleClick={() => setInspectorHeight(null)}
+        onDoubleClick={() => {
+          inspectorHeightRatioRef.current = null;
+          setInspectorHeightRatio(null);
+          clearInspectorHeightRatio();
+        }}
         onKeyDown={(event) => {
           const next = splitterSizeForKey(
             event.key,
@@ -363,13 +335,19 @@ export function ChangeWorkspace({
           );
           if (next === null) return;
           event.preventDefault();
-          setInspectorHeight(next);
+          if (contentHeight > 0) {
+            const nextRatio = next / contentHeight;
+            inspectorHeightRatioRef.current = nextRatio;
+            setInspectorHeightRatio(nextRatio);
+            saveInspectorHeightRatio(nextRatio);
+          }
         }}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           const measuredContentHeight =
             contentGridRef.current?.getBoundingClientRect().height ??
             contentHeight;
+          if (measuredContentHeight <= 0) return;
           const measuredBounds = splitterBounds(
             measuredContentHeight,
             MIN_HISTORY_HEIGHT,
@@ -384,6 +362,7 @@ export function ChangeWorkspace({
             pointerId: event.pointerId,
             startY: event.clientY,
             startHeight: clampSplitterSize(measuredHeight, measuredBounds),
+            contentHeight: measuredContentHeight,
           };
           if (measuredContentHeight !== contentHeight) {
             setContentHeight(measuredContentHeight);
@@ -608,10 +587,6 @@ function ChangeLog({
   onSelect,
   refreshing,
   rebaseSourceCommitId,
-  stagedRebase,
-  onStageRebase,
-  onCancelStagedRebase,
-  onReviewStagedRebase,
   onOpenActionMenu,
   onLaunchMutation,
 }: {
@@ -621,70 +596,28 @@ function ChangeLog({
   onSelect: (changeId: string) => void;
   refreshing: boolean;
   rebaseSourceCommitId: string | null;
-  stagedRebase: {
-    sourceCommitId: string;
-    destinationCommitId: string;
-  } | null;
-  onStageRebase: (sourceCommitId: string, destinationCommitId: string) => void;
-  onCancelStagedRebase: () => void;
-  onReviewStagedRebase: () => void;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
   const [revealedByGap, setRevealedByGap] = useState<Record<string, number>>({});
-  const stagedTopologyPreview = useMemo(
-    () =>
-      estimateRebaseTopology(
-        changes,
-        stagedRebase?.sourceCommitId ?? null,
-        stagedRebase?.destinationCommitId ?? null,
-      ),
-    [changes, stagedRebase],
-  );
-  const displayChanges = stagedTopologyPreview?.changes ?? changes;
-  const previewAnchors = stagedTopologyPreview
-    ? [
-        stagedTopologyPreview.source.changeId,
-        stagedTopologyPreview.destination.changeId,
-      ]
-    : [];
-  const historyIdentity = `${displayChanges[0]?.commitId ?? ""}:${displayChanges.at(-1)?.commitId ?? ""}:${displayChanges.length}`;
+  const historyIdentity = `${changes[0]?.commitId ?? ""}:${changes.at(-1)?.commitId ?? ""}:${changes.length}`;
   const foldItems = useMemo(
     () =>
       foldHistory(
-        displayChanges,
+        changes,
         selected,
         revealedByGap,
         compactHistory,
-        previewAnchors,
+        [],
       ),
-    [
-      compactHistory,
-      displayChanges,
-      previewAnchors,
-      revealedByGap,
-      selected,
-    ],
+    [changes, compactHistory, revealedByGap, selected],
   );
   const virtualized = foldItems.length >= VIRTUALIZATION_THRESHOLD;
-  const currentDag = useMemo(() => layoutDag(changes), [changes]);
-  const displayDag = useMemo(() => layoutDag(displayChanges), [displayChanges]);
-  const previousDagRowsByChangeId = useMemo(
-    () =>
-      stagedTopologyPreview
-        ? new Map(
-            changes.map((change, index) => [
-              change.changeId,
-              currentDag.rows[index],
-            ]),
-          )
-        : null,
-    [changes, currentDag.rows, stagedTopologyPreview],
-  );
+  const dag = useMemo(() => layoutDag(changes), [changes]);
   const visibleLaneCount = Math.min(
-    Math.max(currentDag.maxLaneCount, displayDag.maxLaneCount),
+    dag.maxLaneCount,
     MAX_VISIBLE_DAG_LANES,
   );
   const dagWidth = dagColumnWidth(visibleLaneCount);
@@ -781,9 +714,7 @@ function ChangeLog({
       <ChangeRows
         changes={changes}
         items={foldItems}
-        dagRows={displayDag.rows}
-        stagedTopologyPreview={stagedTopologyPreview}
-        previousDagRowsByChangeId={previousDagRowsByChangeId}
+        dagRows={dag.rows}
         dagWidth={dagWidth}
         selected={selected}
         onSelect={onSelect}
@@ -792,10 +723,6 @@ function ChangeLog({
         scrollTop={viewport.scrollTop}
         scrollContainerRef={scrollRef}
         rebaseSourceCommitId={rebaseSourceCommitId}
-        stagedRebase={stagedRebase}
-        onStageRebase={onStageRebase}
-        onCancelStagedRebase={onCancelStagedRebase}
-        onReviewStagedRebase={onReviewStagedRebase}
         onOpenActionMenu={onOpenActionMenu}
         onLaunchMutation={onLaunchMutation}
         onRevealGap={(id, count) =>
@@ -810,8 +737,6 @@ function ChangeRows({
   changes,
   items,
   dagRows,
-  stagedTopologyPreview,
-  previousDagRowsByChangeId,
   dagWidth,
   selected,
   onSelect,
@@ -820,10 +745,6 @@ function ChangeRows({
   scrollTop,
   scrollContainerRef,
   rebaseSourceCommitId,
-  stagedRebase,
-  onStageRebase,
-  onCancelStagedRebase,
-  onReviewStagedRebase,
   onOpenActionMenu,
   onLaunchMutation,
   onRevealGap,
@@ -831,8 +752,6 @@ function ChangeRows({
   changes: ChangeRow[];
   items: HistoryFoldItem[];
   dagRows: DagRowLayout[];
-  stagedTopologyPreview: RebaseTopologyPreview | null;
-  previousDagRowsByChangeId: ReadonlyMap<string, DagRowLayout> | null;
   dagWidth: number;
   selected?: string;
   onSelect: (changeId: string) => void;
@@ -841,13 +760,6 @@ function ChangeRows({
   scrollTop: number;
   scrollContainerRef: RefObject<HTMLElement | null>;
   rebaseSourceCommitId: string | null;
-  stagedRebase: {
-    sourceCommitId: string;
-    destinationCommitId: string;
-  } | null;
-  onStageRebase: (sourceCommitId: string, destinationCommitId: string) => void;
-  onCancelStagedRebase: () => void;
-  onReviewStagedRebase: () => void;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
   onRevealGap: (id: string, count: number) => void;
@@ -862,26 +774,16 @@ function ChangeRows({
   } | null>(null);
   const suppressClickRef = useRef(false);
   const previewSourceCommitId =
-    (activeDrag?.kind === "rebase" ? activeDrag.sourceCommitId : null) ??
-    stagedRebase?.sourceCommitId ??
-    null;
-  const previewDestinationCommitId =
-    dropTarget ?? stagedRebase?.destinationCommitId ?? null;
+    activeDrag?.kind === "rebase" ? activeDrag.sourceCommitId : null;
+  const previewDestinationCommitId = dropTarget;
   const hoverTopologyPreview = useMemo(
     () =>
-      stagedRebase
-        ? null
-        : estimateRebaseTopology(
-            changes,
-            previewSourceCommitId,
-            previewDestinationCommitId,
-          ),
-    [
-      changes,
-      previewDestinationCommitId,
-      previewSourceCommitId,
-      stagedRebase,
-    ],
+      estimateRebaseTopology(
+        changes,
+        previewSourceCommitId,
+        previewDestinationCommitId,
+      ),
+    [changes, previewDestinationCommitId, previewSourceCommitId],
   );
   const hoverDagRows = useMemo(
     () =>
@@ -891,38 +793,21 @@ function ChangeRows({
     [hoverTopologyPreview],
   );
   const previewFoldLanesById = useMemo(() => {
-    const proposedRows = hoverDagRows ?? dagRows;
-    const currentRows = hoverDagRows
-      ? dagRows
-      : stagedTopologyPreview && previousDagRowsByChangeId
-        ? stagedTopologyPreview.changes.map(
-            (change, index) =>
-              previousDagRowsByChangeId.get(change.changeId) ??
-              proposedRows[index],
-          )
-        : null;
-    if (!currentRows) return new Map<string, number[]>();
+    if (!hoverDagRows) return new Map<string, number[]>();
 
     return new Map(
       items.flatMap((item) => {
         if (item.kind !== "fold") return [];
         const lanes = changedDagLanesInRange(
-          currentRows,
-          proposedRows,
+          dagRows,
+          hoverDagRows,
           item.startIndex + item.shownCount,
           item.endIndex + 1,
         );
         return lanes.length > 0 ? [[item.id, lanes] as const] : [];
       }),
     );
-  }, [
-    dagRows,
-    hoverDagRows,
-    items,
-    previousDagRowsByChangeId,
-    stagedTopologyPreview,
-  ]);
-  const topologyPreview = stagedTopologyPreview;
+  }, [dagRows, hoverDagRows, items]);
   const commitAtPoint = (clientX: number, clientY: number) =>
     document
       .elementFromPoint(clientX, clientY)
@@ -996,12 +881,7 @@ function ChangeRows({
       drag.active && destinationCommitId
         ? historyDropLaunch(changes, drag.intent, destinationCommitId)
         : null;
-    if (launch?.intent.kind === "rebase") {
-      onStageRebase(
-        launch.intent.sourceCommitId,
-        launch.intent.destinationCommitId,
-      );
-    } else if (launch) {
+    if (launch) {
       onLaunchMutation(launch);
     }
     return drag.active;
@@ -1141,11 +1021,9 @@ function ChangeRows({
                 dagRows[sourceIndex]
               }
               previousLayout={
-                stagedTopologyPreview?.affectedChangeIds.has(change.changeId)
-                  ? previousDagRowsByChangeId?.get(change.changeId)
-                  : hoverDagRows?.[sourceIndex]
-                    ? dagRows[sourceIndex]
-                    : undefined
+                hoverDagRows?.[sourceIndex]
+                  ? dagRows[sourceIndex]
+                  : undefined
               }
               width={dagWidth}
               moving={change.commitId === previewSourceCommitId}
@@ -1247,60 +1125,6 @@ function ChangeRows({
           </div>
         );
       })}
-      {stagedRebase && topologyPreview && (
-        <div
-          className="rebase-topology-card"
-          role="status"
-          style={{
-            top: Math.max(
-              4,
-              items.findIndex(
-                (item) =>
-                  item.kind === "change" &&
-                  item.change.commitId === stagedRebase.destinationCommitId,
-              ) *
-                HISTORY_ROW_HEIGHT +
-                HISTORY_ROW_HEIGHT +
-                4,
-            ),
-          }}
-        >
-          <div className="rebase-topology-summary">
-            <GitFork aria-hidden="true" />
-            <span>
-              <strong>Estimated topology</strong>
-              <small>
-                {topologyPreview.source.changeId} onto{" "}
-                {topologyPreview.destination.changeId}
-              </small>
-            </span>
-          </div>
-          <div
-            className="rebase-topology-legend"
-            aria-label="Current topology is faded; proposed topology is blue and dashed"
-          >
-            <span>
-              <Minus className="current" aria-hidden="true" />
-              Current
-            </span>
-            <span>
-              <Minus className="proposed" aria-hidden="true" />
-              Proposed
-            </span>
-          </div>
-          <button type="button" onClick={onCancelStagedRebase}>
-            <X aria-hidden="true" />
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="primary"
-            onClick={onReviewStagedRebase}
-          >
-            Review rebase
-          </button>
-        </div>
-      )}
     </div>
   );
 }

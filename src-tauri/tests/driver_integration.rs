@@ -10,7 +10,9 @@ use tokio_util::sync::CancellationToken;
 
 fn jj(args: &[&str], current_dir: Option<&Path>) {
     let mut command = Command::new("jj");
-    command.args(args);
+    command
+        .args(["--config", "signing.behavior=drop"])
+        .args(args);
     if let Some(current_dir) = current_dir {
         command.current_dir(current_dir);
     }
@@ -27,6 +29,10 @@ fn jj(args: &[&str], current_dir: Option<&Path>) {
 fn fixture_repository(path: &Path) {
     fs::create_dir_all(path).unwrap();
     jj(&["git", "init", "--colocate", path.to_str().unwrap()], None);
+    jj(
+        &["config", "set", "--repo", "signing.behavior", "drop"],
+        Some(path),
+    );
     jj(
         &["config", "set", "--repo", "user.name", "Fixture Bot"],
         Some(path),

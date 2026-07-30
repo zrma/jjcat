@@ -155,9 +155,14 @@ desktop density는 20px history row와 압축된 titlebar/toolbar를 사용해 �
 foreground contrast와 의미가 있는 state/graph에 한정된 accent color를 유지한다. repository와
 inspector tab은 flat segmented surface와 명시적 separator/selected state를 사용한다.
 native shell은 blank titlebar drag와 8방향 edge/corner resize hit area를 제공한다.
+main window의 size, position과 maximized state는 Tauri window-state plugin이 app-owned
+local data로 저장하고 quit/relaunch와 updater restart 뒤 복원한다.
 overview는 author/committer, refs와 identity, 전체 commit message와 changed files를 같은
 고정 inspector에서 읽게 한다. graph/history와 inspector 사이의 separator는 pointer drag,
 위/아래 방향키, Home/End와 double-click reset을 지원하며 양쪽 작업면의 최소 높이를 보존한다.
+사용자가 조정한 inspector 높이는 container 대비 비율을 versioned local preference로
+저장해 window 크기가 바뀌어도 같은 배치를 복원하며 double-click reset은 이 preference를
+제거한다.
 change-level mutation은 범용 action catalog가 아니라 selected change 옆의 visible `Change`
 menu와 graph row context menu에서 시작한다. repository-level pruning은 stable repository
 navigation과 repository row context menu에 두며 rail이 접히는 narrow window에서만 compact
@@ -201,12 +206,13 @@ preview token을 내부에서 발급받아 별도 confirmation dialog 없이 즉
 ### Operation Queue
 
 P3 mutation은 read-only preview와 confirmed execute를 분리한다. preview는 repository,
-current operation, exact target identity와 typed effect를 opaque token에 묶는다. execute는
+current operation, exact target identity와 effect description을 opaque token에 묶는다. execute는
 같은 token을 단 한 번만 받고 repository별 queue 안에서 current operation과 dynamic candidate
 set을 다시 검사한다. stale/duplicate/invalid request는 command를 실행하지 않는다.
 `jj undo`로 복원 가능한 local mutation preview는 pointer button 외에 `Enter`/`Y` 실행과
 `Esc`/`N` 취소를 제공한다. directory를 삭제하는 `removeWorkspace`와 remote state를
-변경하는 `push`는 이 decision shortcut을 등록하지 않고 명시적 button 조작만 허용한다.
+변경하는 `push`는 typed phrase와 `Enter`/`Y` 실행을 제공하지 않고 exact target이 표시된
+명시적 pointer click만 허용한다. 취소의 `Esc`/`N`은 모든 preview에서 유지한다.
 
 성공은 exit status만이 아니라 새 operation과 action별 fresh projection postcondition으로
 확인한다. 실패 뒤 operation이 바뀌었거나 divergent state가 관측되면 recovery-required로
@@ -233,9 +239,9 @@ local bookmark 존재 여부와 exact destination을 다시 확인한 `bookmarkM
 열며, remote-only bookmark label은 이동 입력을 제공하지 않는다.
 pointer rebase는 hover 중 source의 parent relation만 client-side로 바꾸고 자식이 부모보다
 먼저 오도록 stable topological order를 다시 계산한다. 이 예상 topology는 command output이
-아니며 cycle target을 거부한다. drop 뒤에도 graph 위의 inline checkpoint를 유지하고,
-`Review rebase`에서만 backend-issued opaque token을 사용하는 exact mutation preview로
-전환한다. source, source descendants와 destination만 영향 범위로 취급해 current layout을
+아니며 cycle target을 거부한다. drop은 mutation을 실행하지 않고 backend-issued opaque
+token을 사용하는 exact mutation preview를 즉시 연다. source, source descendants와
+destination만 영향 범위로 취급해 current layout을
 neutral ghost로 낮추고 proposed layout을 deep-blue dashed style로 다시 그린다. lane 재배치만
 발생한 무관한 row와 fold 구간에는 proposed color를 적용하지 않는다. lane 번호는 bookmark
 의미로 사용하지 않으며 실제 bookmark metadata가 있는 target node만 amber로 표시한다.
@@ -265,9 +271,11 @@ intent의 parameter와 exact targets만 보여준다. 따라서 change, reposito
 
 ### macOS Beta Updater
 
-desktop shell은 registry load와 분리된 10초 bounded beta-channel check를 startup 뒤 실행한다.
-no-update와 자동 check 실패는 repository readiness를 가리지 않는다. update가 확인된
-경우에만 status bar trailing edge에 `jjcat <version>` download action을 노출하고,
+desktop shell은 registry load와 분리해 startup 1초 뒤 10초 bounded beta-channel check를
+한 번 실행한다. 장시간 열린 instance는 주기 polling하지 않으며 app menu의
+`Check for Updates…`가 명시적인 재확인 경로다. no-update와 자동 check 실패는 repository
+readiness를 가리지 않는다. update가 확인된 경우에만 status bar trailing edge에
+`jjcat <version>` download action을 노출하고,
 download/install을 시작한 `Update` handle은 ready 또는 retry 경계까지 다른 check로
 교체하지 않는다. 다운로드가 끝나도 재시작은 자동 실행하지 않으며, running repository
 operation이 없을 때 사용자가 `Restart to update`를 선택해야 한다.

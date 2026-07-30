@@ -6,8 +6,9 @@
   and identifies `jjcat` explicitly so it cannot be confused with `jj <version>`.
 - No-update state is invisible. Available, downloading, ready-to-restart, and
   retry states occupy the same compact action slot.
-- The app checks after startup without delaying registry load. The user starts
-  downloads and restarts explicitly.
+- The app checks once after startup without delaying registry load. It does not
+  poll periodically while open; the app-menu action performs explicit later
+  checks. The user starts downloads and restarts explicitly.
 - The updater uses Tauri's signed app archive and embedded public key.
 - Both `darwin-aarch64` and `darwin-aarch64-app` manifest keys point to the same
   signed Apple Silicon updater archive for current Tauri compatibility.

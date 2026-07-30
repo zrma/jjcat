@@ -116,6 +116,8 @@ harness_class = re.search(r"^- Publication class: `(public|internal)`\.$", harne
 if not manifest_class or not harness_class or manifest_class.group(1) != harness_class.group(1):
     fail("manifest and agent harness publication classes differ")
 
+package_version = json.loads(package_manifest).get("version")
+
 if "All your jj repos, one window." not in readme:
     fail("README product identity is missing")
 if "`P3: Safe Shaping`" not in status or "`P4: Distribution`까지 완료됐다" not in status:
@@ -124,8 +126,8 @@ if "`v0.9.0` public beta" not in status:
     fail("status does not identify the original published v0.9.0 beta")
 if "`v0.9.1` bootstrap" not in status:
     fail("status does not identify the published v0.9.1 updater bootstrap")
-if "`v0.9.2` Apple Silicon macOS beta" not in status:
-    fail("status does not identify the latest published v0.9.2 beta")
+if f"`v{package_version}` Apple Silicon macOS beta" not in status:
+    fail(f"status does not identify the v{package_version} release target")
 if "현재 content class는 `public`" not in status:
     fail("status does not declare the public tracked surface")
 if "publication class는 public" not in handoff:
@@ -164,7 +166,6 @@ if "dependency-refresh-or-linux-distribution" not in security:
 if "RUSTSEC-2024-0429" not in roadmap:
     fail("distribution roadmap does not require upstream advisory review")
 
-package_version = json.loads(package_manifest).get("version")
 cargo_version = tomllib.loads(cargo_manifest).get("package", {}).get("version")
 tauri_version = tauri_config.get("version")
 versions = {
@@ -172,8 +173,8 @@ versions = {
     "src-tauri/Cargo.toml": cargo_version,
     "src-tauri/tauri.conf.json": tauri_version,
 }
-if set(versions.values()) != {"0.9.2"}:
-    fail(f"release versions are not aligned at 0.9.2: {versions}")
+if len(set(versions.values())) != 1:
+    fail(f"release versions are not aligned: {versions}")
 
 release_notes_path = ROOT / "docs" / "releases" / f"v{package_version}.md"
 if not release_notes_path.is_file():
@@ -191,8 +192,16 @@ for artifact in (
         fail(f"release notes do not document {artifact}")
 if package_version == "0.9.1" and "`v0.9.0`에는 updater가 없으므로" not in release_notes:
     fail("bootstrap release notes do not explain the v0.9.0 manual-install boundary")
-if package_version == "0.9.2" and "## v0.9.1에서 업데이트하기" not in release_notes:
-    fail("follow-up release notes do not explain the v0.9.1 in-app update path")
+version_parts = package_version.split(".")
+if len(version_parts) == 3 and all(part.isdigit() for part in version_parts):
+    major, minor, patch = (int(part) for part in version_parts)
+    if patch > 0:
+        previous_version = f"{major}.{minor}.{patch - 1}"
+        if f"## v{previous_version}에서 업데이트하기" not in release_notes:
+            fail(
+                "follow-up release notes do not explain the "
+                f"v{previous_version} update path"
+            )
 
 bundle = tauri_config.get("bundle", {})
 if bundle.get("active") is not True:

@@ -242,8 +242,6 @@ pub struct MutationPreview {
     pub expected_operation_id: String,
     pub targets: Vec<MutationTarget>,
     pub candidates: Vec<MutationCandidate>,
-    pub requires_typed_confirmation: bool,
-    pub confirmation_phrase: String,
 }
 
 impl MutationPreview {
@@ -282,7 +280,6 @@ impl MutationPreview {
             workspace_root.as_deref(),
             workspace_commit_id.as_deref(),
         );
-        let (requires_typed_confirmation, confirmation_phrase) = confirmation(intent);
         Ok(Self {
             token,
             repository_id: repository.id.clone(),
@@ -294,8 +291,6 @@ impl MutationPreview {
             expected_operation_id,
             targets,
             candidates,
-            requires_typed_confirmation,
-            confirmation_phrase,
         })
     }
 
@@ -447,8 +442,6 @@ pub struct MutationExecution {
 pub struct ExecuteMutationRequest {
     pub token: String,
     pub confirmed: bool,
-    #[serde(default)]
-    pub confirmation: Option<String>,
 }
 
 fn preview_content(
@@ -633,7 +626,7 @@ fn preview_content(
             ],
         ),
         MutationIntent::Push { name, remote } => (
-            "Push bookmark".into(),
+            format!("Push {name} to {remote}"),
             "Update the selected remote bookmark using Jujutsu lease and safety checks.".into(),
             MutationRisk::RemoteWrite,
             vec![
@@ -649,13 +642,6 @@ fn preview_content(
                 },
             ],
         ),
-    }
-}
-
-fn confirmation(intent: &MutationIntent) -> (bool, String) {
-    match intent {
-        MutationIntent::Push { name, .. } => (true, format!("Push {name}")),
-        _ => (false, "Confirm".into()),
     }
 }
 
@@ -1055,7 +1041,6 @@ mod tests {
         assert!(!serialized.contains("/fixtures/repository"));
         assert!(!serialized.contains("jj rebase"));
         assert_eq!(preview.risk, MutationRisk::Rewrite);
-        assert!(!preview.requires_typed_confirmation);
     }
 
     #[test]
@@ -1077,8 +1062,6 @@ mod tests {
 
         assert_eq!(preview.kind, MutationKind::PruneEmpty);
         assert_eq!(preview.targets[0].commit_id.as_deref(), Some(SOURCE));
-        assert!(!preview.requires_typed_confirmation);
-        assert_eq!(preview.confirmation_phrase, "Confirm");
         assert!(preview.matches_context(
             "abcdef0123456789",
             &[MutationCandidate {
@@ -1120,7 +1103,6 @@ mod tests {
                 .contains("Abandon its empty working-copy change")
         );
         assert!(preview.effect.contains("untracked and ignored files"));
-        assert!(!preview.requires_typed_confirmation);
         assert!(preview.matches_context(
             "abcdef0123456789",
             &[],
@@ -1165,8 +1147,29 @@ mod tests {
             )
             .unwrap();
 
-            assert!(!preview.requires_typed_confirmation);
-            assert_eq!(preview.confirmation_phrase, "Confirm");
+            let serialized = serde_json::to_value(preview).unwrap();
+            assert!(serialized.get("requiresTypedConfirmation").is_none());
+            assert!(serialized.get("confirmationPhrase").is_none());
         }
+    }
+
+    #[test]
+    fn remote_write_uses_exact_preview_and_button_confirmation_only() {
+        let preview = MutationPreview::build(
+            "opaque-token".into(),
+            &repository(),
+            &MutationIntent::Push {
+                name: "main".into(),
+                remote: "origin".into(),
+            },
+            "abcdef0123456789".into(),
+            Vec::new(),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(preview.title, "Push main to origin");
+        assert_eq!(preview.risk, MutationRisk::RemoteWrite);
     }
 }

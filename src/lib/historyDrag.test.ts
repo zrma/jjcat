@@ -49,7 +49,7 @@ describe("historyDropLaunch", () => {
         sourceCommitId: "source-commit",
         destinationCommitId: "destination-commit",
       },
-      previewImmediately: false,
+      previewImmediately: true,
     });
     expect(historyDropLaunch(changes, drag, "head-commit")).toBeNull();
   });
