@@ -36,7 +36,9 @@
 
 ## Current Work
 
-선택된 active todo 없음
+현재 active todo는 없다. `docs/todo-ai-first-adoption/spec.md`에서 제품 기능과
+release behavior를 바꾸지 않고 versioned core/profile, repository overlay,
+immutable source lock와 standalone drift check 도입을 완료했다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,

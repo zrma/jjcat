@@ -18,7 +18,7 @@ download/verify/install하고 사용자의 명시적 restart 뒤 `v0.9.2`로 실
 - stable application identifier `com.1day1coding.jjcat`
 - local/SSH multi-repository product contract
 - driver, registry, cache, operation safety contract와 SSH trust boundary
-- canonical `agent-harness-v1` 문서 구조
+- pinned core와 repository overlay를 합성하는 canonical `ai-first-harness-v1` 구조
 - repository contract와 publication boundary local gate
 - `docs/todo-*` 기반 자율 작업 bootstrap
 - colocated Jujutsu/Git repository
