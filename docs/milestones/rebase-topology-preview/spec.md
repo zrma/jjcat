@@ -2,7 +2,7 @@
 
 Status: completed
 
-Current follow-up: `docs/todo-ui-state-and-confirmation/spec.md`에서 hover topology는
+Current follow-up: `docs/milestones/ui-state-and-confirmation/spec.md`에서 hover topology는
 유지하되 drop 뒤 inline checkpoint를 제거하고 exact preview를 즉시 열도록 단순화했다.
 
 ## Goal

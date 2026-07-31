@@ -2,7 +2,7 @@
 
 Status: completed
 
-Current follow-up: `docs/todo-ui-state-and-confirmation/spec.md`에서 remote push의 typed
+Current follow-up: `docs/milestones/ui-state-and-confirmation/spec.md`에서 remote push의 typed
 confirmation도 제거하고 exact-target pointer confirmation으로 대체했다.
 
 ## Goal

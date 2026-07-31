@@ -344,8 +344,6 @@ for path in sorted(markdown_paths):
             fail(f"{relative} contains a broken Markdown link: {target}")
 
 todo_dirs = sorted(path for path in (ROOT / "docs").glob("todo-*") if path.is_dir())
-if not todo_dirs:
-    fail("at least one docs/todo-* work directory is required")
 
 active_count = 0
 active_specs: list[str] = []

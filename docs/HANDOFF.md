@@ -30,13 +30,13 @@
 - `docs/status.md`: implemented와 planned의 현재 경계.
 - `docs/roadmap.md`: milestone 순서.
 - `docs/PUBLICATION.md`: 공개 가능 기록과 최초 publish gate.
-- `docs/todo-p2-graph-and-diff/`: 완료된 P2 acceptance와 결정.
-- `docs/todo-p3-safe-shaping/`: 완료된 P3 safety, mutation과 interaction acceptance.
+- `docs/milestones/p2-graph-and-diff/`: 완료된 P2 acceptance와 결정.
+- `docs/milestones/p3-safe-shaping/`: 완료된 P3 safety, mutation과 interaction acceptance.
 - `scripts/check.sh`: canonical local gate.
 
 ## Current Work
 
-현재 active todo는 없다. `docs/todo-ai-first-adoption/spec.md`에서 제품 기능과
+현재 active todo는 없다. `docs/milestones/ai-first-adoption/spec.md`에서 제품 기능과
 release behavior를 바꾸지 않고 versioned core/profile, repository overlay,
 immutable source lock와 standalone drift check 도입을 완료했다.
 
@@ -47,28 +47,28 @@ push가 구현됐다. graph drag/drop과 keyboard shaping은 execute를 우회�
 preview를 연다. workspace manager는 current/non-empty workspace와 unsafe path를 보호하면서
 다른 empty workspace의 working-copy change, registration과 exact directory를 단일
 preview-first action으로 정리한다.
-완료된 `docs/todo-ui-state-and-confirmation/spec.md`는 native window와 ratio-based
+완료된 `docs/milestones/ui-state-and-confirmation/spec.md`는 native window와 ratio-based
 history/inspector 배치를 restart 뒤 복원하고, rebase drop을 단일 exact preview로 연결한다.
 typed confirmation은 제거했으며 `jj op`로 되감을 수 있는 mutation만 `Enter`/`Y` 실행을
 허용한다. directory 삭제와 remote push는 exact target이 표시된 pointer click으로만 실행한다.
 이 변경은 `v0.9.3` release에 포함된다.
-완료된 `docs/todo-diff-viewer-preferences/spec.md`는 unified/side-by-side와 whitespace
+완료된 `docs/milestones/diff-viewer-preferences/spec.md`는 unified/side-by-side와 whitespace
 선택을 app-owned preference로 저장하고, 메인 창의 모든 viewer와 별도 diff 창이 같은 값을
 양방향 공유하도록 한다. 이 변경은 `v0.9.4` release 대상이다.
-완료된 `docs/todo-diff-readability/spec.md`는 side-by-side pane의 상대 가로 위치를
+완료된 `docs/milestones/diff-readability/spec.md`는 side-by-side pane의 상대 가로 위치를
 양방향 동기화하고, unified와 side-by-side 교체 줄을 bounded 단어/문자 단위로 강조한다.
 유사도가 낮거나 과도하게 긴 줄은 whole-line styling으로 fallback한다. 이 변경은
 `v0.9.5` release에 포함된다.
-완료된 `docs/todo-update-check-cadence/spec.md`는 기존 startup check를 유지하면서 main
+완료된 `docs/milestones/update-check-cadence/spec.md`는 기존 startup check를 유지하면서 main
 window focus가 3초간 이어질 때 background update check를 예약한다. 실제 확인 시도에는
 1시간 cooldown을 적용하고 manual check는 언제나 즉시 실행한다. 이 변경은 `v0.9.6`
 release에 포함된다.
 
-완료된 release todo는 `docs/todo-v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
+완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,
 DMG와 checksum manifest를 다시 내려받아 검증했다. 첫 public beta는 Apple Silicon용
 ad-hoc-signed/not-notarized prerelease이며 Developer ID 신뢰 체인을 제공하지 않는다.
-완료된 `docs/todo-v0-9-x-updater/spec.md`는 우하단의 available-only update action,
+완료된 `docs/milestones/v0-9-x-updater/spec.md`는 우하단의 available-only update action,
 Tauri 서명 검증, versioned updater artifacts, rolling beta manifest와 explicit restart를
 구현했다. focused/canonical gate와 ephemeral-key `0.9.0`→`0.9.1` fixture
 download/verify/install/relaunch smoke까지 통과했다. persistent password-protected

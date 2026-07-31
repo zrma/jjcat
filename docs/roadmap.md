@@ -26,7 +26,7 @@
 - [x] multi-lane change DAG와 revision navigation
 - [x] file list, 긴 줄을 격리하는 unified와 side-by-side diff
 - [x] side-by-side 상대 가로 위치 동기화와 bounded 단어/문자 단위 intraline 강조
-  (`docs/todo-diff-readability/spec.md`, completed)
+  (`docs/milestones/diff-readability/spec.md`, completed)
 - [x] conflict, outgoing와 behind projection
 - [x] operation log와 read-only undo eligibility surface
 - [x] reference/conflict navigation과 resizable overview/changes/operations inspector
@@ -42,9 +42,9 @@
 - [x] pointer drag/drop, cycle-safe 예상 topology와 keyboard-equivalent shaping preview
 - [x] current/other workspace 검토와 exact directory까지 정리하는 one-step removal
 - [x] restart-persistent window/splitter 배치와 recoverable/irreversible 단일 preview 확인 정책
-  (`docs/todo-ui-state-and-confirmation/spec.md`, completed)
+  (`docs/milestones/ui-state-and-confirmation/spec.md`, completed)
 - [x] 메인/별도 창이 공유하는 restart-persistent diff layout/whitespace preference
-  (`docs/todo-diff-viewer-preferences/spec.md`, completed)
+  (`docs/milestones/diff-viewer-preferences/spec.md`, completed)
 
 ## P4: Distribution
 
@@ -58,9 +58,9 @@
   secret/variable configuration
 - [x] rolling beta channel을 활성화한 `v0.9.1` manual bootstrap
 - [x] `v0.9.2`의 live in-app update
-  (`docs/todo-v0-9-x-updater/spec.md`, completed)
+  (`docs/milestones/v0-9-x-updater/spec.md`, completed)
 - [x] main window focus 3초 뒤 1시간 cooldown으로 실행되는 background update check
-  (`docs/todo-update-check-cadence/spec.md`, completed)
+  (`docs/milestones/update-check-cadence/spec.md`, completed)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.
