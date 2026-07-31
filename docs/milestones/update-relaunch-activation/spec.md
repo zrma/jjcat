@@ -4,20 +4,23 @@ Status: completed
 
 ## Goal
 
-- 사용자가 **Restart to update**를 선택한 뒤 새 jjcat 프로세스가 기존 main window와
-  동일하게 macOS 전면 앱으로 복귀한다.
+- foreground marker 기능이 있는 jjcat에서 **Restart to update**를 선택하면 새 process가
+  기존 main window와 동일하게 macOS 전면 앱으로 복귀한다.
 
 ## Context
 
 - 이전 updater는 설치 뒤 `relaunch()`만 호출했다. 새 프로세스는 window size, position과
   maximized state를 복원하지만 이전 프로세스의 macOS application activation은 승계하지
   않아 Dock icon을 다시 눌러야 창이 전면에 나타날 수 있었다.
+- 이 구현은 outgoing version이 marker를 기록하므로 기능이 없는 `v0.9.8`에서 기능을 처음
+  포함한 `v0.9.9`로 가는 restart에는 적용되지 않는다. incoming version이 직접 activation을
+  소유하는 bootstrap fix는 별도 후속 milestone이다.
 
 ## Scope
 
 - updater restart 직전에 짧은 수명의 one-shot foreground intent를 app-owned storage에
   기록한다.
-- 새 main window가 준비되면 intent를 한 번만 소비하고 window를 show/focus한다.
+- marker-aware 새 main window가 준비되면 intent를 한 번만 소비하고 window를 show/focus한다.
 - 일반 launch와 별도 diff window는 foreground intent를 소비하거나 focus를 빼앗지 않는다.
 - `v0.9.9` Apple Silicon macOS beta와 rolling updater manifest를 게시한다.
 

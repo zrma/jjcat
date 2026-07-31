@@ -73,9 +73,13 @@ surface를 공통 CLI형 spinner로 통일한다. 실제 driver/recovery warning
 Quick Look 실패는 repository refresh health와 분리한다. 이 변경은 `v0.9.8` release에
 포함된다.
 완료된 `docs/milestones/update-relaunch-activation/spec.md`는 사용자가 명시적으로 선택한
-update restart에만 one-shot foreground intent를 남기고, 새 main window가 이를 소비해
-show/focus하도록 한다. 일반 launch, 별도 diff window와 restart failure는 focus를 강제하지
-않는다. 이 변경은 `v0.9.9` release에 포함된다.
+update restart에 one-shot foreground intent를 남기고, 이 기능이 이미 있는 outgoing
+version에서 시작하는 후속 update의 새 main window가 이를 소비해 show/focus하도록 했다.
+marker가 없는 `v0.9.8 → v0.9.9` 첫 restart는 bootstrap 범위 밖이다.
+
+완료된 `docs/milestones/update-launch-activation-bootstrap/spec.md`는 `v0.9.10` incoming
+main window가 marker 없이 스스로 show/focus하고 Quick Look은 제외해 bootstrap version
+gap을 제거한다. native bundle smoke, canonical gate와 release verification을 통과했다.
 
 완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

@@ -64,8 +64,10 @@
   (`docs/milestones/v0-9-x-updater/spec.md`, completed)
 - [x] main window focus 3초 뒤 1시간 cooldown으로 실행되는 background update check
   (`docs/milestones/update-check-cadence/spec.md`, completed)
-- [x] 명시적인 update restart 뒤 main window의 one-shot foreground activation 복원
+- [x] outgoing update restart의 one-shot foreground intent와 후속 version activation
   (`docs/milestones/update-relaunch-activation/spec.md`, completed)
+- [x] incoming main window가 직접 소유하는 bootstrap-safe foreground activation
+  (`docs/milestones/update-launch-activation-bootstrap/spec.md`, completed)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.

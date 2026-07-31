@@ -1,10 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
-import { isTauriRuntime } from "./bridge";
 import { DiffQuickLookWindow } from "./components/DiffQuickLookWindow";
-import { restoreAppUpdateRelaunchFocus } from "./lib/appUpdateRelaunch";
+import { clearLegacyAppUpdateRelaunchFocus } from "./lib/appUpdateLegacy";
 import { suppressGenericWebViewContextMenu } from "./lib/contextMenu";
 import { parseDiffQuickLookRequest } from "./lib/diffQuickLook";
 import "./theme.css";
@@ -26,8 +24,6 @@ root.render(
 
 rootElement.addEventListener("contextmenu", suppressGenericWebViewContextMenu);
 
-if (!quickLookRequest && isTauriRuntime) {
-  void restoreAppUpdateRelaunchFocus(getCurrentWindow()).catch(() => {
-    // The app remains usable if macOS rejects a foreground activation request.
-  });
+if (!quickLookRequest) {
+  clearLegacyAppUpdateRelaunchFocus();
 }

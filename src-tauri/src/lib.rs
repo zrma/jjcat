@@ -19,7 +19,7 @@ const CHECK_FOR_UPDATES_EVENT: &str = "jjcat://check-for-updates";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
@@ -64,8 +64,18 @@ pub fn run() {
             commands::refresh_repository,
             commands::cancel_refresh,
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run jjcat");
+        .build(tauri::generate_context!())
+        .expect("failed to build jjcat");
+
+    app.run(|_app_handle, _event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Ready = _event
+            && let Some(main_window) = _app_handle.get_webview_window("main")
+        {
+            let _ = main_window.show();
+            let _ = main_window.set_focus();
+        }
+    });
 }
 
 fn app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {

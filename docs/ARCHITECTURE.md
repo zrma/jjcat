@@ -157,10 +157,11 @@ inspector tab은 flat segmented surface와 명시적 separator/selected state를
 native shell은 blank titlebar drag와 8방향 edge/corner resize hit area를 제공한다.
 main window의 size, position과 maximized state는 Tauri window-state plugin이 app-owned
 local data로 저장하고 quit/relaunch와 updater restart 뒤 복원한다.
-사용자가 **Restart to update**를 선택하면 frontend는 짧은 수명의 one-shot foreground
-intent를 app-owned storage에 기록한다. 새 main window만 이 값을 한 번 소비해 show 뒤
-focus하며, 일반 launch, 별도 diff window, stale intent와 restart failure는 app activation을
-강제하지 않는다.
+macOS main application window는 native Tauri `RunEvent::Ready`에서 show 뒤 focus해 regular
+GUI launch와 updater relaunch 모두 incoming binary가 직접 전면 presentation을 소유한다.
+별도 diff Quick Look window는 이 path의 target이 아니다. `v0.9.9`가 남길 수 있는 legacy
+one-shot foreground intent는 main frontend startup에서 제거하지만 activation precondition으로
+사용하지 않는다.
 overview는 author/committer, refs와 identity, 전체 commit message와 changed files를 같은
 고정 inspector에서 읽게 한다. graph/history와 inspector 사이의 separator는 pointer drag,
 위/아래 방향키, Home/End와 double-click reset을 지원하며 양쪽 작업면의 최소 높이를 보존한다.

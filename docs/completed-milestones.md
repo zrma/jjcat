@@ -1,11 +1,21 @@
 # Completed Milestones
 
+## 2026-08-01: Bootstrap-safe Update Launch Activation
+
+- incoming native app이 main window를 show/focus해 outgoing version의 marker 지원 여부와
+  관계없이 update restart와 일반 GUI launch에서 macOS 전면 app으로 복귀한다.
+- 별도 diff Quick Look은 activation target에서 제외하고 `v0.9.9` legacy marker는 main
+  frontend startup에서 안전하게 제거한다.
+- focused frontend test, native arm64 bundle frontmost smoke, canonical/publication gate와
+  `v0.9.10` release 검증을 통과했다.
+
 ## 2026-07-31: Foreground Update Relaunch
 
 - 사용자가 **Restart to update**를 선택할 때만 짧은 수명의 one-shot foreground intent를
   기록하고 새 main window에서 한 번 소비하도록 했다.
-- 새 window는 기존 size, position과 maximized state를 복원한 뒤 show/focus되어 macOS
-  전면 app으로 돌아오며, 일반 launch와 별도 diff window는 focus를 강제하지 않는다.
+- 이 기능이 이미 있는 outgoing version에서 시작하는 후속 update의 새 window는 기존 size,
+  position과 maximized state를 복원한 뒤 show/focus된다. marker가 없는
+  `v0.9.8 → v0.9.9` 첫 restart는 bootstrap 적용 범위 밖임을 후속 문서 정정으로 명시했다.
 - restart failure, missing/stale/invalid intent를 안전하게 제거하는 focused test, production
   build, canonical/publication gate와 `v0.9.9` release 검증을 통과했다.
 
