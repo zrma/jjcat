@@ -44,7 +44,9 @@ REQUIRED_PATHS = (
     "pnpm-lock.yaml",
     "src/App.tsx",
     "src/appUpdater.ts",
+    "src/main.tsx",
     "src/lib/appUpdate.ts",
+    "src/lib/appUpdateRelaunch.ts",
     "src-tauri/Cargo.toml",
     "src-tauri/Cargo.lock",
     "src-tauri/capabilities/default.json",
@@ -85,6 +87,7 @@ tauri_config = json.loads(read("src-tauri/tauri.conf.json"))
 tauri_capabilities = json.loads(read("src-tauri/capabilities/default.json"))
 app_source = read("src/App.tsx")
 app_updater_source = read("src/appUpdater.ts")
+main_source = read("src/main.tsx")
 app_update_state = read("src/lib/appUpdate.ts")
 tauri_source = read("src-tauri/src/lib.rs")
 
@@ -269,7 +272,12 @@ for fragment in (
         fail(f"native updater dependency is missing {fragment!r}")
 
 permissions = set(tauri_capabilities.get("permissions", []))
-if not {"updater:default", "process:allow-restart"} <= permissions:
+if not {
+    "updater:default",
+    "process:allow-restart",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+} <= permissions:
     fail("Tauri capabilities do not grant the bounded updater and restart permissions")
 
 for fragment, source_name, source in (
@@ -277,6 +285,8 @@ for fragment, source_name, source in (
     ("appUpdateActionModel", "App.tsx", app_source),
     ("jjcat://check-for-updates", "appUpdater.ts", app_updater_source),
     ("downloadAndInstall", "appUpdater.ts", app_updater_source),
+    ("relaunchAppUpdateWithFocusIntent", "appUpdater.ts", app_updater_source),
+    ("restoreAppUpdateRelaunchFocus", "main.tsx", main_source),
     ("Download jjcat", "appUpdate.ts", app_update_state),
     ("Restart to update", "appUpdate.ts", app_update_state),
     ("tauri_plugin_updater::Builder", "src-tauri/src/lib.rs", tauri_source),

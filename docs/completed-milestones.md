@@ -1,5 +1,14 @@
 # Completed Milestones
 
+## 2026-07-31: Foreground Update Relaunch
+
+- 사용자가 **Restart to update**를 선택할 때만 짧은 수명의 one-shot foreground intent를
+  기록하고 새 main window에서 한 번 소비하도록 했다.
+- 새 window는 기존 size, position과 maximized state를 복원한 뒤 show/focus되어 macOS
+  전면 app으로 돌아오며, 일반 launch와 별도 diff window는 focus를 강제하지 않는다.
+- restart failure, missing/stale/invalid intent를 안전하게 제거하는 focused test, production
+  build, canonical/publication gate와 `v0.9.9` release 검증을 통과했다.
+
 ## 2026-07-31: Semantic Activity and Warning States
 
 - active repository mutation과 겹친 refresh를 notice와 Command Activity 모두에서 warning

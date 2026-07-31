@@ -72,6 +72,10 @@ refresh를 failure 대신 waiting activity로 분류하고, 주요 indefinite lo
 surface를 공통 CLI형 spinner로 통일한다. 실제 driver/recovery warning은 그대로 유지하고
 Quick Look 실패는 repository refresh health와 분리한다. 이 변경은 `v0.9.8` release에
 포함된다.
+완료된 `docs/milestones/update-relaunch-activation/spec.md`는 사용자가 명시적으로 선택한
+update restart에만 one-shot foreground intent를 남기고, 새 main window가 이를 소비해
+show/focus하도록 한다. 일반 launch, 별도 diff window와 restart failure는 focus를 강제하지
+않는다. 이 변경은 `v0.9.9` release에 포함된다.
 
 완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

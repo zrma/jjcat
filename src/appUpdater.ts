@@ -6,6 +6,7 @@ import {
   type Update,
 } from "@tauri-apps/plugin-updater";
 import type { AppUpdateInfo } from "./lib/appUpdate";
+import { relaunchAppUpdateWithFocusIntent } from "./lib/appUpdateRelaunch";
 
 const CHECK_TIMEOUT_MS = 10_000;
 const DOWNLOAD_TIMEOUT_MS = 120_000;
@@ -49,7 +50,7 @@ class TauriAppUpdater implements AppUpdater {
   }
 
   restart() {
-    return relaunch();
+    return relaunchAppUpdateWithFocusIntent(relaunch);
   }
 
   onManualCheck(handler: () => void) {
