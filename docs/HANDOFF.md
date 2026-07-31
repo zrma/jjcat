@@ -63,6 +63,10 @@ typed confirmation은 제거했으며 `jj op`로 되감을 수 있는 mutation�
 window focus가 3초간 이어질 때 background update check를 예약한다. 실제 확인 시도에는
 1시간 cooldown을 적용하고 manual check는 언제나 즉시 실행한다. 이 변경은 `v0.9.6`
 release에 포함된다.
+완료된 `docs/milestones/repository-rail-scroll/spec.md`는 Workspace, Repository와
+Last Fetched navigation을 rail 상단에 고정하고 Repository Sources와 Standalone만
+독립적으로 스크롤한다. source repository를 연 뒤에도 같은 스크롤 위치를 유지한다.
+이 변경은 `v0.9.7` release에 포함된다.
 
 완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

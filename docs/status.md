@@ -15,6 +15,8 @@ restart 뒤에도 복원하고 메인/별도 창 사이에서 공유한다. `v0.
 Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side에서 교체 줄의
 단어/문자 단위 변경 구간을 강조한다. `v0.9.6`은 main window focus가 3초간 이어질 때
 1시간 cooldown의 background update check를 실행하고 manual check는 즉시 실행한다.
+`v0.9.7`은 repository rail의 상단 탐색을 고정하고 source tree만 독립적으로 스크롤하며,
+source repository를 연 뒤에도 그 스크롤 위치를 유지한다.
 선택된 active milestone은 없다.
 
 완료된 기반:
@@ -31,6 +33,7 @@ Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side�
 - stable local/SSH repository identity와 schema-versioned JSON registry
 - schema v4의 local/SSH repository source, bounded discovery catalog과 v3→v4 migration
 - source별 collapsible folder/repository tree, rescan과 double-click/`Enter` tab open
+- 고정된 repository navigation과 독립 source tree scroll, repository open 뒤 scroll 위치 보존
 - direct single-repository add와 source catalog removal의 filesystem-safe 분리
 - `jj` capability, machine-readable status/log/file projection
 - bounded timeout/cancellation과 redacted error를 갖춘 OpenSSH stdio driver
@@ -139,11 +142,12 @@ Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side�
 
 ## Latest Release
 
-`v0.9.6` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
-main window가 3초간 focus된 뒤 1시간 cooldown의 background update check를 실행한다.
-`v0.9.5` 사용자는 startup check 또는 app menu의 명시적인 확인으로 이번 signed updater를
-받으며, focus-triggered 확인은 `v0.9.6` 설치 뒤의 다음 update부터 동작한다. 기존 diff
-가독성, layout/whitespace 선택과 창 배치는 그대로 유지된다.
+`v0.9.7` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
+repository rail 상단의 Workspace, Repository와 Last Fetched navigation을 고정하고
+Repository Sources와 Standalone 목록만 독립적으로 스크롤한다. source tree를 스크롤한
+상태에서 repository를 double-click하거나 `Enter`로 열어도 위치가 유지된다. `v0.9.6`
+사용자는 startup, focus-triggered 또는 app menu의 명시적인 확인으로 signed updater를
+받는다. 기존 diff 가독성, layout/whitespace 선택과 창 배치는 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

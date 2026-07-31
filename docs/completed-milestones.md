@@ -1,5 +1,15 @@
 # Completed Milestones
 
+## 2026-07-31: Stable Repository Rail Scrolling
+
+- Workspace, Repository와 Last Fetched navigation을 repository rail 상단에 고정하고
+  Repository Sources와 Standalone 목록만 독립적으로 스크롤하도록 분리했다.
+- source title은 목록 안에서 sticky하게 유지하고 overscroll 및 scroll anchoring 경계를
+  제한해 큰 source tree에서도 주변 app shell과 시각적 위치가 흔들리지 않게 했다.
+- source tree를 스크롤한 상태에서 repository를 pointer로 double-click해 열어도 scroll
+  position과 상단 navigation 좌표가 유지되는 것을 production browser smoke로 확인했다.
+- focused frontend test/build와 canonical repository gate를 통과했다.
+
 ## 2026-07-31: Synchronized and Intraline Diff Reading
 
 - side-by-side Before/After의 독립 overflow 경계는 유지하면서 어느 pane의 native 또는

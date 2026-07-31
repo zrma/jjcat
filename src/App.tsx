@@ -2215,18 +2215,19 @@ function App() {
             </section>
           )}
         </nav>
-        <RepositorySourceTree
-          registry={registry}
-          scanning={scanningSources}
-          errors={sourceErrors}
-          onOpen={openDiscoveredRepository}
-          onRescan={scanRepositorySource}
-          onRemove={setRemoveSourceTarget}
-        />
-        {standalone.length > 0 && (
-          <section className="repository-group">
-            <h3>Standalone</h3>
-            {standalone.map((repository) => {
+        <div className="repository-list-scroll">
+          <RepositorySourceTree
+            registry={registry}
+            scanning={scanningSources}
+            errors={sourceErrors}
+            onOpen={openDiscoveredRepository}
+            onRescan={scanRepositorySource}
+            onRemove={setRemoveSourceTarget}
+          />
+          {standalone.length > 0 && (
+            <section className="repository-group">
+              <h3>Standalone</h3>
+              {standalone.map((repository) => {
                 const state = repositoryState(
                   repository.id,
                   repository.location.kind,
@@ -2261,9 +2262,10 @@ function App() {
                     <StatusDot state={state} />
                   </button>
                 );
-              })}
-          </section>
-        )}
+                })}
+            </section>
+          )}
+        </div>
       </aside>
 
       <section className="workspace">
