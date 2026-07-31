@@ -56,6 +56,21 @@ describe("activity history", () => {
     expect(result[1].state).toBe("running");
   });
 
+  it("keeps deferred work distinct from failures", () => {
+    const result = finishActivity(
+      [entry("refresh")],
+      "refresh",
+      "waiting",
+      "Refresh will retry after the repository operation",
+      "2026-07-26T00:00:02.000Z",
+    );
+    expect(result[0]).toMatchObject({
+      state: "waiting",
+      outcome: "Refresh will retry after the repository operation",
+      cancellable: false,
+    });
+  });
+
   it("prefers a running activity for the selected repository", () => {
     const result = preferredActivity(
       [

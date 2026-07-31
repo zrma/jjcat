@@ -897,7 +897,9 @@ body[data-runtime="tauri"] .brand-lockup {
 }
 
 .repository-state.ready,
-.repository-state.cached {
+.repository-state.cached,
+.repository-state.waiting,
+.repository-state.waiting-cached {
   color: var(--brand-primary);
 }
 
@@ -981,7 +983,9 @@ body[data-runtime="tauri"] .brand-lockup {
   stroke-width: 2;
 }
 
-.status-dot.refreshing {
+.status-dot.refreshing,
+.status-dot.waiting,
+.status-dot.waiting-cached {
   border-color: var(--brand-primary);
   border-right-color: transparent;
   animation: spin 0.8s linear infinite;
@@ -995,6 +999,43 @@ body[data-runtime="tauri"] .brand-lockup {
 
 .spinning {
   animation: spin 0.8s linear infinite;
+}
+
+.cli-spinner {
+  display: inline-grid;
+  flex: 0 0 1em;
+  width: 1em;
+  color: var(--brand-primary);
+  font-family: var(--mono);
+  line-height: 1;
+  place-items: center;
+}
+
+.cli-spinner::before {
+  content: "⠋";
+  animation: cli-spinner 0.8s steps(1, end) infinite;
+}
+
+@keyframes cli-spinner {
+  0% { content: "⠋"; }
+  12.5% { content: "⠙"; }
+  25% { content: "⠹"; }
+  37.5% { content: "⠸"; }
+  50% { content: "⠼"; }
+  62.5% { content: "⠴"; }
+  75% { content: "⠦"; }
+  87.5% { content: "⠧"; }
+}
+
+.activity-copy,
+.button-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.button-activity {
+  justify-content: center;
 }
 
 .workspace {
@@ -1409,6 +1450,10 @@ body[data-runtime="tauri"] .brand-lockup {
   color: var(--brand-primary);
 }
 
+.activity-summary.waiting .activity-summary-icon {
+  color: var(--brand-primary);
+}
+
 .activity-summary.success .activity-summary-icon {
   color: var(--state-success);
 }
@@ -1478,6 +1523,12 @@ body[data-runtime="tauri"] .brand-lockup {
 }
 
 .activity-summary.running .activity-progress span {
+  width: 42%;
+  background: var(--brand-primary);
+  animation: activity-progress 1.4s ease-in-out infinite;
+}
+
+.activity-summary.waiting .activity-progress span {
   width: 42%;
   background: var(--brand-primary);
   animation: activity-progress 1.4s ease-in-out infinite;
@@ -1679,6 +1730,10 @@ body[data-runtime="tauri"] .brand-lockup {
   color: var(--brand-primary);
 }
 
+.activity-list-row.waiting .activity-list-icon {
+  color: var(--brand-primary);
+}
+
 .activity-list-row.success .activity-list-icon {
   color: var(--state-success);
 }
@@ -1755,6 +1810,14 @@ body[data-runtime="tauri"] .brand-lockup {
 
 .activity-detail-icon.running {
   color: var(--brand-primary);
+}
+
+.activity-detail-icon.waiting {
+  color: var(--brand-primary);
+}
+
+.operation-history-actions .cli-spinner {
+  display: inline-grid;
 }
 
 .activity-detail-icon.success {
@@ -2120,6 +2183,12 @@ body[data-runtime="tauri"] .brand-lockup {
 .notice svg {
   width: 14px;
   height: 14px;
+}
+
+.notice.activity-notice {
+  border-bottom-color: color-mix(in srgb, var(--brand-primary) 35%, transparent);
+  background: var(--brand-faint);
+  color: var(--text-secondary);
 }
 
 .notice-tail {
@@ -5801,6 +5870,10 @@ body.workspace-resizing {
   color: var(--text-secondary);
 }
 
+.loading-state.activity-copy {
+  flex-direction: row;
+}
+
 .fatal-state svg {
   width: 42px;
   height: 42px;
@@ -5917,7 +5990,7 @@ body.workspace-resizing {
     padding: 0;
   }
 
-  .history-step-button span {
+  .history-step-button > span:not(.cli-spinner) {
     display: none;
   }
 
@@ -6096,7 +6169,21 @@ body.workspace-resizing {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-dot.refreshing {
+  .status-dot.refreshing,
+  .status-dot.waiting,
+  .status-dot.waiting-cached,
+  .spinning,
+  .cli-spinner::before {
+    animation: none;
+  }
+
+  .cli-spinner::before {
+    content: "↻";
+  }
+
+  .activity-summary.running .activity-progress span,
+  .activity-summary.waiting .activity-progress span {
+    width: 100%;
     animation: none;
   }
 }

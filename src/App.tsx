@@ -47,11 +47,13 @@ import { ActivityCenter } from "./components/ActivityCenter";
 import { BookmarkLabels } from "./components/BookmarkLabels";
 import { Brand } from "./components/Brand";
 import { ChangeWorkspace } from "./components/ChangeWorkspace";
+import { CliSpinner } from "./components/CliSpinner";
 import { adjacentNavigationIndex } from "./lib/keyboardNavigation";
 import { toggleDiffQuickLookWindow } from "./lib/diffQuickLook";
 import { AddRepositorySourceDialog } from "./components/AddRepositorySourceDialog";
 import { MutationDialog } from "./components/MutationDialog";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
+import { RepositoryRefreshNotice } from "./components/RepositoryRefreshNotice";
 import { RepositorySourceTree } from "./components/RepositorySourceTree";
 import { WorkspaceManager } from "./components/WorkspaceManager";
 import { filterChanges, type HistoryView } from "./lib/changeFilters";
@@ -271,7 +273,7 @@ function App() {
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState<Record<string, string>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, AppError>>({});
   const [failureCounts, setFailureCounts] = useState<Record<string, number>>({});
   const [retryAt, setRetryAt] = useState<Record<string, number>>({});
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null);
@@ -420,7 +422,7 @@ function App() {
   const completeActivity = useCallback(
     (
       id: string,
-      state: "success" | "failed" | "cancelled",
+      state: "waiting" | "success" | "failed" | "cancelled",
       outcome: string,
     ) => {
       setActivities((current) =>
@@ -825,7 +827,7 @@ function App() {
       } catch (error) {
         if (cancelledRefreshesRef.current.delete(requestId)) return;
         const appError = error as AppError;
-        setErrors((current) => ({ ...current, [repositoryId]: appError.message }));
+        setErrors((current) => ({ ...current, [repositoryId]: appError }));
         const nextFailureCount = (failureCountsRef.current[repositoryId] ?? 0) + 1;
         failureCountsRef.current[repositoryId] = nextFailureCount;
         setFailureCounts((current) => ({ ...current, [repositoryId]: nextFailureCount }));
@@ -835,8 +837,10 @@ function App() {
         }));
         completeActivity(
           activityId,
-          "failed",
-          "Repository refresh failed. See the repository notice for details.",
+          appError.kind === "busy" ? "waiting" : "failed",
+          appError.kind === "busy"
+            ? "Refresh will retry after the active repository operation."
+            : "Repository refresh failed. See the repository notice for details.",
         );
       } finally {
         delete refreshActivityIdsRef.current[requestId];
@@ -1057,10 +1061,7 @@ function App() {
           whitespaceMode,
         }).catch((error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
-          setErrors((current) => ({
-            ...current,
-            [selectedRepository.id]: message,
-          }));
+          setRepositoryActionError(message);
         });
       }
       if (
@@ -1627,7 +1628,10 @@ function App() {
           data-tauri-drag-region
           onPointerDown={startWindowDrag}
         />
-        <main className="loading-state">Loading repositories…</main>
+        <main className="loading-state activity-copy">
+          <CliSpinner />
+          <span>Loading repositories…</span>
+        </main>
       </>
     );
   }
@@ -1706,7 +1710,11 @@ function App() {
             }}
             disabled={!operationLog?.undoTarget || historyStepExecuting !== null}
           >
-            <RotateCcw aria-hidden="true" />
+            {historyStepExecuting === "undo" ? (
+              <CliSpinner />
+            ) : (
+              <RotateCcw aria-hidden="true" />
+            )}
             <span>{historyStepExecuting === "undo" ? "Undoing…" : "Undo"}</span>
           </button>
           <button
@@ -1720,7 +1728,11 @@ function App() {
             }}
             disabled={!operationLog?.redoTarget || historyStepExecuting !== null}
           >
-            <RotateCw aria-hidden="true" />
+            {historyStepExecuting === "redo" ? (
+              <CliSpinner />
+            ) : (
+              <RotateCw aria-hidden="true" />
+            )}
             <span>{historyStepExecuting === "redo" ? "Redoing…" : "Redo"}</span>
           </button>
         </div>
@@ -2294,16 +2306,11 @@ function App() {
         ) : (
           <>
             {errors[selectedRepository.id] && (
-              <div className="notice error-notice" role="status">
-                <AlertTriangle aria-hidden="true" />
-                <span>{errors[selectedRepository.id]}</span>
-                {selectedCache && <span className="notice-tail">Showing cached data.</span>}
-                {retryAt[selectedRepository.id] && (
-                  <span className="notice-tail">
-                    Background retry in {Math.max(1, Math.ceil((retryAt[selectedRepository.id] - Date.now()) / 1000))}s.
-                  </span>
-                )}
-              </div>
+              <RepositoryRefreshNotice
+                error={errors[selectedRepository.id]}
+                hasCache={Boolean(selectedCache)}
+                retryAt={retryAt[selectedRepository.id]}
+              />
             )}
             {showWorkspaceManager ? (
               <WorkspaceManager
@@ -2362,10 +2369,7 @@ function App() {
                 }).catch((error: unknown) => {
                   const message =
                     error instanceof Error ? error.message : String(error);
-                  setErrors((current) => ({
-                    ...current,
-                    [selectedRepository.id]: message,
-                  }));
+                  setRepositoryActionError(message);
                 });
               }}
               inspectorView={inspectorView}
@@ -2820,7 +2824,16 @@ function AddRepositoryDialog({
         {error && <p className="dialog-error">{error}</p>}
         <footer>
           <button type="button" className="secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" disabled={saving}>{saving ? "Adding…" : "Add repository"}</button>
+          <button type="submit" disabled={saving}>
+            {saving ? (
+              <span className="button-activity">
+                <CliSpinner />
+                Adding…
+              </span>
+            ) : (
+              "Add repository"
+            )}
+          </button>
         </footer>
       </form>
       {browsingRemote && (
@@ -2933,7 +2946,12 @@ function RemoteFolderDialog({
               <span>{repositoryNameFromPath(directory)}</span>
             </button>
           ))}
-          {loading && <p>Connecting and reading folders…</p>}
+          {loading && (
+            <p className="activity-copy">
+              <CliSpinner />
+              <span>Connecting and reading folders…</span>
+            </p>
+          )}
           {!loading && listing && listing.directories.length === 0 && <p>No child folders.</p>}
           {error && <p className="dialog-error">{error}</p>}
         </div>
@@ -3045,7 +3063,14 @@ function GitRepositoryOnboardingDialog({
             onClick={onConfirm}
             disabled={running}
           >
-            {running ? "Setting up…" : "Set up JJ and open"} <kbd>↵</kbd>
+            {running ? (
+              <span className="button-activity">
+                <CliSpinner />
+                Setting up…
+              </span>
+            ) : (
+              <>Set up JJ and open <kbd>↵</kbd></>
+            )}
           </button>
         </footer>
       </section>
@@ -3081,7 +3106,7 @@ function RepositoryMenu({
       onContextMenu={(event) => event.preventDefault()}
     >
       <button type="button" role="menuitem" onClick={onRefresh} disabled={refreshing}>
-        <RefreshCw aria-hidden="true" />
+        {refreshing ? <CliSpinner /> : <RefreshCw aria-hidden="true" />}
         {refreshing ? "Refreshing…" : "Refresh repository"}
       </button>
       <button type="button" role="menuitem" onClick={onPin}>

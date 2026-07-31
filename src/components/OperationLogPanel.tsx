@@ -3,6 +3,7 @@ import { History, RotateCcw, RotateCw, X } from "lucide-react";
 import { relativeTime } from "../lib/format";
 import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
 import type { OperationLogProjection } from "../types";
+import { CliSpinner } from "./CliSpinner";
 
 interface OperationLogPanelProps {
   projection: OperationLogProjection | null;
@@ -45,7 +46,12 @@ export function OperationLogPanel({
           <X aria-hidden="true" />
         </button>
       </header>
-      {loading && <p className="operation-state">Loading repository operations…</p>}
+      {loading && (
+        <p className="operation-state activity-copy">
+          <CliSpinner />
+          <span>Loading repository operations…</span>
+        </p>
+      )}
       {!loading && error && <p className="operation-state error">{error}</p>}
       {!loading && !error && projection && (
         <div className="operation-content">
@@ -147,7 +153,11 @@ export function OperationLogPanel({
                       projection.undoTarget && onRequestUndo(projection.undoTarget)
                     }
                   >
-                    <RotateCcw aria-hidden="true" />
+                    {executing === "undo" ? (
+                      <CliSpinner />
+                    ) : (
+                      <RotateCcw aria-hidden="true" />
+                    )}
                     <span>
                       <strong>{executing === "undo" ? "Undoing…" : "Undo"}</strong>
                       <small>⌘Z · Ctrl+Z</small>
@@ -160,7 +170,11 @@ export function OperationLogPanel({
                       projection.redoTarget && onRequestRedo(projection.redoTarget)
                     }
                   >
-                    <RotateCw aria-hidden="true" />
+                    {executing === "redo" ? (
+                      <CliSpinner />
+                    ) : (
+                      <RotateCw aria-hidden="true" />
+                    )}
                     <span>
                       <strong>{executing === "redo" ? "Redoing…" : "Redo"}</strong>
                       <small>⌘⇧Z · Ctrl+Y</small>

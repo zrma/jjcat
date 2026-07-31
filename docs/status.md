@@ -17,6 +17,8 @@ Before/After의 상대 가로 위치를 동기화하고 unified와 side-by-side�
 1시간 cooldown의 background update check를 실행하고 manual check는 즉시 실행한다.
 `v0.9.7`은 repository rail의 상단 탐색을 고정하고 source tree만 독립적으로 스크롤하며,
 source repository를 연 뒤에도 그 스크롤 위치를 유지한다.
+`v0.9.8`은 repository mutation 때문에 대기하는 refresh를 실패 경고가 아닌 activity로
+표시하고, 주요 indefinite 작업에 공통 CLI형 spinner를 사용한다.
 선택된 active milestone은 없다.
 
 완료된 기반:
@@ -66,6 +68,8 @@ source repository를 연 뒤에도 그 스크롤 위치를 유지한다.
   registered directory와 registration을 함께 정리하는 local/SSH workspace removal
   preview/execute
 - repository별 refresh dedup/cancel, active/inactive interval과 bounded failure backoff
+- `busy` refresh의 waiting 상태, 주요 indefinite 작업의 공통 activity spinner와 실제
+  driver/recovery warning을 분리하는 semantic progress feedback
 - structured argv를 사용하는 local/SSH VS Code 및 platform terminal handoff
 - 40개 이상 history의 bounded row virtualization과 representative interaction fixture
 - stable multi-lane change topology와 pointer/keyboard revision navigation
@@ -142,12 +146,14 @@ source repository를 연 뒤에도 그 스크롤 위치를 유지한다.
 
 ## Latest Release
 
-`v0.9.7` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
-repository rail 상단의 Workspace, Repository와 Last Fetched navigation을 고정하고
-Repository Sources와 Standalone 목록만 독립적으로 스크롤한다. source tree를 스크롤한
-상태에서 repository를 double-click하거나 `Enter`로 열어도 위치가 유지된다. `v0.9.6`
-사용자는 startup, focus-triggered 또는 app menu의 명시적인 확인으로 signed updater를
-받는다. 기존 diff 가독성, layout/whitespace 선택과 창 배치는 그대로 유지된다.
+`v0.9.8` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로
+repository refresh의 `busy` 응답을 failure 대신 `Waiting to refresh`로 표시한다. 초기
+load, diff/operation, source scan, remote folder 탐색, repository 추가, mutation과
+Undo/Redo의 indefinite progress는 공통 CLI형 spinner를 사용한다. 실제 driver/recovery
+failure는 경고 의미와 cache/retry 정보를 유지하고 Quick Look 오류는 repository health와
+분리한다. `v0.9.7` 사용자는 startup, focus-triggered 또는 app menu의 명시적인 확인으로
+signed updater를 받는다. 기존 repository rail scroll, diff 가독성, layout/whitespace
+선택과 창 배치는 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

@@ -59,6 +59,7 @@ import type {
 } from "../types";
 import { BookmarkLabels } from "./BookmarkLabels";
 import { ChangeActionMenu } from "./ChangeActionMenu";
+import { CliSpinner } from "./CliSpinner";
 import { DiffViewer } from "./DiffViewer";
 import { OperationLogPanel } from "./OperationLogPanel";
 import type { MutationLaunch } from "../lib/changeActions";
@@ -551,8 +552,8 @@ function WorkingCopyWorkspace({
       </header>
       <div className="working-copy-content">
         {loading ? (
-          <aside className="details-empty" aria-live="polite">
-            <FolderGit2 aria-hidden="true" />
+          <aside className="details-empty activity-copy" aria-live="polite">
+            <CliSpinner />
             <p>Loading working copy files…</p>
           </aside>
         ) : error ? (
@@ -665,7 +666,7 @@ function ChangeLog({
   if (changes.length === 0) {
     return (
       <section className="change-log empty-log">
-        <FolderGit2 aria-hidden="true" />
+        {refreshing ? <CliSpinner /> : <FolderGit2 aria-hidden="true" />}
         <h2>No matching changes</h2>
         <p>
           {refreshing

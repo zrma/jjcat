@@ -27,6 +27,7 @@ import type {
   MutationKind,
   MutationPreview,
 } from "../types";
+import { CliSpinner } from "./CliSpinner";
 
 interface MutationDialogProps {
   repositoryId: string;
@@ -445,7 +446,13 @@ export function MutationDialog({
                 Cancel
               </button>
               <button type="submit" className="primary" disabled={loading}>
-                {loading ? "Building preview…" : `Review ${actionLabel}`}
+                {loading ? (
+                  <span className="button-activity">
+                    <CliSpinner /> Building preview…
+                  </span>
+                ) : (
+                  `Review ${actionLabel}`
+                )}
               </button>
             </footer>
           </form>
@@ -591,7 +598,10 @@ export function MutationDialog({
                     : undefined
                 }
               >
-                <span>{executing ? "Executing…" : executeLabel}</span>
+                <span className={executing ? "button-activity" : undefined}>
+                  {executing && <CliSpinner />}
+                  {executing ? "Executing…" : executeLabel}
+                </span>
                 {keyboardExecutionSupported && !executeDisabled && (
                   <MutationButtonShortcuts keys={["Enter", "Y"]} />
                 )}

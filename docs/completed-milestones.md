@@ -1,5 +1,16 @@
 # Completed Milestones
 
+## 2026-07-31: Semantic Activity and Warning States
+
+- active repository mutation과 겹친 refresh를 notice와 Command Activity 모두에서 warning
+  대신 `Waiting to refresh`로 표시하고 cache와 retry 시점을 계속 보여준다.
+- 초기 repository load, diff/operation load, source scan, remote folder 탐색, repository
+  추가, mutation preview/execute와 Undo/Redo에 공통 CLI형 spinner를 적용했다.
+- 실제 SSH/driver 실패와 recovery warning은 경고 의미를 유지하고, Quick Look 오류가
+  repository health를 failed/disconnected로 오염시키지 않도록 분리했다.
+- focused status/notice test, production frontend build, rendered running/completed/failure
+  semantic smoke, canonical repository gate와 `v0.9.8` release 검증을 통과했다.
+
 ## 2026-07-31: Stable Repository Rail Scrolling
 
 - Workspace, Repository와 Last Fetched navigation을 repository rail 상단에 고정하고

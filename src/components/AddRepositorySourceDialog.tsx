@@ -3,6 +3,7 @@ import { Cable, FolderOpen, Laptop, Server, X } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { bridge, isTauriRuntime } from "../bridge";
 import type { AppError, RepositorySourceDraft } from "../types";
+import { CliSpinner } from "./CliSpinner";
 
 export function AddRepositorySourceDialog({
   onClose,
@@ -211,7 +212,13 @@ export function AddRepositorySourceDialog({
             Cancel
           </button>
           <button type="submit" disabled={saving}>
-            {saving ? "Adding…" : "Add and scan"}
+            {saving ? (
+              <span className="button-activity">
+                <CliSpinner /> Adding…
+              </span>
+            ) : (
+              "Add and scan"
+            )}
           </button>
         </footer>
       </form>
@@ -313,7 +320,12 @@ function RemoteSourceFolderDialog({
               <span>{directory.split("/").pop()}</span>
             </button>
           ))}
-          {loading && <p>Reading folders…</p>}
+          {loading && (
+            <p className="activity-copy">
+              <CliSpinner />
+              <span>Reading folders…</span>
+            </p>
+          )}
           {error && <p className="dialog-error">{error}</p>}
         </div>
         <footer>

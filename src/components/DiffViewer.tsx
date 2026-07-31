@@ -21,6 +21,7 @@ import type {
   FileDiffProjection,
   WhitespaceMode,
 } from "../types";
+import { CliSpinner } from "./CliSpinner";
 
 interface DiffViewerProps {
   projection: FileDiffProjection | null;
@@ -136,7 +137,12 @@ export function DiffViewer({
         </div>
       </header>
       <div className="diff-content" aria-busy={loading} ref={contentRef}>
-        {loading && <p className="diff-state">Loading the selected file…</p>}
+        {loading && (
+          <p className="diff-state activity-copy">
+            <CliSpinner />
+            <span>Loading the selected file…</span>
+          </p>
+        )}
         {!loading && error && <p className="diff-state error">{error}</p>}
         {!loading && !error && projection?.binary && (
           <p className="diff-state">Binary content is not rendered. File metadata remains available.</p>

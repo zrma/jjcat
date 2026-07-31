@@ -67,6 +67,11 @@ release에 포함된다.
 Last Fetched navigation을 rail 상단에 고정하고 Repository Sources와 Standalone만
 독립적으로 스크롤한다. source repository를 연 뒤에도 같은 스크롤 위치를 유지한다.
 이 변경은 `v0.9.7` release에 포함된다.
+완료된 `docs/milestones/semantic-activity-status/spec.md`는 repository mutation과 겹친
+refresh를 failure 대신 waiting activity로 분류하고, 주요 indefinite loading/mutation
+surface를 공통 CLI형 spinner로 통일한다. 실제 driver/recovery warning은 그대로 유지하고
+Quick Look 실패는 repository refresh health와 분리한다. 이 변경은 `v0.9.8` release에
+포함된다.
 
 완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

@@ -20,7 +20,7 @@ describe("repositoryState", () => {
         undefined,
         new Set(),
         {},
-        { remote: "connection failed" },
+        { remote: { kind: "driver", message: "connection failed" } },
       ),
     ).toBe("disconnected");
   });
@@ -33,7 +33,7 @@ describe("repositoryState", () => {
         cache,
         new Set(),
         {},
-        { remote: "connection failed" },
+        { remote: { kind: "driver", message: "connection failed" } },
       ),
     ).toBe("disconnected-cached");
   });
@@ -46,9 +46,24 @@ describe("repositoryState", () => {
         cache,
         new Set(),
         {},
-        { local: "refresh failed" },
+        { local: { kind: "driver", message: "refresh failed" } },
       ),
     ).toBe("failed-cached");
+  });
+
+  it("classifies a busy refresh as visible waiting activity", () => {
+    expect(
+      repositoryState(
+        "local",
+        "local",
+        cache,
+        new Set(),
+        {},
+        { local: { kind: "busy", message: "repository mutation is active" } },
+      ),
+    ).toBe("waiting-cached");
+    expect(stateLabel("waiting-cached")).toBe("Waiting to refresh");
+    expect(compactStateLabel("waiting-cached")).toBe("Waiting");
   });
 
   it("keeps disconnected labels explicit", () => {

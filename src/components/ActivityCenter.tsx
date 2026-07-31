@@ -25,6 +25,7 @@ import {
 } from "../lib/activity";
 import { relativeTime } from "../lib/format";
 import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
+import { CliSpinner } from "./CliSpinner";
 
 type ActivityFilter = "all" | ActivityCategory;
 
@@ -42,6 +43,8 @@ function statusLabel(entry: ActivityEntry) {
   switch (entry.state) {
     case "running":
       return "In progress";
+    case "waiting":
+      return "Waiting";
     case "success":
       return "Completed";
     case "failed":
@@ -55,6 +58,8 @@ function statusIcon(entry: ActivityEntry) {
   switch (entry.state) {
     case "running":
       return <LoaderCircle className="spinning" aria-hidden="true" />;
+    case "waiting":
+      return <CliSpinner />;
     case "success":
       return <CheckCircle2 aria-hidden="true" />;
     case "failed":

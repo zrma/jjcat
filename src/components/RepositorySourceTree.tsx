@@ -22,6 +22,7 @@ import type {
   RepositorySourceRecord,
   SourceCatalog,
 } from "../types";
+import { CliSpinner } from "./CliSpinner";
 
 export function RepositorySourceTree({
   registry,
@@ -162,7 +163,14 @@ function SourceContents({
     () => buildRepositorySourceTree(catalog?.repositories ?? []),
     [catalog?.repositories],
   );
-  if (scanning && !catalog) return <p className="source-empty">Scanning repositories…</p>;
+  if (scanning && !catalog) {
+    return (
+      <p className="source-empty activity-copy">
+        <CliSpinner />
+        <span>Scanning repositories…</span>
+      </p>
+    );
+  }
   if (error && !catalog) return <p className="source-error">{error}</p>;
   if (tree.length === 0) {
     return (

@@ -1,11 +1,13 @@
 import { isStale } from "./format";
-import type { CachedProjection, RepositoryLocation } from "../types";
+import type { AppError, CachedProjection, RepositoryLocation } from "../types";
 
 export type RepositoryState =
   | "ready"
   | "cached"
   | "stale"
   | "refreshing"
+  | "waiting"
+  | "waiting-cached"
   | "failed"
   | "failed-cached"
   | "disconnected"
@@ -18,10 +20,12 @@ export function repositoryState(
   cache: CachedProjection | undefined,
   freshIds: Set<string>,
   refreshing: Record<string, string>,
-  errors: Record<string, string>,
+  errors: Record<string, AppError>,
 ): RepositoryState {
   if (refreshing[repositoryId]) return "refreshing";
-  if (errors[repositoryId]) {
+  const error = errors[repositoryId];
+  if (error?.kind === "busy") return cache ? "waiting-cached" : "waiting";
+  if (error) {
     if (locationKind === "ssh") {
       return cache ? "disconnected-cached" : "disconnected";
     }
@@ -38,6 +42,9 @@ export function stateLabel(state: RepositoryState) {
       return "Ready";
     case "refreshing":
       return "Refreshing";
+    case "waiting":
+    case "waiting-cached":
+      return "Waiting to refresh";
     case "failed":
       return "Refresh failed";
     case "failed-cached":
@@ -61,6 +68,9 @@ export function compactStateLabel(state: RepositoryState) {
       return "Ready";
     case "refreshing":
       return "Syncing";
+    case "waiting":
+    case "waiting-cached":
+      return "Waiting";
     case "failed":
     case "failed-cached":
       return "Refresh failed";

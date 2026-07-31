@@ -19,6 +19,8 @@
 - [x] 고정된 repository navigation과 독립 source tree scroll 및 open 뒤 위치 보존
 - [x] persistent repository tabs와 quick switcher
 - [x] cached status badge와 asynchronous refresh
+- [x] waiting activity와 실제 failure warning을 분리하는 semantic progress feedback
+  (`docs/milestones/semantic-activity-status/spec.md`, completed)
 - [x] local/remote editor 및 terminal open action
 - [x] bounded change-history virtualization spike
 

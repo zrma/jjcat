@@ -1,5 +1,10 @@
 export type ActivityCategory = "user" | "background";
-export type ActivityState = "running" | "success" | "failed" | "cancelled";
+export type ActivityState =
+  | "running"
+  | "waiting"
+  | "success"
+  | "failed"
+  | "cancelled";
 
 export interface ActivityEntry {
   id: string;
