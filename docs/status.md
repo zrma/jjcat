@@ -22,9 +22,9 @@ source repository를 연 뒤에도 그 스크롤 위치를 유지한다.
 `v0.9.9`는 사용자가 선택한 update restart에 후속 process용 foreground intent를 기록한다.
 다만 marker 기능이 없는 `v0.9.8 → v0.9.9` 첫 restart에는 적용되지 않는다.
 `v0.9.10` Apple Silicon macOS beta는 incoming main window가 marker 없이 스스로
-show/focus하도록 해 이 bootstrap gap을 제거한다. 현재 선택된 active milestone은
-`docs/todo-file-context-actions/spec.md`다. 두 file tree surface에서 선택된 파일 가까이에
-compact context action menu를 제공한다.
+show/focus하도록 해 이 bootstrap gap을 제거한다. `v0.9.11` Apple Silicon macOS beta는
+Working Copy와 Changes file tree에 compact context action menu, exact single-file split과
+transport-aware editor/Finder handoff를 추가한다. 현재 active milestone은 없다.
 
 완료된 기반:
 
@@ -156,11 +156,12 @@ compact context action menu를 제공한다.
 
 ## Latest Release
 
-`v0.9.10` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로, incoming
-native app이 main window를 show/focus한다. 따라서 marker 기능이 없는 이전 version에서
-update해도 같은 restart에 전면 복귀가 적용된다. 별도 diff Quick Look은 이 activation
-path에서 제외되며 기존 activity/warning 의미, repository rail scroll, diff 가독성,
-layout/whitespace 선택과 창 배치는 그대로 유지된다.
+`v0.9.11` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로, Changes와
+Working Copy에서 선택한 파일 가까이에 compact context action menu를 제공한다. local/SSH
+editor handoff, local Finder reveal, exact single-file split과 path copy를 지원하고 SSH에서는
+Finder action을 비활성화한다. `v0.9.10`의 bootstrap-safe foreground activation과 기존
+activity/warning 의미, repository rail scroll, diff 가독성, layout/whitespace 선택 및 창
+배치는 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

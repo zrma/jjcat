@@ -1,5 +1,16 @@
 # Completed Milestones
 
+## 2026-08-05: File Context Actions
+
+- Working Copy와 Changes inspector의 file tree가 같은 compact context menu를 사용하고,
+  우클릭한 file row를 먼저 선택한다.
+- pointer와 keyboard menu key/`Shift+F10`에서 diff Quick Look, VS Code, local Finder,
+  exact single-file split과 path copy action을 제공한다.
+- repository-relative path를 검증해 local/SSH editor와 platform reveal program에 structured
+  argv로 전달하고 SSH Finder action은 비활성화한다.
+- focused frontend/Rust test, rendered local/SSH interaction, arm64 native bundle smoke와
+  canonical/publication gate를 통과했다.
+
 ## 2026-08-01: Bootstrap-safe Update Launch Activation
 
 - incoming native app이 main window를 show/focus해 outgoing version의 marker 지원 여부와

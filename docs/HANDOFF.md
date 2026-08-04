@@ -81,9 +81,10 @@ marker가 없는 `v0.9.8 → v0.9.9` 첫 restart는 bootstrap 범위 밖이다.
 main window가 marker 없이 스스로 show/focus하고 Quick Look은 제외해 bootstrap version
 gap을 제거한다. native bundle smoke, canonical gate와 release verification을 통과했다.
 
-현재 active todo는 `docs/todo-file-context-actions/spec.md`다. Working Copy와 하단 Changes의
-file tree가 같은 compact context menu를 사용하고, 우클릭한 파일 선택과 diff/editor/Finder,
-single-file split, path copy action을 repository transport 경계에 맞게 제공한다.
+완료된 `docs/milestones/file-context-actions/spec.md`는 Working Copy와 하단 Changes의 file
+tree가 같은 compact context menu를 사용하고, 우클릭한 파일 선택과 diff/editor/Finder,
+single-file split, path copy action을 repository transport 경계에 맞게 제공한다. 이 변경은
+`v0.9.11` release에 포함된다.
 
 완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

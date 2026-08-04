@@ -1,6 +1,6 @@
 # Spec: File Context Actions
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -69,7 +69,7 @@ Status: active
 ## Publication Impact
 
 - source, tests, repository contract와 durable status가 public-ready tracked surface에 추가된다.
-- 이번 slice는 push, tag와 release를 수행하지 않는다.
+- `v0.9.11` source, tag와 Apple Silicon macOS beta release에 포함한다.
 
 ## Out Of Scope
 
@@ -81,4 +81,5 @@ Status: active
 ## Completion Rule
 
 F1-F5가 evidence와 함께 done이고 두 file list surface의 pointer/keyboard behavior와 native
-file handoff가 검증된다. publish 전에는 active todo를 유지한다.
+file handoff가 검증됐다. completed packet은 milestone namespace로 이동하고 active pointer를
+제거했다.
