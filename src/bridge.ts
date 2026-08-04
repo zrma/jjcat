@@ -10,6 +10,8 @@ import type {
   RepositorySourceDraft,
   HandoffPreview,
   HandoffTarget,
+  FileHandoffPreview,
+  FileHandoffTarget,
   FileDiffProjection,
   FileDiffRequest,
   OperationLogProjection,
@@ -53,6 +55,11 @@ interface Bridge {
   executeMutation(request: ExecuteMutationRequest): Promise<MutationExecution>;
   previewRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
   launchRepositoryHandoff(repositoryId: string, target: HandoffTarget): Promise<HandoffPreview>;
+  launchFileHandoff(
+    repositoryId: string,
+    path: string,
+    target: FileHandoffTarget,
+  ): Promise<FileHandoffPreview>;
 }
 
 export const isTauriRuntime =
@@ -176,6 +183,14 @@ class TauriBridge implements Bridge {
     return invoke<HandoffPreview>("launch_repository_handoff", { repositoryId, target }).catch(
       normalizeError,
     );
+  }
+
+  launchFileHandoff(repositoryId: string, path: string, target: FileHandoffTarget) {
+    return invoke<FileHandoffPreview>("launch_file_handoff", {
+      repositoryId,
+      path,
+      target,
+    }).catch(normalizeError);
   }
 }
 

@@ -61,6 +61,7 @@ pub fn run() {
             commands::remove_repository,
             commands::preview_repository_handoff,
             commands::launch_repository_handoff,
+            commands::launch_file_handoff,
             commands::refresh_repository,
             commands::cancel_refresh,
         ])

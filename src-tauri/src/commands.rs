@@ -14,7 +14,9 @@ use crate::domain::{
     RepositoryRecord, RepositorySourceId, RepositorySourceRecord, SourceCatalog, WhitespaceMode,
 };
 use crate::driver::{DriverError, DriverErrorKind, JjDriver};
-use crate::handoff::{self, HandoffPreview, HandoffTarget};
+use crate::handoff::{
+    self, FileHandoffError, FileHandoffPreview, FileHandoffTarget, HandoffPreview, HandoffTarget,
+};
 use crate::mutation::{
     ExecuteMutationRequest, MutationExecution, MutationIntent, MutationPreview,
     MutationValidationError, verify_postcondition,
@@ -1071,6 +1073,30 @@ pub async fn launch_repository_handoff(
     handoff::launch(&repository, target).map_err(|_| AppError {
         kind: AppErrorKind::Launch,
         message: "repository handoff application could not be launched".into(),
+    })
+}
+
+#[tauri::command]
+pub async fn launch_file_handoff(
+    repository_id: RepositoryId,
+    path: String,
+    target: FileHandoffTarget,
+    state: State<'_, AppState>,
+) -> Result<FileHandoffPreview, AppError> {
+    let repository = find_repository(&repository_id, &state).await?;
+    handoff::launch_file(&repository, &path, target).map_err(|error| match error {
+        FileHandoffError::InvalidPath => AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "file path is not a valid repository-relative path".into(),
+        },
+        FileHandoffError::UnsupportedTransport => AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "Show in Finder is available only for local repositories".into(),
+        },
+        FileHandoffError::Launch(_) => AppError {
+            kind: AppErrorKind::Launch,
+            message: "file handoff application could not be launched".into(),
+        },
     })
 }
 

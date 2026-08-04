@@ -210,6 +210,15 @@ export interface HandoffPreview {
   actionLabel: string;
 }
 
+export type FileHandoffTarget = "editor" | "reveal";
+
+export interface FileHandoffPreview {
+  repositoryDisplayName: string;
+  filePath: string;
+  target: FileHandoffTarget;
+  actionLabel: string;
+}
+
 export type MutationIntent =
   | { kind: "new"; parentCommitIds: string[] }
   | { kind: "edit"; targetCommitId: string }

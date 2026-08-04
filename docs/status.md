@@ -22,7 +22,9 @@ source repository를 연 뒤에도 그 스크롤 위치를 유지한다.
 `v0.9.9`는 사용자가 선택한 update restart에 후속 process용 foreground intent를 기록한다.
 다만 marker 기능이 없는 `v0.9.8 → v0.9.9` 첫 restart에는 적용되지 않는다.
 `v0.9.10` Apple Silicon macOS beta는 incoming main window가 marker 없이 스스로
-show/focus하도록 해 이 bootstrap gap을 제거한다. 선택된 active milestone은 없다.
+show/focus하도록 해 이 bootstrap gap을 제거한다. 현재 선택된 active milestone은
+`docs/todo-file-context-actions/spec.md`다. 두 file tree surface에서 선택된 파일 가까이에
+compact context action menu를 제공한다.
 
 완료된 기반:
 
@@ -107,6 +109,8 @@ show/focus하도록 해 이 bootstrap gap을 제거한다. 선택된 active mile
 - fresh projection/operation log 기반 action postcondition과 cache refresh
 - selected change 가까이의 `Change` 메뉴와 graph row context menu로 제공하는
   edit/describe/history shaping/bookmark 작업
+- Working Copy와 Changes file tree가 공유하는 pointer/keyboard context menu, exact
+  single-file split 및 transport-aware editor/Finder handoff
 - repository navigation과 repository row context menu에 노출된 protected empty-change
   pruning, rail이 접히는 narrow window의 compact fallback
 - action 선택 단계를 제거하고 선택한 작업의 parameter와 exact-target preview에 집중하는

@@ -7,6 +7,7 @@ import type {
   RepositorySourceDraft,
   RepositoryRecord,
   HandoffTarget,
+  FileHandoffTarget,
   FileDiffRequest,
   FileDiffProjection,
   OperationLogProjection,
@@ -879,6 +880,26 @@ export class DemoBridge {
 
   async launchRepositoryHandoff(repositoryId: string, target: HandoffTarget) {
     return this.previewRepositoryHandoff(repositoryId, target);
+  }
+
+  async launchFileHandoff(
+    repositoryId: string,
+    path: string,
+    target: FileHandoffTarget,
+  ) {
+    const repository = this.repository(repositoryId);
+    if (target === "reveal" && repository.location.kind !== "local") {
+      throw {
+        kind: "invalidInput",
+        message: "Show in Finder is available only for local repositories",
+      } satisfies AppError;
+    }
+    return {
+      repositoryDisplayName: repository.displayName,
+      filePath: path,
+      target,
+      actionLabel: target === "editor" ? "Open in VS Code" : "Show in Finder",
+    } as const;
   }
 
   private repository(repositoryId: string) {

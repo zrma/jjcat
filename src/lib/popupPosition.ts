@@ -19,6 +19,16 @@ export type PopupPosition = {
   top: number;
 };
 
+type PointerPopupPositionOptions = {
+  x: number;
+  y: number;
+  popupWidth: number;
+  popupHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  margin?: number;
+};
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), maximum);
 }
@@ -42,4 +52,19 @@ export function anchoredPopupPosition({
       : clamp(anchor.top - popupHeight - gap, margin, maximumTop);
 
   return { left, top };
+}
+
+export function pointerPopupPosition({
+  x,
+  y,
+  popupWidth,
+  popupHeight,
+  viewportWidth,
+  viewportHeight,
+  margin = 8,
+}: PointerPopupPositionOptions): PopupPosition {
+  return {
+    left: clamp(x, margin, Math.max(margin, viewportWidth - popupWidth - margin)),
+    top: clamp(y, margin, Math.max(margin, viewportHeight - popupHeight - margin)),
+  };
 }

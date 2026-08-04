@@ -1431,6 +1431,35 @@ function App() {
     }
   }
 
+  async function launchFileHandoff(path: string, target: "editor" | "reveal") {
+    if (!selectedRepository) return;
+    try {
+      const preview = await bridge.launchFileHandoff(
+        selectedRepository.id,
+        path,
+        target,
+      );
+      setHandoffNotice(`${preview.actionLabel}: ${preview.filePath}`);
+      setRepositoryActionError(null);
+    } catch (error) {
+      setRepositoryActionError((error as AppError).message);
+    }
+  }
+
+  async function copyFilePath(path: string) {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard access is unavailable");
+      }
+      await navigator.clipboard.writeText(path);
+      setHandoffNotice(`Copied path: ${path}`);
+      setRepositoryActionError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setRepositoryActionError(message);
+    }
+  }
+
   function mutationExecuted(
     execution: MutationExecution,
     activityId?: string,
@@ -2372,6 +2401,12 @@ function App() {
                   setRepositoryActionError(message);
                 });
               }}
+              canRevealFiles={selectedRepository.location.kind === "local"}
+              onOpenFileInEditor={(path) =>
+                void launchFileHandoff(path, "editor")
+              }
+              onRevealFile={(path) => void launchFileHandoff(path, "reveal")}
+              onCopyFilePath={(path) => void copyFilePath(path)}
               inspectorView={inspectorView}
               onInspectorViewChange={setInspectorView}
               operationLog={operationLog}

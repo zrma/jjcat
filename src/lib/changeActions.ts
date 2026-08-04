@@ -15,6 +15,25 @@ export interface MutationLaunch {
   previewImmediately: boolean;
 }
 
+export function canSplitChange(commitId: string) {
+  return !/^0+$/.test(commitId);
+}
+
+export function mutationLaunchForFileSplit(
+  change: ChangeRow,
+  path: string,
+): MutationLaunch {
+  return {
+    intent: {
+      kind: "split",
+      sourceCommitId: change.commitId,
+      paths: [path],
+      message: change.description ?? change.summary,
+    },
+    previewImmediately: false,
+  };
+}
+
 export function mutationLaunchForChange(
   kind: ChangeActionKind,
   change: ChangeRow,

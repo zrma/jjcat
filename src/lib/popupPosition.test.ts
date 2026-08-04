@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anchoredPopupPosition } from "./popupPosition";
+import { anchoredPopupPosition, pointerPopupPosition } from "./popupPosition";
 
 describe("anchoredPopupPosition", () => {
   it("opens below the anchor without crossing the viewport edge", () => {
@@ -45,5 +45,30 @@ describe("anchoredPopupPosition", () => {
         viewportHeight: 600,
       }),
     ).toEqual({ left: 160, top: 408 });
+  });
+});
+
+describe("pointerPopupPosition", () => {
+  it("keeps a context menu beside the pointer inside every viewport edge", () => {
+    expect(
+      pointerPopupPosition({
+        x: 420,
+        y: 260,
+        popupWidth: 230,
+        popupHeight: 190,
+        viewportWidth: 900,
+        viewportHeight: 600,
+      }),
+    ).toEqual({ left: 420, top: 260 });
+    expect(
+      pointerPopupPosition({
+        x: 890,
+        y: 590,
+        popupWidth: 230,
+        popupHeight: 190,
+        viewportWidth: 900,
+        viewportHeight: 600,
+      }),
+    ).toEqual({ left: 662, top: 402 });
   });
 });

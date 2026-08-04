@@ -48,6 +48,7 @@ import {
 } from "../lib/splitter";
 import { virtualRange } from "../lib/virtualization";
 import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
+import { pointerPopupPosition } from "../lib/popupPosition";
 import type {
   ChangedFile,
   ChangeRow,
@@ -61,8 +62,13 @@ import { BookmarkLabels } from "./BookmarkLabels";
 import { ChangeActionMenu } from "./ChangeActionMenu";
 import { CliSpinner } from "./CliSpinner";
 import { DiffViewer } from "./DiffViewer";
+import { FileContextMenu } from "./FileContextMenu";
 import { OperationLogPanel } from "./OperationLogPanel";
-import type { MutationLaunch } from "../lib/changeActions";
+import {
+  canSplitChange,
+  mutationLaunchForFileSplit,
+  type MutationLaunch,
+} from "../lib/changeActions";
 import {
   historyDropLaunch,
   type HistoryDragIntent,
@@ -98,6 +104,10 @@ interface ChangeWorkspaceProps {
     viewMode: DiffViewMode,
     whitespaceMode: WhitespaceMode,
   ) => void;
+  canRevealFiles: boolean;
+  onOpenFileInEditor: (path: string) => void;
+  onRevealFile: (path: string) => void;
+  onCopyFilePath: (path: string) => void;
   inspectorView: InspectorView;
   onInspectorViewChange: (view: InspectorView) => void;
   operationLog: OperationLogProjection | null;
@@ -139,6 +149,10 @@ export function ChangeWorkspace({
   onDiffViewModeChange,
   onWhitespaceModeChange,
   onOpenDiffQuickLook,
+  canRevealFiles,
+  onOpenFileInEditor,
+  onRevealFile,
+  onCopyFilePath,
   inspectorView,
   onInspectorViewChange,
   operationLog,
@@ -289,6 +303,11 @@ export function ChangeWorkspace({
         onDiffViewModeChange={onDiffViewModeChange}
         onWhitespaceModeChange={onWhitespaceModeChange}
         onOpenDiffQuickLook={onOpenDiffQuickLook}
+        canRevealFiles={canRevealFiles}
+        onOpenFileInEditor={onOpenFileInEditor}
+        onRevealFile={onRevealFile}
+        onCopyFilePath={onCopyFilePath}
+        onLaunchMutation={onLaunchMutation}
       />
     );
   }
@@ -482,6 +501,11 @@ export function ChangeWorkspace({
               onDiffViewModeChange={onDiffViewModeChange}
               onWhitespaceModeChange={onWhitespaceModeChange}
               onOpenDiffQuickLook={onOpenDiffQuickLook}
+              canRevealFiles={canRevealFiles}
+              onOpenFileInEditor={onOpenFileInEditor}
+              onRevealFile={onRevealFile}
+              onCopyFilePath={onCopyFilePath}
+              onLaunchMutation={onLaunchMutation}
             />
           )}
         </div>
@@ -515,6 +539,11 @@ function WorkingCopyWorkspace({
   onDiffViewModeChange,
   onWhitespaceModeChange,
   onOpenDiffQuickLook,
+  canRevealFiles,
+  onOpenFileInEditor,
+  onRevealFile,
+  onCopyFilePath,
+  onLaunchMutation,
 }: {
   change?: ChangeRow;
   fileCount: number;
@@ -535,6 +564,11 @@ function WorkingCopyWorkspace({
     viewMode: DiffViewMode,
     whitespaceMode: WhitespaceMode,
   ) => void;
+  canRevealFiles: boolean;
+  onOpenFileInEditor: (path: string) => void;
+  onRevealFile: (path: string) => void;
+  onCopyFilePath: (path: string) => void;
+  onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   return (
     <section className="working-copy-workspace" aria-label="Working copy files">
@@ -574,6 +608,11 @@ function WorkingCopyWorkspace({
             onDiffViewModeChange={onDiffViewModeChange}
             onWhitespaceModeChange={onWhitespaceModeChange}
             onOpenDiffQuickLook={onOpenDiffQuickLook}
+            canRevealFiles={canRevealFiles}
+            onOpenFileInEditor={onOpenFileInEditor}
+            onRevealFile={onRevealFile}
+            onCopyFilePath={onCopyFilePath}
+            onLaunchMutation={onLaunchMutation}
           />
         )}
       </div>
@@ -1334,6 +1373,11 @@ function ChangeInspector({
   onDiffViewModeChange,
   onWhitespaceModeChange,
   onOpenDiffQuickLook,
+  canRevealFiles,
+  onOpenFileInEditor,
+  onRevealFile,
+  onCopyFilePath,
+  onLaunchMutation,
 }: {
   change?: ChangeRow;
   selectedFilePath: string | null;
@@ -1351,6 +1395,11 @@ function ChangeInspector({
     viewMode: DiffViewMode,
     whitespaceMode: WhitespaceMode,
   ) => void;
+  canRevealFiles: boolean;
+  onOpenFileInEditor: (path: string) => void;
+  onRevealFile: (path: string) => void;
+  onCopyFilePath: (path: string) => void;
+  onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   return (
     <div className="change-inspector">
@@ -1367,6 +1416,11 @@ function ChangeInspector({
         onDiffViewModeChange={onDiffViewModeChange}
         onWhitespaceModeChange={onWhitespaceModeChange}
         onOpenDiffQuickLook={onOpenDiffQuickLook}
+        canRevealFiles={canRevealFiles}
+        onOpenFileInEditor={onOpenFileInEditor}
+        onRevealFile={onRevealFile}
+        onCopyFilePath={onCopyFilePath}
+        onLaunchMutation={onLaunchMutation}
       />
     </div>
   );
@@ -1381,7 +1435,6 @@ function ChangeOverview({ change }: { change?: ChangeRow }) {
       </aside>
     );
   }
-
   const description = (
     change.description ||
     change.summary ||
@@ -1461,6 +1514,11 @@ function ChangeFiles({
   onDiffViewModeChange,
   onWhitespaceModeChange,
   onOpenDiffQuickLook,
+  canRevealFiles,
+  onOpenFileInEditor,
+  onRevealFile,
+  onCopyFilePath,
+  onLaunchMutation,
 }: {
   change?: ChangeRow;
   selectedFilePath: string | null;
@@ -1478,8 +1536,53 @@ function ChangeFiles({
     viewMode: DiffViewMode,
     whitespaceMode: WhitespaceMode,
   ) => void;
+  canRevealFiles: boolean;
+  onOpenFileInEditor: (path: string) => void;
+  onRevealFile: (path: string) => void;
+  onCopyFilePath: (path: string) => void;
+  onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   const fileListRef = useRef<HTMLElement>(null);
+  const [fileContextMenu, setFileContextMenu] = useState<{
+    path: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setFileContextMenu(null);
+  }, [change?.commitId]);
+
+  useEffect(() => {
+    if (!fileContextMenu) return;
+    const close = () => setFileContextMenu(null);
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("resize", close);
+    window.addEventListener("blur", close);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("blur", close);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fileContextMenu]);
+
+  const openFileContextMenu = (path: string, x: number, y: number) => {
+    onSelectFile(path);
+    const position = pointerPopupPosition({
+      x,
+      y,
+      popupWidth: 232,
+      popupHeight: 185,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    });
+    setFileContextMenu({ path, x: position.left, y: position.top });
+  };
 
   if (!change) {
     return (
@@ -1489,6 +1592,10 @@ function ChangeFiles({
       </aside>
     );
   }
+
+  const contextFile = fileContextMenu
+    ? change.files.find((candidate) => candidate.path === fileContextMenu.path)
+    : undefined;
 
   return (
     <aside className="change-details" aria-label="Selected change details">
@@ -1604,6 +1711,7 @@ function ChangeFiles({
                   whitespaceMode,
                 );
               }}
+              onOpenContextMenu={openFileContextMenu}
             />
           )}
         </div>
@@ -1638,6 +1746,30 @@ function ChangeFiles({
           </div>
         </section>
       )}
+      {fileContextMenu && contextFile ? (
+        <FileContextMenu
+          file={contextFile}
+          x={fileContextMenu.x}
+          y={fileContextMenu.y}
+          canReveal={canRevealFiles}
+          canSplit={canSplitChange(change.commitId)}
+          onOpenDiff={() =>
+            onOpenDiffQuickLook(
+              change,
+              contextFile.path,
+              diffViewMode,
+              whitespaceMode,
+            )
+          }
+          onOpenEditor={() => onOpenFileInEditor(contextFile.path)}
+          onReveal={() => onRevealFile(contextFile.path)}
+          onSplit={() =>
+            onLaunchMutation(mutationLaunchForFileSplit(change, contextFile.path))
+          }
+          onCopyPath={() => onCopyFilePath(contextFile.path)}
+          onClose={() => setFileContextMenu(null)}
+        />
+      ) : null}
     </aside>
   );
 }
@@ -1674,11 +1806,13 @@ export function ChangedFileTree({
   selectedFilePath,
   onSelectFile,
   onOpenSelectedFile,
+  onOpenContextMenu,
 }: {
   files: ChangedFile[];
   selectedFilePath: string | null;
   onSelectFile: (path: string) => void;
   onOpenSelectedFile?: (path: string) => void;
+  onOpenContextMenu?: (path: string, x: number, y: number) => void;
 }) {
   const root = useMemo(() => buildFileTree(files), [files]);
   return (
@@ -1690,6 +1824,7 @@ export function ChangedFileTree({
           selectedFilePath={selectedFilePath}
           onSelectFile={onSelectFile}
           onOpenSelectedFile={onOpenSelectedFile}
+          onOpenContextMenu={onOpenContextMenu}
           key={node.path}
         />
       ))}
@@ -1703,12 +1838,14 @@ function FileTreeBranch({
   selectedFilePath,
   onSelectFile,
   onOpenSelectedFile,
+  onOpenContextMenu,
 }: {
   node: FileTreeNode;
   depth: number;
   selectedFilePath: string | null;
   onSelectFile: (path: string) => void;
   onOpenSelectedFile?: (path: string) => void;
+  onOpenContextMenu?: (path: string, x: number, y: number) => void;
 }) {
   const children = [...node.children.values()].sort((left, right) => {
     const leftDirectory = left.children.size > 0;
@@ -1726,6 +1863,13 @@ function FileTreeBranch({
           onPointerDown={(event) =>
             event.currentTarget.focus({ preventScroll: true })
           }
+          onContextMenu={(event) => {
+            if (!onOpenContextMenu) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.focus({ preventScroll: true });
+            onOpenContextMenu(node.file!.path, event.clientX, event.clientY);
+          }}
           onClick={(event) => {
             const button = event.currentTarget;
             onSelectFile(node.file!.path);
@@ -1734,6 +1878,17 @@ function FileTreeBranch({
             );
           }}
           onKeyDown={(event) => {
+            if (
+              onOpenContextMenu &&
+              (event.key === "ContextMenu" ||
+                (event.shiftKey && event.key === "F10"))
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              const rect = event.currentTarget.getBoundingClientRect();
+              onOpenContextMenu(node.file!.path, rect.left + 24, rect.bottom + 4);
+              return;
+            }
             if (
               event.key !== " " &&
               event.key !== "Spacebar" &&
@@ -1747,6 +1902,7 @@ function FileTreeBranch({
             onOpenSelectedFile(node.file!.path);
           }}
           data-file-path={node.file.path}
+          aria-haspopup={onOpenContextMenu ? "menu" : undefined}
         >
           <File aria-hidden="true" />
           <span title={node.file.displayPath || node.file.path}>{node.name}</span>
@@ -1770,6 +1926,7 @@ function FileTreeBranch({
               selectedFilePath={selectedFilePath}
               onSelectFile={onSelectFile}
               onOpenSelectedFile={onOpenSelectedFile}
+              onOpenContextMenu={onOpenContextMenu}
               key={child.path}
             />
           ))}

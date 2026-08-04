@@ -45,10 +45,12 @@ REQUIRED_PATHS = (
     "src/App.tsx",
     "src/appUpdater.ts",
     "src/main.tsx",
+    "src/components/FileContextMenu.tsx",
     "src/lib/appUpdate.ts",
     "src/lib/appUpdateLegacy.ts",
     "src-tauri/Cargo.toml",
     "src-tauri/Cargo.lock",
+    "src-tauri/src/handoff.rs",
     "src-tauri/capabilities/default.json",
     "src-tauri/tauri.conf.json",
     "src-tauri/tests/fixtures/updater-signature-payload.txt",
@@ -90,6 +92,8 @@ app_updater_source = read("src/appUpdater.ts")
 main_source = read("src/main.tsx")
 app_update_state = read("src/lib/appUpdate.ts")
 tauri_source = read("src-tauri/src/lib.rs")
+file_context_menu_source = read("src/components/FileContextMenu.tsx")
+handoff_source = read("src-tauri/src/handoff.rs")
 
 for fragment in (
     "name: jjcat",
@@ -297,6 +301,17 @@ for fragment, source_name, source in (
 ):
     if fragment not in source:
         fail(f"{source_name} is missing updater contract fragment {fragment!r}")
+
+for fragment, source_name, source in (
+    ("launchFileHandoff", "App.tsx", app_source),
+    ("Split This File…", "FileContextMenu.tsx", file_context_menu_source),
+    ("Show in Finder", "FileContextMenu.tsx", file_context_menu_source),
+    ("validate_file_path", "src-tauri/src/handoff.rs", handoff_source),
+    ("FileHandoffTarget::Reveal", "src-tauri/src/handoff.rs", handoff_source),
+    ("commands::launch_file_handoff", "src-tauri/src/lib.rs", tauri_source),
+):
+    if fragment not in source:
+        fail(f"{source_name} is missing file context action fragment {fragment!r}")
 
 for fragment in (
     "APPLE_CERTIFICATE",

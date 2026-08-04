@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ChangeRow } from "../types";
 import {
+  canSplitChange,
+  mutationLaunchForFileSplit,
   mutationLaunchForChange,
   type ChangeActionKind,
 } from "./changeActions";
@@ -96,5 +98,29 @@ describe("mutationLaunchForChange", () => {
     expect(
       mutationLaunchForChange(kind, selected, [selected]).previewImmediately,
     ).toBe(false);
+  });
+
+  it("builds a focused split for exactly the context-menu file", () => {
+    const selected = change({
+      files: [
+        { status: "M", path: "src/main.ts" },
+        { status: "A", path: "src/new.ts" },
+      ],
+    });
+
+    expect(mutationLaunchForFileSplit(selected, "src/new.ts")).toEqual({
+      intent: {
+        kind: "split",
+        sourceCommitId: "commit-a",
+        paths: ["src/new.ts"],
+        message: "feat: selected change\n\nTrailer: value",
+      },
+      previewImmediately: false,
+    });
+  });
+
+  it("disables file splitting only for the immutable root change", () => {
+    expect(canSplitChange("0000000000000000")).toBe(false);
+    expect(canSplitChange("commit-a")).toBe(true);
   });
 });

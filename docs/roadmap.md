@@ -68,6 +68,8 @@
   (`docs/milestones/update-relaunch-activation/spec.md`, completed)
 - [x] incoming main window가 직접 소유하는 bootstrap-safe foreground activation
   (`docs/milestones/update-launch-activation-bootstrap/spec.md`, completed)
+- [ ] Working Copy와 Changes file tree의 compact context action menu
+  (`docs/todo-file-context-actions/spec.md`, active)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.
