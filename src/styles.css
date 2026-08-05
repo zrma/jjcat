@@ -3513,7 +3513,7 @@ body.workspace-resizing {
 
 .file-timeline-window {
   display: grid;
-  grid-template-rows: 40px 44px minmax(0, 1fr);
+  grid-template-rows: 40px 96px minmax(0, 1fr);
   width: 100vw;
   height: 100vh;
   min-width: 0;
@@ -3601,27 +3601,261 @@ body.workspace-resizing {
 }
 
 .file-timeline-ruler {
+  position: relative;
+  z-index: 3;
   display: grid;
-  grid-template-rows: 16px 18px;
-  gap: 1px;
+  grid-template-rows: 24px minmax(0, 1fr);
+  gap: 2px;
   min-width: 0;
-  padding: 4px 20px 3px;
+  padding: 5px 20px 6px;
   border-bottom: 1px solid var(--border-default);
   background: var(--surface-raised);
 }
 
-.file-timeline-ruler > div {
-  display: flex;
+.file-timeline-ruler-summary {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
   color: var(--text-muted);
-  font-family: var(--mono);
   font-size: 9px;
 }
 
-.file-timeline-ruler input {
-  width: 100%;
-  accent-color: var(--brand-primary);
+.file-timeline-ruler-summary > span:last-child {
+  justify-self: end;
+}
+
+.file-timeline-ruler-summary strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.file-timeline-ruler-summary.previewing {
+  grid-template-columns: 14px minmax(120px, 1fr) minmax(120px, auto) max-content max-content;
+  color: var(--text-secondary);
+}
+
+.file-timeline-ruler-summary.previewing > svg {
+  width: 13px;
+  height: 13px;
+  color: var(--brand-primary);
+}
+
+.file-timeline-ruler-summary.previewing > strong,
+.file-timeline-ruler-summary.previewing > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-timeline-ruler-summary.previewing > span {
+  justify-self: stretch;
+  color: var(--text-muted);
+}
+
+.file-timeline-ruler-summary code {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.file-timeline-ruler-summary em {
+  padding: 2px 5px;
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-primary);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.file-timeline-scale {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  --timeline-axis-y: 29px;
+}
+
+.file-timeline-axis {
+  position: absolute;
+  top: var(--timeline-axis-y);
+  right: 0;
+  left: 0;
+  border-top: 1px solid var(--border-strong);
+}
+
+.file-timeline-tick,
+.file-timeline-year,
+.file-timeline-marker,
+.file-timeline-selection-cursor,
+.file-timeline-cluster-menu {
+  position: absolute;
+  left: var(--timeline-position);
+}
+
+.file-timeline-tick {
+  top: 5px;
+  width: 1px;
+  height: 25px;
+  border-left: 1px solid var(--border-subtle);
+  color: var(--text-disabled);
+  font-family: var(--mono);
+  font-size: 7px;
+  line-height: 9px;
+  text-indent: 3px;
+}
+
+.file-timeline-tick.major {
+  height: 29px;
+  border-left-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.file-timeline-year {
+  top: 47px;
+  transform: translateX(-50%);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-timeline-marker {
+  z-index: 3;
+  top: calc(var(--timeline-axis-y) - 9px);
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  transform: translateX(-50%);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--brand-primary);
+}
+
+.file-timeline-marker:hover:not(:disabled),
+.file-timeline-marker:focus-visible,
+.file-timeline-marker.active {
+  background: var(--brand-soft);
+  color: var(--brand-emphasis);
+}
+
+.file-timeline-marker:focus-visible {
+  outline: 2px solid var(--preview-border);
+  outline-offset: 1px;
+}
+
+.file-timeline-marker > svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.25;
+}
+
+.file-timeline-marker.clustered {
+  min-width: 20px;
+  width: auto;
+  padding: 0 5px;
+  border: 1px solid var(--brand-border);
+  background: var(--surface-raised);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.file-timeline-marker.clustered.active {
+  border-color: var(--brand-border-strong);
+  background: var(--brand-primary);
+  color: var(--surface-canvas);
+}
+
+.file-timeline-marker:disabled {
+  color: var(--text-disabled);
+}
+
+.file-timeline-selection-cursor {
+  z-index: 2;
+  top: 2px;
+  height: 43px;
+  border-left: 1px solid var(--brand-emphasis);
+  pointer-events: none;
+}
+
+.file-timeline-cluster-menu {
+  z-index: 8;
+  top: 42px;
+  display: grid;
+  width: min(360px, calc(100vw - 48px));
+  max-height: 240px;
+  overflow: auto;
+  transform: translateX(-50%);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-panel);
+  box-shadow: 0 10px 30px var(--shadow-floating);
+}
+
+.file-timeline-cluster-menu.start {
+  transform: translateX(0);
+}
+
+.file-timeline-cluster-menu.end {
+  transform: translateX(-100%);
+}
+
+.file-timeline-cluster-menu > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.file-timeline-cluster-menu > button:last-child {
+  border-bottom: 0;
+}
+
+.file-timeline-cluster-menu > button:hover,
+.file-timeline-cluster-menu > button:focus-visible,
+.file-timeline-cluster-menu > button[aria-checked="true"] {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.file-timeline-cluster-menu > button:focus-visible {
+  outline: 2px solid var(--preview-border);
+  outline-offset: -2px;
+}
+
+.file-timeline-cluster-menu span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.file-timeline-cluster-menu strong,
+.file-timeline-cluster-menu small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-timeline-cluster-menu strong {
+  font-size: 10px;
+}
+
+.file-timeline-cluster-menu small,
+.file-timeline-cluster-menu code {
+  color: var(--text-muted);
+  font-size: 9px;
 }
 
 .file-timeline-state {

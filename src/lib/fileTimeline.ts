@@ -34,6 +34,125 @@ export interface AnnotationGroup {
   lines: FileAnnotationLine[];
 }
 
+export interface FileTimelineTick {
+  key: string;
+  label: string;
+  position: number;
+  major: boolean;
+}
+
+export interface FileTimelineYear {
+  year: number;
+  position: number;
+}
+
+export interface FileTimelineCluster {
+  id: string;
+  position: number;
+  entries: FileHistoryEntry[];
+}
+
+export interface FileTimelinePoint {
+  entry: FileHistoryEntry;
+  position: number;
+}
+
+export interface FileTimelineScale {
+  start: number;
+  end: number;
+  ticks: FileTimelineTick[];
+  years: FileTimelineYear[];
+  points: FileTimelinePoint[];
+  clusters: FileTimelineCluster[];
+}
+
+function timestamp(entry: FileHistoryEntry) {
+  const parsed = Date.parse(entry.timestamp);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function monthStart(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+}
+
+function nextMonth(value: number) {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+}
+
+function timelinePosition(value: number, start: number, end: number) {
+  return ((value - start) / Math.max(1, end - start)) * 100;
+}
+
+export function buildFileTimelineScale(
+  history: FileHistoryEntry[],
+  width: number,
+  markerSpacing = 18,
+): FileTimelineScale | null {
+  const chronological = history
+    .map((entry) => ({ entry, timestamp: timestamp(entry) }))
+    .filter((item): item is { entry: FileHistoryEntry; timestamp: number } =>
+      item.timestamp !== null,
+    )
+    .sort(
+      (left, right) =>
+        left.timestamp - right.timestamp ||
+        left.entry.commitId.localeCompare(right.entry.commitId),
+    );
+  if (chronological.length === 0) return null;
+
+  const start = monthStart(chronological[0].timestamp);
+  const end = nextMonth(monthStart(chronological.at(-1)!.timestamp));
+  const ticks: FileTimelineTick[] = [];
+  for (let cursor = start; cursor <= end; cursor = nextMonth(cursor)) {
+    const date = new Date(cursor);
+    ticks.push({
+      key: `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}`,
+      label: String(date.getUTCMonth() + 1),
+      position: timelinePosition(cursor, start, end),
+      major: date.getUTCMonth() === 0,
+    });
+  }
+
+  const years: FileTimelineYear[] = [];
+  const startYear = new Date(start).getUTCFullYear();
+  const endYear = new Date(end).getUTCFullYear();
+  for (let year = startYear; year <= endYear; year += 1) {
+    const segmentStart = Math.max(start, Date.UTC(year, 0, 1));
+    const segmentEnd = Math.min(end, Date.UTC(year + 1, 0, 1));
+    if (segmentEnd <= segmentStart) continue;
+    years.push({
+      year,
+      position: timelinePosition((segmentStart + segmentEnd) / 2, start, end),
+    });
+  }
+
+  const points = chronological.map((item) => ({
+    entry: item.entry,
+    position: timelinePosition(item.timestamp, start, end),
+  }));
+  const safeWidth = Math.max(1, width);
+  const buckets = new Map<number, FileTimelinePoint[]>();
+  for (const point of points) {
+    const x = (point.position / 100) * safeWidth;
+    const bucket = Math.round(x / Math.max(1, markerSpacing));
+    const entries = buckets.get(bucket) ?? [];
+    entries.push(point);
+    buckets.set(bucket, entries);
+  }
+
+  const clusters = [...buckets.entries()].map(([bucket, items]) => ({
+    id: `${bucket}:${items.map((item) => item.entry.commitId).join(":")}`,
+    position: items.reduce((sum, item) => sum + item.position, 0) / items.length,
+    entries: items
+      .map((item) => item.entry)
+      .sort((left, right) => (timestamp(right) ?? 0) - (timestamp(left) ?? 0)),
+  }));
+
+  return { start, end, ticks, years, points, clusters };
+}
+
 let browserTimelineWindow: Window | null = null;
 
 export function fileTimelineUrl(request: FileTimelineRequest) {

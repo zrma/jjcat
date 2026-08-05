@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
   AlertTriangle,
   Binary,
   ChevronLeft,
   ChevronRight,
+  Circle,
+  CircleDot,
   FileClock,
   GitCommitHorizontal,
 } from "lucide-react";
 import { bridge, isTauriRuntime } from "../bridge";
 import { absoluteTime, relativeTime } from "../lib/format";
 import {
+  buildFileTimelineScale,
   groupAnnotationLines,
   mergeFileHistory,
   type FileTimelineRequest,
@@ -29,6 +32,20 @@ function shortCommit(commitId: string) {
   return commitId.slice(0, 8);
 }
 
+function monthAndYear(timestamp: string | undefined) {
+  if (!timestamp) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(timestamp));
+}
+
+function timelineAlignment(position: number) {
+  if (position < 18) return "start";
+  if (position > 82) return "end";
+  return "center";
+}
+
 export function FileTimelineWindow({ request }: { request: FileTimelineRequest }) {
   const [activeRevision, setActiveRevision] = useState({
     changeId: request.changeId,
@@ -38,6 +55,10 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
   const [historyCatalog, setHistoryCatalog] = useState<FileHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rulerWidth, setRulerWidth] = useState(960);
+  const [previewClusterId, setPreviewClusterId] = useState<string | null>(null);
+  const [openClusterId, setOpenClusterId] = useState<string | null>(null);
+  const rulerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     document.title = `Blame · ${request.path} — ${request.repositoryName}`;
@@ -75,13 +96,25 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
     0,
     history.findIndex((entry) => entry.commitId === activeRevision.commitId),
   );
-  const chronological = useMemo(
-    () => [...history].sort((left, right) => Date.parse(left.timestamp) - Date.parse(right.timestamp)),
-    [history],
+  const timelineScale = useMemo(
+    () => buildFileTimelineScale(history, rulerWidth),
+    [history, rulerWidth],
   );
-  const chronologicalIndex = Math.max(
-    0,
-    chronological.findIndex((entry) => entry.commitId === activeRevision.commitId),
+  const activePoint = timelineScale?.points.find(
+    (point) => point.entry.commitId === activeRevision.commitId,
+  );
+  const previewCluster = timelineScale?.clusters.find(
+    (cluster) => cluster.id === (previewClusterId ?? openClusterId),
+  );
+  const openCluster = timelineScale?.clusters.find(
+    (cluster) => cluster.id === openClusterId,
+  );
+  const previewEntry = previewCluster?.entries.find(
+    (entry) => entry.commitId === activeRevision.commitId,
+  ) ?? previewCluster?.entries[0];
+  const tickLabelStep = Math.max(
+    1,
+    Math.ceil((timelineScale?.ticks.length ?? 0) / Math.max(1, Math.floor(rulerWidth / 30))),
   );
   const groups = useMemo(
     () => groupAnnotationLines(projection?.lines ?? []),
@@ -92,6 +125,21 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
     if (!entry || entry.commitId === activeRevision.commitId) return;
     setActiveRevision({ changeId: entry.changeId, commitId: entry.commitId });
   };
+
+  useEffect(() => {
+    const ruler = rulerRef.current;
+    if (!ruler) return;
+    const updateWidth = () => setRulerWidth(Math.max(1, ruler.clientWidth));
+    updateWidth();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(ruler);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (openClusterId && !openCluster) setOpenClusterId(null);
+  }, [openCluster, openClusterId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -160,21 +208,142 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
         </div>
       </header>
       <section className="file-timeline-ruler" aria-label="File history timeline">
-        <div>
-          <span>{chronological[0] ? new Date(chronological[0].timestamp).getFullYear() : ""}</span>
-          <span>
-            {chronological.at(-1) ? new Date(chronological.at(-1)!.timestamp).getFullYear() : ""}
-          </span>
+        <div
+          className={`file-timeline-ruler-summary ${previewEntry ? "previewing" : ""}`}
+          aria-live="polite"
+        >
+          {previewEntry && previewCluster ? (
+            <>
+              <GitCommitHorizontal aria-hidden="true" />
+              <strong>{previewEntry.summary || "(no description)"}</strong>
+              <span>{previewEntry.author} · {absoluteTime(previewEntry.timestamp)}</span>
+              <code>{shortCommit(previewEntry.commitId)}</code>
+              {previewCluster.entries.length > 1 ? (
+                <em>+{previewCluster.entries.length - 1} nearby</em>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <span>
+                <strong>{history.length}</strong> file revision{history.length === 1 ? "" : "s"}
+              </span>
+              <span>
+                {monthAndYear(timelineScale?.points[0]?.entry.timestamp)}
+                {timelineScale && timelineScale.points.length > 1 ? " — " : ""}
+                {monthAndYear(timelineScale?.points.at(-1)?.entry.timestamp)}
+              </span>
+              <span>Hover to preview · Click to navigate</span>
+            </>
+          )}
         </div>
-        <input
-          type="range"
-          min={0}
-          max={Math.max(0, chronological.length - 1)}
-          value={chronologicalIndex}
-          disabled={chronological.length < 2 || loading}
-          aria-label="Select file revision on timeline"
-          onChange={(event) => selectRevision(chronological[Number(event.target.value)])}
-        />
+        <div
+          className="file-timeline-scale"
+          ref={rulerRef}
+          onClick={() => {
+            setOpenClusterId(null);
+            setPreviewClusterId(null);
+          }}
+          onPointerLeave={() => setPreviewClusterId(null)}
+        >
+          <div className="file-timeline-axis" aria-hidden="true" />
+          {timelineScale?.ticks.map((tick, index) => (
+            <span
+              className={`file-timeline-tick ${tick.major ? "major" : ""}`}
+              key={tick.key}
+              style={{ "--timeline-position": `${tick.position}%` } as CSSProperties}
+              aria-hidden="true"
+            >
+              {tick.major || index % tickLabelStep === 0 ? tick.label : ""}
+            </span>
+          ))}
+          {timelineScale?.years.map((year) => (
+            <span
+              className="file-timeline-year"
+              key={year.year}
+              style={{ "--timeline-position": `${year.position}%` } as CSSProperties}
+              aria-hidden="true"
+            >
+              {year.year}
+            </span>
+          ))}
+          {activePoint ? (
+            <span
+              className="file-timeline-selection-cursor"
+              style={{ "--timeline-position": `${activePoint.position}%` } as CSSProperties}
+              aria-hidden="true"
+            />
+          ) : null}
+          {timelineScale?.clusters.map((cluster) => {
+            const active = cluster.entries.some(
+              (entry) => entry.commitId === activeRevision.commitId,
+            );
+            const clustered = cluster.entries.length > 1;
+            const label = clustered
+              ? `${cluster.entries.length} nearby file revisions`
+              : `${shortCommit(cluster.entries[0].commitId)}: ${cluster.entries[0].summary}`;
+            return (
+              <button
+                type="button"
+                className={`file-timeline-marker ${active ? "active" : ""} ${clustered ? "clustered" : ""}`}
+                key={cluster.id}
+                style={{ "--timeline-position": `${cluster.position}%` } as CSSProperties}
+                aria-label={label}
+                aria-haspopup={clustered ? "menu" : undefined}
+                aria-expanded={clustered ? openClusterId === cluster.id : undefined}
+                disabled={loading}
+                onPointerEnter={() => setPreviewClusterId(cluster.id)}
+                onPointerLeave={() => setPreviewClusterId(null)}
+                onFocus={() => setPreviewClusterId(cluster.id)}
+                onBlur={() => setPreviewClusterId(null)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (clustered) {
+                    setOpenClusterId((current) => current === cluster.id ? null : cluster.id);
+                  } else {
+                    setOpenClusterId(null);
+                    selectRevision(cluster.entries[0]);
+                  }
+                }}
+              >
+                {clustered ? (
+                  <span aria-hidden="true">{cluster.entries.length}</span>
+                ) : active ? (
+                  <CircleDot aria-hidden="true" />
+                ) : (
+                  <Circle aria-hidden="true" />
+                )}
+              </button>
+            );
+          })}
+          {openCluster && openCluster.entries.length > 1 ? (
+            <div
+              className={`file-timeline-cluster-menu ${timelineAlignment(openCluster.position)}`}
+              style={{ "--timeline-position": `${openCluster.position}%` } as CSSProperties}
+              role="menu"
+              aria-label="Nearby file revisions"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {openCluster.entries.map((entry) => (
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={entry.commitId === activeRevision.commitId}
+                  key={entry.commitId}
+                  onClick={() => {
+                    setOpenClusterId(null);
+                    selectRevision(entry);
+                  }}
+                >
+                  <span>
+                    <strong>{entry.summary || "(no description)"}</strong>
+                    <small>{entry.author} · {relativeTime(entry.timestamp)}</small>
+                  </span>
+                  <code>{shortCommit(entry.commitId)}</code>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </section>
       {loading ? (
         <section className="file-timeline-state" aria-live="polite">

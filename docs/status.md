@@ -26,7 +26,9 @@ show/focus하도록 해 이 bootstrap gap을 제거한다. `v0.9.11` Apple Silic
 Working Copy와 Changes file tree에 compact context action menu, exact single-file split과
 transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon macOS beta는
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
-local/SSH 공통 contract로 배포했다. 현재 active milestone은 없다.
+local/SSH 공통 contract로 배포했다. 현재 active milestone은
+`docs/todo-file-timeline-ruler/spec.md`다. 실제 timestamp 비례 연·월 ruler, commit marker,
+responsive cluster와 preview/navigation 구현 및 local gate를 완료했고 publication은 별도다.
 
 완료된 기반:
 
@@ -82,6 +84,7 @@ local/SSH 공통 contract로 배포했다. 현재 active milestone은 없다.
 - stable multi-lane change topology와 pointer/keyboard revision navigation
 - selected revision/file만 읽는 512 KiB bounded local/SSH structured diff
 - 선택 revision의 lazy full tracked File Tree, bounded source와 app-owned Blame/Timeline
+- 실제 timestamp 비례 연·월 file timeline ruler, commit marker와 responsive cluster picker
 - rename display path와 target canonical path를 분리하고 escaped exact fileset을 사용하는
   local/SSH diff selection
 - 긴 줄에서도 같은 폭의 overflow pane과 항상 보이는 scrollbar를 유지하고 양쪽의 상대

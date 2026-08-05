@@ -36,10 +36,11 @@
 
 ## Current Work
 
-현재 active todo는 없다. 완료된 `docs/milestones/revision-file-inspection/spec.md`는 선택
-revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을 local/SSH
-공통 typed driver와 별도 app-owned window로 제공한다. `v0.9.12` signed tag, same-SHA
-CI/Release, fresh artifact와 rolling updater manifest 검증까지 완료했다.
+현재 active todo는 `docs/todo-file-timeline-ruler/spec.md`다. 기존 index-based range input을
+실제 timestamp 비례 연·월 ruler, commit marker, responsive cluster, hover/focus preview와
+click/keyboard navigation으로 교체했다. focused/browser/design QA와 canonical gate는
+통과했으며 push, tag와 release는 별도 publication 요청 전까지 수행하지 않는다. 기반인
+`docs/milestones/revision-file-inspection/spec.md`와 `v0.9.12` release 검증은 완료 상태다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
