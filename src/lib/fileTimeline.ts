@@ -1,6 +1,10 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { isTauriRuntime } from "../bridge";
-import type { FileAnnotationLine, FileHistoryEntry } from "../types";
+import type {
+  FileAnnotationLine,
+  FileHistoryEntry,
+  FileTimelineProjection,
+} from "../types";
 
 export const FILE_TIMELINE_WINDOW_LABEL = "file-timeline";
 export const FILE_TIMELINE_WINDOW_OPTIONS = {
@@ -64,6 +68,80 @@ export interface FileTimelineScale {
   years: FileTimelineYear[];
   points: FileTimelinePoint[];
   clusters: FileTimelineCluster[];
+}
+
+export type FileTimelinePresentation =
+  | "initial-loading"
+  | "initial-error"
+  | "refreshing"
+  | "stale-error"
+  | "ready";
+
+export interface FileRevisionIdentity {
+  changeId: string;
+  commitId: string;
+}
+
+export function fileTimelinePresentation(
+  hasProjection: boolean,
+  loading: boolean,
+  hasError: boolean,
+): FileTimelinePresentation {
+  if (!hasProjection) return hasError ? "initial-error" : "initial-loading";
+  if (loading) return "refreshing";
+  return hasError ? "stale-error" : "ready";
+}
+
+export function neighboringFileRevisions(
+  history: FileHistoryEntry[],
+  commitId: string,
+) {
+  const index = history.findIndex((entry) => entry.commitId === commitId);
+  if (index < 0) return [];
+  return [history[index + 1], history[index - 1]].filter(
+    (entry): entry is FileHistoryEntry => Boolean(entry),
+  );
+}
+
+export function createFileTimelineProjectionCache(
+  loader: (revision: FileRevisionIdentity) => Promise<FileTimelineProjection>,
+  maxEntries = 5,
+) {
+  const resolved = new Map<string, FileTimelineProjection>();
+  const pending = new Map<string, Promise<FileTimelineProjection>>();
+  const limit = Math.max(1, maxEntries);
+
+  const get = (commitId: string) => {
+    const cached = resolved.get(commitId);
+    if (!cached) return undefined;
+    resolved.delete(commitId);
+    resolved.set(commitId, cached);
+    return cached;
+  };
+
+  const load = (revision: FileRevisionIdentity) => {
+    const cached = get(revision.commitId);
+    if (cached) return Promise.resolve(cached);
+    const inFlight = pending.get(revision.commitId);
+    if (inFlight) return inFlight;
+
+    const request = loader(revision)
+      .then((projection) => {
+        resolved.delete(projection.commitId);
+        resolved.set(projection.commitId, projection);
+        while (resolved.size > limit) {
+          const oldest = resolved.keys().next().value;
+          if (oldest === undefined) break;
+          resolved.delete(oldest);
+        }
+        return projection;
+      })
+      .finally(() => pending.delete(revision.commitId));
+    pending.set(revision.commitId, request);
+    return request;
+  };
+
+  return { get, load };
 }
 
 function timestamp(entry: FileHistoryEntry) {

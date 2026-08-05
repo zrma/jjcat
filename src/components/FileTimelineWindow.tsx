@@ -14,8 +14,11 @@ import { bridge, isTauriRuntime } from "../bridge";
 import { absoluteTime, relativeTime } from "../lib/format";
 import {
   buildFileTimelineScale,
+  createFileTimelineProjectionCache,
+  fileTimelinePresentation,
   groupAnnotationLines,
   mergeFileHistory,
+  neighboringFileRevisions,
   type FileTimelineRequest,
 } from "../lib/fileTimeline";
 import type { FileHistoryEntry, FileTimelineProjection } from "../types";
@@ -59,6 +62,18 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
   const [previewClusterId, setPreviewClusterId] = useState<string | null>(null);
   const [openClusterId, setOpenClusterId] = useState<string | null>(null);
   const rulerRef = useRef<HTMLDivElement | null>(null);
+  const projectionCache = useMemo(
+    () =>
+      createFileTimelineProjectionCache((revision) =>
+        bridge.loadFileTimeline({
+          repositoryId: request.repositoryId,
+          changeId: revision.changeId,
+          commitId: revision.commitId,
+          path: request.path,
+        }),
+      ),
+    [request.path, request.repositoryId],
+  );
 
   useEffect(() => {
     document.title = `Blame · ${request.path} — ${request.repositoryName}`;
@@ -66,15 +81,20 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
 
   useEffect(() => {
     let active = true;
+    const cached = projectionCache.get(activeRevision.commitId);
+    if (cached) {
+      setProjection(cached);
+      setHistoryCatalog((current) => mergeFileHistory(current, cached.history));
+      setLoading(false);
+      setError(null);
+      return () => {
+        active = false;
+      };
+    }
     setLoading(true);
     setError(null);
-    void bridge
-      .loadFileTimeline({
-        repositoryId: request.repositoryId,
-        changeId: activeRevision.changeId,
-        commitId: activeRevision.commitId,
-        path: request.path,
-      })
+    void projectionCache
+      .load(activeRevision)
       .then((next) => {
         if (!active) return;
         setProjection(next);
@@ -89,7 +109,7 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
     return () => {
       active = false;
     };
-  }, [activeRevision.changeId, activeRevision.commitId, request.path, request.repositoryId]);
+  }, [activeRevision, projectionCache]);
 
   const history = historyCatalog;
   const currentIndex = Math.max(
@@ -120,11 +140,48 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
     () => groupAnnotationLines(projection?.lines ?? []),
     [projection?.lines],
   );
+  const presentation = fileTimelinePresentation(
+    Boolean(projection),
+    loading,
+    Boolean(error),
+  );
 
   const selectRevision = (entry: FileHistoryEntry | undefined) => {
     if (!entry || entry.commitId === activeRevision.commitId) return;
+    const cached = projectionCache.get(entry.commitId);
     setActiveRevision({ changeId: entry.changeId, commitId: entry.commitId });
+    setError(null);
+    if (cached) {
+      setProjection(cached);
+      setHistoryCatalog((current) => mergeFileHistory(current, cached.history));
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
   };
+
+  useEffect(() => {
+    if (!projection || loading) return;
+    const neighbors = neighboringFileRevisions(history, projection.commitId);
+    if (neighbors.length === 0) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        for (const neighbor of neighbors) {
+          if (!active) return;
+          try {
+            await projectionCache.load(neighbor);
+          } catch {
+            // Prefetch is best-effort; foreground selection owns visible errors.
+          }
+        }
+      })();
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [history, loading, projection, projectionCache]);
 
   useEffect(() => {
     const ruler = rulerRef.current;
@@ -345,64 +402,80 @@ export function FileTimelineWindow({ request }: { request: FileTimelineRequest }
           ) : null}
         </div>
       </section>
-      {loading ? (
+      {presentation === "initial-loading" ? (
         <section className="file-timeline-state" aria-live="polite">
           <CliSpinner />
           Loading line provenance…
         </section>
-      ) : error ? (
+      ) : presentation === "initial-error" ? (
         <section className="file-timeline-state error" role="alert">
           <AlertTriangle aria-hidden="true" />
           {error}
         </section>
-      ) : projection?.binary ? (
-        <section className="file-timeline-state">
-          <Binary aria-hidden="true" />
-          Binary files do not have a line timeline.
-        </section>
-      ) : (
-        <section className="file-blame-surface" aria-label="Line provenance">
-          {projection?.truncated ? (
-            <p className="file-timeline-notice">Only the bounded beginning of this file is shown.</p>
+      ) : projection ? (
+        <div className="file-timeline-content" aria-busy={loading}>
+          {presentation === "refreshing" ? (
+            <div className="file-timeline-activity" role="status" aria-live="polite">
+              <CliSpinner />
+              Loading {shortCommit(activeRevision.commitId)}…
+            </div>
+          ) : presentation === "stale-error" ? (
+            <div className="file-timeline-activity error" role="alert" title={error ?? undefined}>
+              <AlertTriangle aria-hidden="true" />
+              <span>{error}</span>
+              <small>Showing {shortCommit(projection.commitId)}</small>
+            </div>
           ) : null}
-          {groups.length ? (
-            groups.map((group, groupIndex) => {
-              const sourceRevision = history.find((entry) => entry.commitId === group.commitId);
-              const current = group.commitId === activeRevision.commitId;
-              return (
-                <article
-                  className={`file-blame-group ${current ? "current" : ""}`}
-                  key={`${group.commitId}:${group.lines[0]?.lineNumber ?? groupIndex}`}
-                >
-                  <button
-                    type="button"
-                    className="file-blame-provenance"
-                    disabled={!sourceRevision || current}
-                    onClick={() => selectRevision(sourceRevision)}
-                    title={`${group.summary}\n${absoluteTime(group.timestamp)}`}
-                  >
-                    <GitCommitHorizontal aria-hidden="true" />
-                    <span>
-                      <strong>{group.summary || "(no description)"}</strong>
-                      <small>{group.author} · {relativeTime(group.timestamp)}</small>
-                    </span>
-                    <code>{shortCommit(group.commitId)}</code>
-                  </button>
-                  <ol start={group.lines[0]?.lineNumber ?? 1}>
-                    {group.lines.map((line) => (
-                      <li key={line.lineNumber}>
-                        <code>{line.content.replace(/\n$/, "") || " "}</code>
-                      </li>
-                    ))}
-                  </ol>
-                </article>
-              );
-            })
+          {projection.binary ? (
+            <section className="file-timeline-state">
+              <Binary aria-hidden="true" />
+              Binary files do not have a line timeline.
+            </section>
           ) : (
-            <div className="file-timeline-state">This file is empty in the selected revision.</div>
+            <section className="file-blame-surface" aria-label="Line provenance">
+              {projection.truncated ? (
+                <p className="file-timeline-notice">Only the bounded beginning of this file is shown.</p>
+              ) : null}
+              {groups.length ? (
+                groups.map((group, groupIndex) => {
+                  const sourceRevision = history.find((entry) => entry.commitId === group.commitId);
+                  const current = group.commitId === projection.commitId;
+                  return (
+                    <article
+                      className={`file-blame-group ${current ? "current" : ""}`}
+                      key={`${group.commitId}:${group.lines[0]?.lineNumber ?? groupIndex}`}
+                    >
+                      <button
+                        type="button"
+                        className="file-blame-provenance"
+                        disabled={!sourceRevision || current}
+                        onClick={() => selectRevision(sourceRevision)}
+                        title={`${group.summary}\n${absoluteTime(group.timestamp)}`}
+                      >
+                        <GitCommitHorizontal aria-hidden="true" />
+                        <span>
+                          <strong>{group.summary || "(no description)"}</strong>
+                          <small>{group.author} · {relativeTime(group.timestamp)}</small>
+                        </span>
+                        <code>{shortCommit(group.commitId)}</code>
+                      </button>
+                      <ol start={group.lines[0]?.lineNumber ?? 1}>
+                        {group.lines.map((line) => (
+                          <li key={line.lineNumber}>
+                            <code>{line.content.replace(/\n$/, "") || " "}</code>
+                          </li>
+                        ))}
+                      </ol>
+                    </article>
+                  );
+                })
+              ) : (
+                <div className="file-timeline-state">This file is empty in the selected revision.</div>
+              )}
+            </section>
           )}
-        </section>
-      )}
+        </div>
+      ) : null}
     </main>
   );
 }

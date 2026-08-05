@@ -74,6 +74,8 @@
   (`docs/milestones/revision-file-inspection/spec.md`, completed)
 - [x] 실제 시간 비례 연·월 눈금, commit marker와 preview/click navigation을 갖춘 file timeline
   (`docs/milestones/file-timeline-ruler/spec.md`, completed)
+- [ ] file timeline revision 전환 중 provenance를 유지하는 비차단 loading feedback
+  (`docs/todo-file-timeline-loading-continuity/spec.md`, active)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.

@@ -3878,6 +3878,64 @@ body.workspace-resizing {
   height: 16px;
 }
 
+.file-timeline-content {
+  position: relative;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.file-timeline-content > .file-timeline-state,
+.file-timeline-content > .file-blame-surface {
+  grid-area: 1 / 1;
+}
+
+.file-timeline-activity {
+  position: absolute;
+  z-index: 5;
+  top: 8px;
+  left: 50%;
+  display: flex;
+  max-width: calc(100% - 32px);
+  align-items: center;
+  gap: 6px;
+  transform: translateX(-50%);
+  padding: 6px 9px;
+  border: 1px solid var(--brand-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-panel) 94%, transparent);
+  box-shadow: 0 6px 18px var(--shadow-floating);
+  color: var(--text-secondary);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.file-timeline-activity.error {
+  border-color: color-mix(in srgb, var(--state-danger) 45%, var(--border-default));
+  color: var(--state-danger);
+}
+
+.file-timeline-activity > svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.file-timeline-activity > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-timeline-activity > small {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
 .file-blame-surface {
   min-width: 0;
   min-height: 0;

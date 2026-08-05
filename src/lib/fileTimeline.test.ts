@@ -1,12 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildFileTimelineScale,
+  createFileTimelineProjectionCache,
+  fileTimelinePresentation,
   fileTimelineUrl,
   groupAnnotationLines,
   mergeFileHistory,
+  neighboringFileRevisions,
   parseFileTimelineRequest,
 } from "./fileTimeline";
-import type { FileAnnotationLine, FileHistoryEntry } from "../types";
+import type {
+  FileAnnotationLine,
+  FileHistoryEntry,
+  FileTimelineProjection,
+} from "../types";
 
 const request = {
   repositoryId: "repo-fixture",
@@ -44,6 +51,19 @@ function historyEntry(
     summary: `change ${commitId}`,
     author: "Fixture",
     timestamp,
+  };
+}
+
+function projection(entry: FileHistoryEntry): FileTimelineProjection {
+  return {
+    repositoryId: "repo-fixture",
+    changeId: entry.changeId,
+    commitId: entry.commitId,
+    path: "src/file.ts",
+    history: [entry],
+    lines: [],
+    binary: false,
+    truncated: false,
   };
 }
 
@@ -89,6 +109,72 @@ describe("file timeline window", () => {
     };
 
     expect(mergeFileHistory([newest, older], [older])).toEqual([newest, older]);
+  });
+
+  it("keeps an existing projection visible while a revision refresh is pending or fails", () => {
+    expect(fileTimelinePresentation(false, true, false)).toBe("initial-loading");
+    expect(fileTimelinePresentation(false, false, true)).toBe("initial-error");
+    expect(fileTimelinePresentation(true, true, false)).toBe("refreshing");
+    expect(fileTimelinePresentation(true, false, true)).toBe("stale-error");
+    expect(fileTimelinePresentation(true, false, false)).toBe("ready");
+  });
+
+  it("selects only the immediate older and newer revisions for background prefetch", () => {
+    const newest = historyEntry("a".repeat(40), "2026-08-05T00:00:00Z");
+    const current = historyEntry("b".repeat(40), "2026-08-04T00:00:00Z");
+    const older = historyEntry("c".repeat(40), "2026-08-03T00:00:00Z");
+    const oldest = historyEntry("d".repeat(40), "2026-08-02T00:00:00Z");
+
+    expect(neighboringFileRevisions([newest, current, older, oldest], current.commitId)).toEqual([
+      older,
+      newest,
+    ]);
+    expect(neighboringFileRevisions([newest, current, older, oldest], newest.commitId)).toEqual([
+      current,
+    ]);
+  });
+
+  it("deduplicates in-flight projection loads and reuses the resolved projection", async () => {
+    const entry = historyEntry("a".repeat(40), "2026-08-05T00:00:00Z");
+    let resolveLoad!: (value: FileTimelineProjection) => void;
+    const loader = vi.fn(
+      () => new Promise<FileTimelineProjection>((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+    const cache = createFileTimelineProjectionCache(loader);
+    const revision = { changeId: entry.changeId, commitId: entry.commitId };
+
+    const first = cache.load(revision);
+    const duplicate = cache.load(revision);
+    expect(first).toBe(duplicate);
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    resolveLoad(projection(entry));
+    await expect(first).resolves.toMatchObject({ commitId: entry.commitId });
+    await expect(cache.load(revision)).resolves.toMatchObject({ commitId: entry.commitId });
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("evicts the least recently used projection from the bounded window cache", async () => {
+    const entries = [
+      historyEntry("a".repeat(40), "2026-08-05T00:00:00Z"),
+      historyEntry("b".repeat(40), "2026-08-04T00:00:00Z"),
+      historyEntry("c".repeat(40), "2026-08-03T00:00:00Z"),
+    ];
+    const loader = vi.fn(async (revision: { changeId: string; commitId: string }) =>
+      projection(entries.find((entry) => entry.commitId === revision.commitId)!),
+    );
+    const cache = createFileTimelineProjectionCache(loader, 2);
+
+    await cache.load(entries[0]);
+    await cache.load(entries[1]);
+    expect(cache.get(entries[0].commitId)).toBeDefined();
+    await cache.load(entries[2]);
+
+    expect(cache.get(entries[0].commitId)).toBeDefined();
+    expect(cache.get(entries[1].commitId)).toBeUndefined();
+    expect(cache.get(entries[2].commitId)).toBeDefined();
   });
 
   it("builds calendar ticks and positions commits by elapsed time", () => {

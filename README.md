@@ -74,6 +74,8 @@ local/SSH file handoff를 설명한다.
 file-level Blame/Timeline을 설명한다.
 [v0.9.13 release notes](docs/releases/v0.9.13.md)는 실제 시간 비례 연·월 ruler와
 commit marker를 사용하는 File Blame/Timeline 탐색을 설명한다.
+[v0.9.14 release notes](docs/releases/v0.9.14.md)는 revision 전환 중 기존 line provenance를
+유지하는 non-blocking loading과 인접 revision 선로딩을 설명한다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
 distribution decision으로 재검토한다.
