@@ -28,7 +28,8 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. 현재 active milestone은
 `docs/todo-file-timeline-ruler/spec.md`다. 실제 timestamp 비례 연·월 ruler, commit marker,
-responsive cluster와 preview/navigation 구현 및 local gate를 완료했고 publication은 별도다.
+responsive cluster와 preview/navigation 구현 및 local gate를 완료했다. `v0.9.13` Apple
+Silicon macOS beta는 이 active milestone의 release target이다.
 
 완료된 기반:
 
@@ -162,12 +163,11 @@ responsive cluster와 preview/navigation 구현 및 local gate를 완료했고 p
 
 ## Latest Release
 
-`v0.9.12` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로, 선택한
-revision의 전체 tracked File Tree와 bounded source를 탐색하고 file context menu에서 별도
-Blame/Timeline 창을 연다. local/SSH가 같은 typed projection을 사용하며 file history의
-older/newer revision 이동, line provenance, binary/truncation 상태와 keyboard interaction을
-지원한다. `v0.9.11`의 compact file context action과 기존 update, window, diff, repository
-rail 동작도 그대로 유지된다.
+`v0.9.13` Apple Silicon macOS beta release target은 ad-hoc-signed/not-notarized prerelease로,
+File Blame/Timeline 상단의 index-based slider를 실제 timestamp 비례 연·월 ruler와 commit
+marker로 교체한다. marker hover/focus preview, direct navigation과 좁은 구간의 responsive
+cluster picker를 제공하며 기존 revision select, older/newer와 Arrow Left/Right navigation을
+유지한다. `v0.9.12`의 File Tree/source와 local/SSH typed projection도 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

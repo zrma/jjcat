@@ -35,6 +35,7 @@ Status: active
 | R2 | done | browser interaction | hover/focus preview, singleton/cluster click와 arrow navigation |
 | R3 | done | design QA | source/current comparison, theme tokens와 narrow desktop layout |
 | R4 | done | `scripts/check.sh` | canonical frontend, Rust와 repository/publication gates |
+| R5 | todo | signed release verification | `v0.9.13` same-SHA CI, release assets와 rolling updater manifest |
 
 ## Required Evidence
 
@@ -47,6 +48,8 @@ Status: active
   검토해 actionable P0/P1/P2가 없는 `passed`로 닫혔다.
 - canonical `scripts/check.sh`는 frontend 179개, Rust unit 78개, local/simulated SSH driver와
   mutation integration, repository/publication contract를 통과했다.
+- feature commit `0521a72a8a973649b536d7ecf8f135453bf3aa3b`는 GPG signature, remote main
+  equality와 terminal CI를 통과했다.
 
 ## Publication Impact
 
@@ -60,5 +63,5 @@ Status: active
 
 ## Completion Rule
 
-모든 local acceptance가 evidence와 함께 done이고 전체 gate가 통과했다. push, tag와 release는
-사용자의 별도 publication 요청 전까지 수행하지 않는다.
+모든 acceptance가 evidence와 함께 done이고 `v0.9.13` remote main, signed tag, terminal
+CI/Release, fresh artifact와 rolling manifest가 같은 release revision으로 검증된다.
