@@ -36,10 +36,10 @@
 
 ## Current Work
 
-현재 active todo는 `docs/todo-revision-file-inspection/spec.md`다. 선택 revision의 전체
-tracked File Tree와 bounded source, file-level Blame/Timeline을 local/SSH 공통 typed driver와
-별도 app-owned window로 구현했고 canonical gate를 통과했다. `v0.9.12` signed tag, same-SHA
-CI/Release, fresh artifact와 rolling updater manifest 검증 뒤 milestone namespace로 닫는다.
+현재 active todo는 없다. 완료된 `docs/milestones/revision-file-inspection/spec.md`는 선택
+revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을 local/SSH
+공통 typed driver와 별도 app-owned window로 제공한다. `v0.9.12` signed tag, same-SHA
+CI/Release, fresh artifact와 rolling updater manifest 검증까지 완료했다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
@@ -86,6 +86,11 @@ gap을 제거한다. native bundle smoke, canonical gate와 release verification
 tree가 같은 compact context menu를 사용하고, 우클릭한 파일 선택과 diff/editor/Finder,
 single-file split, path copy action을 repository transport 경계에 맞게 제공한다. 이 변경은
 `v0.9.11` release에 포함된다.
+
+완료된 `docs/milestones/revision-file-inspection/spec.md`는 선택 revision의 전체 tracked
+File Tree와 bounded source를 lazy-load하고, file context menu에서 app-owned Blame/Timeline
+창을 연다. local/SSH 공통 typed projection, older/newer history 탐색, line provenance와
+binary/truncation 상태를 지원하며 `v0.9.12` release에 포함된다.
 
 완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
 same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,

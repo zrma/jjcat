@@ -1,6 +1,6 @@
 # Spec: Revision File Inspection
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -48,7 +48,7 @@ Status: active
 | R3 | done | frontend unit/build tests | File Tree inspector, source states와 selection/keyboard behavior |
 | R4 | done | browser interaction + design QA | context menu에서 Blame/Timeline 창을 열고 revision을 탐색 |
 | R5 | done | `scripts/check.sh` | canonical frontend, Rust와 repository/publication gates |
-| R6 | todo | signed release verification | `v0.9.12` same-SHA CI, release assets와 rolling updater manifest |
+| R6 | done | signed release verification | `v0.9.12` same-SHA CI, release assets와 rolling updater manifest |
 
 ## Required Evidence
 
@@ -72,6 +72,12 @@ Status: active
   actionable P0/P1/P2가 없는 `passed`로 닫혔다.
 - canonical `scripts/check.sh`는 177개 frontend test, 78개 Rust unit test, local/simulated
   SSH driver와 6개 mutation integration test, repository/publication contract를 통과했다.
+- GPG-signed `v0.9.12` tag와 main/tag CI, macOS Release workflow는 release commit
+  `a47cdda3c6ed4284f294e1a9a14f8163e759c2d0`에서 성공했다.
+- 공개 prerelease의 6개 asset을 fresh download해 checksum, manifest 두 platform alias,
+  Minisign updater signature, ZIP/updater/DMG의 arm64 app identity, ad-hoc hardened code seal,
+  macOS 13 minimum과 DMG Applications shortcut을 검증했다. rolling `updater-beta` manifest는
+  versioned release manifest와 byte-for-byte 일치했다.
 
 ## Publication Impact
 
@@ -91,4 +97,4 @@ Status: active
 ## Completion Rule
 
 모든 acceptance가 evidence와 함께 done이고 `v0.9.12` remote main, signed tag, terminal
-CI/Release, fresh artifact와 rolling manifest가 같은 release revision으로 검증된다.
+CI/Release, fresh artifact와 rolling manifest가 같은 release revision으로 검증됐다.

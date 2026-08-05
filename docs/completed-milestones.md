@@ -1,5 +1,16 @@
 # Completed Milestones
 
+## 2026-08-05: Revision File Inspection
+
+- 선택 revision의 전체 tracked snapshot을 lazy File Tree로 탐색하고, 선택 파일의 bounded
+  source를 binary/truncation 상태와 함께 표시한다.
+- Working Copy, Changes와 snapshot tree의 context menu에서 별도 app-owned Blame/Timeline
+  창을 열고 file history, grouped line provenance와 older/newer revision 이동을 제공한다.
+- local/SSH가 exact revision/path를 사용하는 같은 typed projection과 bounded output contract를
+  공유하고 stale path와 malformed output을 안전하게 거부한다.
+- focused frontend/Rust/integration test, rendered browser/design QA, canonical/publication gate,
+  signed `v0.9.12` same-SHA CI/Release와 fresh public artifact 검증을 통과했다.
+
 ## 2026-08-05: File Context Actions
 
 - Working Copy와 Changes inspector의 file tree가 같은 compact context menu를 사용하고,
