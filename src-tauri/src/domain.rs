@@ -339,6 +339,76 @@ pub struct ChangedFile {
     pub display_path: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionTreeEntry {
+    pub path: String,
+    pub file_type: String,
+    pub conflict: bool,
+    pub executable: bool,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionTreeProjection {
+    pub repository_id: RepositoryId,
+    pub change_id: String,
+    pub commit_id: String,
+    pub entries: Vec<RevisionTreeEntry>,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionFileProjection {
+    pub repository_id: RepositoryId,
+    pub change_id: String,
+    pub commit_id: String,
+    pub entry: RevisionTreeEntry,
+    pub content: String,
+    pub binary: bool,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileHistoryEntry {
+    pub change_id: String,
+    pub commit_id: String,
+    pub summary: String,
+    pub author: String,
+    pub timestamp: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileAnnotationLine {
+    pub line_number: usize,
+    pub original_line_number: usize,
+    pub first_line_in_hunk: bool,
+    pub change_id: String,
+    pub commit_id: String,
+    pub summary: String,
+    pub author: String,
+    pub timestamp: String,
+    pub content: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileTimelineProjection {
+    pub repository_id: RepositoryId,
+    pub change_id: String,
+    pub commit_id: String,
+    pub path: String,
+    pub history: Vec<FileHistoryEntry>,
+    pub lines: Vec<FileAnnotationLine>,
+    pub binary: bool,
+    pub truncated: bool,
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WhitespaceMode {

@@ -262,6 +262,66 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         )
         .await
         .unwrap();
+    let local_tree = JjDriver::default()
+        .revision_tree(
+            &local,
+            local_details.change_id.clone(),
+            local_details.commit_id.clone(),
+            &local_details.files,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let remote_tree = remote_driver
+        .revision_tree(
+            &remote,
+            remote_details.change_id.clone(),
+            remote_details.commit_id.clone(),
+            &remote_details.files,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let local_file = JjDriver::default()
+        .revision_file(
+            &local,
+            local_details.change_id.clone(),
+            local_details.commit_id.clone(),
+            "projection.txt".into(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let remote_file = remote_driver
+        .revision_file(
+            &remote,
+            remote_details.change_id.clone(),
+            remote_details.commit_id.clone(),
+            "projection.txt".into(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let local_timeline = JjDriver::default()
+        .file_timeline(
+            &local,
+            local_details.change_id.clone(),
+            local_details.commit_id.clone(),
+            "projection.txt".into(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let remote_timeline = remote_driver
+        .file_timeline(
+            &remote,
+            remote_details.change_id.clone(),
+            remote_details.commit_id.clone(),
+            "projection.txt".into(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
     let operation_before = current_operation_id(&repository_path);
     let local_operations = JjDriver::default()
         .operation_log(&local, CancellationToken::new())
@@ -306,6 +366,26 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
     assert_eq!(remote_rename_diff.file, local_rename_diff.file);
     assert_eq!(remote_rename_diff.additions, local_rename_diff.additions);
     assert_eq!(remote_rename_diff.deletions, local_rename_diff.deletions);
+    assert_eq!(remote_tree.entries, local_tree.entries);
+    assert!(!local_tree.truncated);
+    assert_eq!(
+        local_tree
+            .entries
+            .iter()
+            .find(|entry| entry.path == "projection.txt")
+            .and_then(|entry| entry.status.as_deref()),
+        Some("A")
+    );
+    assert_eq!(remote_file.entry, local_file.entry);
+    assert_eq!(remote_file.content, local_file.content);
+    assert_eq!(local_file.content, "projection\n");
+    assert!(!local_file.binary);
+    assert!(!local_file.truncated);
+    assert_eq!(remote_timeline.history, local_timeline.history);
+    assert_eq!(remote_timeline.lines, local_timeline.lines);
+    assert_eq!(local_timeline.lines.len(), 1);
+    assert_eq!(local_timeline.lines[0].content, "projection\n");
+    assert_eq!(local_timeline.lines[0].commit_id, local_details.commit_id);
     assert_eq!(local_diff.additions, 1);
     assert!(!local_diff.binary);
     assert!(!local_diff.truncated);

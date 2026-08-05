@@ -70,6 +70,8 @@
   (`docs/milestones/update-launch-activation-bootstrap/spec.md`, completed)
 - [x] Working Copy와 Changes file tree의 compact context action menu
   (`docs/milestones/file-context-actions/spec.md`, completed)
+- [x] 선택 revision의 전체 File Tree/source와 file-level Blame/Timeline
+  (`docs/todo-revision-file-inspection/spec.md`, release closeout pending)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.

@@ -18,7 +18,7 @@ change graph, diff와 안전한 history shaping을 하나의 지속적인 sessio
 1. local 또는 SSH folder source에서 `jj` 저장소를 찾아 한 tree에서 검토한다.
 2. 등록한 모든 저장소의 변화와 conflict를 한눈에 확인한다.
 3. 순서를 직접 정리할 수 있는 탭과 quick switcher로 저장소를 즉시 전환한다.
-4. change graph와 diff를 읽고 작업의 위치와 내용을 이해한다.
+4. change graph, revision snapshot, diff와 file provenance를 읽고 작업의 위치와 내용을 이해한다.
 5. 실행될 `jj` mutation과 영향을 확인한 뒤 안전하게 수행하거나 undo한다.
 6. 선택한 저장소를 editor 또는 terminal에서 연다.
 
@@ -39,6 +39,7 @@ change graph, diff와 안전한 history shaping을 하나의 지속적인 sessio
 - host별 repository registry와 drag-reorder 가능한 persistent tabs
 - repository status badge: working-copy change, conflict, outgoing, behind, refresh state
 - read-only change DAG와 revision details
+- 선택 revision의 전체 File Tree, bounded source와 file-level Blame/Timeline
 - unified 및 side-by-side diff
 - local terminal/editor 및 Remote SSH editor open action
 - preview-first mutation: new, edit, describe, fetch

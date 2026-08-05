@@ -200,6 +200,24 @@ target의 canonical repository path와 별도의 display path를 저장하고 lo
 tab으로 제공한다. overview의 file 선택은 같은 selected revision을 유지한 채 diff tab으로
 전환한다.
 
+### Revision File Inspection
+
+`File Tree` inspector는 graph projection에 전체 tree를 넣지 않고 선택 revision에서만
+`jj file list`를 lazy 실행한다. selected change의 changed-file metadata를 path로 overlay해
+snapshot row에 status를 표시하되, parent에서 삭제된 path처럼 선택 revision에 존재하지 않는
+항목은 tree에 만들지 않는다. file 선택은 exact `root-file:"<path>"` metadata query로
+membership을 다시 확인한 뒤 최대 512 KiB의 `jj file show` content만 읽는다. binary,
+truncated, conflict와 executable state는 typed projection으로 전달하고 source content는
+registry/cache에 저장하지 않는다.
+
+`Blame / Timeline…`은 app-owned 별도 window에서 선택 path의 bounded ancestry log와
+`jj file annotate` line provenance를 결합한다. provenance는 adjacent source hunk 단위로
+표시하고 revision selector, range와 older/newer control은 같은 typed history를 사용한다.
+과거 revision을 다시 조회해 backend 결과가 그 revision의 ancestors로 줄어들어도 window
+session은 이미 확인한 newer history를 commit ID로 de-duplicate해 유지하므로 사용자가 시작
+revision으로 돌아갈 수 있다. local과 SSH는 structured argv/stdin, exact fileset, bounded
+output과 redacted error contract를 공유하며 rename 이전 path 추적은 별도 capability로 남긴다.
+
 ### Remote Divergence
 
 outgoing과 behind는 network fetch를 실행하지 않고 local bookmark와 `git` pseudo-remote를

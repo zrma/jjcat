@@ -14,7 +14,11 @@ import type {
   FileHandoffTarget,
   FileDiffProjection,
   FileDiffRequest,
+  FileTimelineProjection,
   OperationLogProjection,
+  RevisionFileProjection,
+  RevisionFileRequest,
+  RevisionTreeProjection,
   ExecuteMutationRequest,
   MutationExecution,
   MutationIntent,
@@ -50,6 +54,13 @@ interface Bridge {
     commitId: string,
   ): Promise<ChangeRow>;
   loadFileDiff(request: FileDiffRequest): Promise<FileDiffProjection>;
+  loadRevisionTree(
+    repositoryId: string,
+    changeId: string,
+    commitId: string,
+  ): Promise<RevisionTreeProjection>;
+  loadRevisionFile(request: RevisionFileRequest): Promise<RevisionFileProjection>;
+  loadFileTimeline(request: RevisionFileRequest): Promise<FileTimelineProjection>;
   loadOperationLog(repositoryId: string): Promise<OperationLogProjection>;
   previewMutation(repositoryId: string, intent: MutationIntent): Promise<MutationPreview>;
   executeMutation(request: ExecuteMutationRequest): Promise<MutationExecution>;
@@ -155,6 +166,22 @@ class TauriBridge implements Bridge {
 
   loadFileDiff(request: FileDiffRequest) {
     return invoke<FileDiffProjection>("load_file_diff", { request }).catch(normalizeError);
+  }
+
+  loadRevisionTree(repositoryId: string, changeId: string, commitId: string) {
+    return invoke<RevisionTreeProjection>("load_revision_tree", {
+      repositoryId,
+      changeId,
+      commitId,
+    }).catch(normalizeError);
+  }
+
+  loadRevisionFile(request: RevisionFileRequest) {
+    return invoke<RevisionFileProjection>("load_revision_file", { request }).catch(normalizeError);
+  }
+
+  loadFileTimeline(request: RevisionFileRequest) {
+    return invoke<FileTimelineProjection>("load_file_timeline", { request }).catch(normalizeError);
   }
 
   loadOperationLog(repositoryId: string) {

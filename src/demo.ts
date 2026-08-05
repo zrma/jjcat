@@ -10,7 +10,12 @@ import type {
   FileHandoffTarget,
   FileDiffRequest,
   FileDiffProjection,
+  FileTimelineProjection,
   OperationLogProjection,
+  RevisionFileProjection,
+  RevisionFileRequest,
+  RevisionTreeEntry,
+  RevisionTreeProjection,
   ExecuteMutationRequest,
   MutationExecution,
   MutationIntent,
@@ -205,6 +210,58 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
   };
 }
 
+const DEMO_REVISION_PATHS = [
+  ".github/workflows/ci.yml",
+  "AGENTS.md",
+  "docs/ARCHITECTURE.md",
+  "docs/PRODUCT.md",
+  "package.json",
+  "src/App.tsx",
+  "src/components/ChangeWorkspace.tsx",
+  "src/components/DiffViewer.tsx",
+  "src/lib/diffQuickLook.ts",
+  "src/main.tsx",
+  "src-tauri/Cargo.toml",
+  "src-tauri/src/domain.rs",
+  "src-tauri/src/driver.rs",
+  "src-tauri/tests/driver_integration.rs",
+] as const;
+
+function demoRevisionTree(change: ChangeRow): RevisionTreeEntry[] {
+  const statusByPath = new Map(change.files.map((file) => [file.path, file.status]));
+  return DEMO_REVISION_PATHS.map((path) => ({
+    path,
+    fileType: "file",
+    conflict: path === "src-tauri/src/driver.rs" && change.conflict,
+    executable: false,
+    status: statusByPath.get(path) ?? null,
+  }));
+}
+
+function demoFileContent(path: string) {
+  const name = path.split("/").pop() ?? path;
+  if (path.endsWith(".json")) {
+    return `{
+  "name": "jjcat",
+  "version": "0.9.12",
+  "description": "Revision-aware repository cockpit"
+}\n`;
+  }
+  if (path.endsWith(".md")) {
+    return `# ${name}\n\nInspect every revision without leaving jjcat.\n`;
+  }
+  return [
+    `// ${name}`,
+    'import { useMemo } from "react";',
+    "",
+    "export function RevisionInspector() {",
+    '  const source = useMemo(() => "jj file annotate", []);',
+    "  return source;",
+    "}",
+    "",
+  ].join("\n");
+}
+
 export class DemoBridge {
   private snapshot: RegistrySnapshot;
   private active = new Map<string, AbortController>();
@@ -371,6 +428,132 @@ export class DemoBridge {
           ],
         },
       ],
+    };
+  }
+
+  async loadRevisionTree(
+    repositoryId: string,
+    changeId: string,
+    commitId: string,
+  ): Promise<RevisionTreeProjection> {
+    const change = this.snapshot.registry.cachedProjections[
+      repositoryId
+    ]?.projection.changes.find(
+      (candidate) =>
+        candidate.changeId === changeId && candidate.commitId === commitId,
+    );
+    if (!change) {
+      throw {
+        kind: "notFound",
+        message: "The selected revision is not in this repository.",
+      } satisfies AppError;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 70));
+    return {
+      repositoryId,
+      changeId,
+      commitId,
+      entries: demoRevisionTree(change),
+      truncated: false,
+    };
+  }
+
+  async loadRevisionFile(
+    request: RevisionFileRequest,
+  ): Promise<RevisionFileProjection> {
+    const projection = this.snapshot.registry.cachedProjections[
+      request.repositoryId
+    ]?.projection;
+    const change = projection?.changes.find(
+      (candidate) =>
+        candidate.changeId === request.changeId &&
+        candidate.commitId === request.commitId,
+    ) ?? projection?.changes[0];
+    const entry = change
+      ? demoRevisionTree(change).find((candidate) => candidate.path === request.path)
+      : undefined;
+    if (!entry) {
+      throw {
+        kind: "notFound",
+        message: "The selected file is not present in this revision.",
+      } satisfies AppError;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 55));
+    return {
+      repositoryId: request.repositoryId,
+      changeId: request.changeId,
+      commitId: request.commitId,
+      entry,
+      content: demoFileContent(request.path),
+      binary: false,
+      truncated: false,
+    };
+  }
+
+  async loadFileTimeline(
+    request: RevisionFileRequest,
+  ): Promise<FileTimelineProjection> {
+    const content = demoFileContent(request.path).split("\n");
+    const now = Date.now();
+    const completeHistory = [
+      {
+        changeId: "7f3a2b1c9d8e",
+        commitId: "8b1c2d3e4f5a60718293a4b5c6d7e8f901234567",
+        summary: "feat: add revision file inspection",
+        author: "Avery Clark",
+        timestamp: new Date(now - 20 * 60_000).toISOString(),
+      },
+      {
+        changeId: "6079f94b91cd",
+        commitId: "6079f94b91cdf7665c9fd282927f7d2d8f51b01a",
+        summary: "feat: add file context actions",
+        author: "Jordan Lee",
+        timestamp: new Date(now - 4 * 24 * 60 * 60_000).toISOString(),
+      },
+      {
+        changeId: "a1dc4f65930b",
+        commitId: "a1dc4f65930b5c1203350b2391e004b512a4e744",
+        summary: "feat: improve diff comparison readability",
+        author: "Avery Clark",
+        timestamp: new Date(now - 8 * 24 * 60 * 60_000).toISOString(),
+      },
+      {
+        changeId: "d88a6d54e430",
+        commitId: "d88a6d54e430b3e68651685b9a9e5d5fe86e9637",
+        summary: "feat: implement read-only repository cockpit",
+        author: "Jordan Lee",
+        timestamp: new Date(now - 15 * 24 * 60 * 60_000).toISOString(),
+      },
+    ];
+    const selectedHistoryIndex = completeHistory.findIndex(
+      (entry) => entry.commitId === request.commitId,
+    );
+    const history = completeHistory.slice(Math.max(0, selectedHistoryIndex));
+    await new Promise((resolve) => window.setTimeout(resolve, 90));
+    return {
+      repositoryId: request.repositoryId,
+      changeId: request.changeId,
+      commitId: request.commitId,
+      path: request.path,
+      history,
+      lines: content.map((line, index) => {
+        const source = index >= Math.max(1, content.length - 4) ? history[0] : history.at(-1)!;
+        return {
+          lineNumber: index + 1,
+          originalLineNumber: index + 1,
+          firstLineInHunk:
+            index === 0 ||
+            (index === Math.max(1, content.length - 4) && source.commitId === history[0].commitId),
+          changeId: source.changeId,
+          commitId: source.commitId,
+          summary: source.summary,
+          author: source.author,
+          timestamp: source.timestamp,
+          content: `${line}${index < content.length - 1 ? "\n" : ""}`,
+        };
+      }),
+      binary: false,
+      truncated: false,
     };
   }
 

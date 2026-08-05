@@ -64,6 +64,7 @@ import { CliSpinner } from "./CliSpinner";
 import { DiffViewer } from "./DiffViewer";
 import { FileContextMenu } from "./FileContextMenu";
 import { OperationLogPanel } from "./OperationLogPanel";
+import { RevisionFileTreePanel } from "./RevisionFileTreePanel";
 import {
   canSplitChange,
   mutationLaunchForFileSplit,
@@ -80,6 +81,7 @@ import {
 } from "../lib/preferences";
 
 interface ChangeWorkspaceProps {
+  repositoryId: string;
   changes: ChangeRow[];
   selectedChange?: ChangeRow;
   workingCopyMode: boolean;
@@ -108,6 +110,7 @@ interface ChangeWorkspaceProps {
   onOpenFileInEditor: (path: string) => void;
   onRevealFile: (path: string) => void;
   onCopyFilePath: (path: string) => void;
+  onOpenFileTimeline: (change: ChangeRow, path: string) => void;
   inspectorView: InspectorView;
   onInspectorViewChange: (view: InspectorView) => void;
   operationLog: OperationLogProjection | null;
@@ -130,6 +133,7 @@ const SPLITTER_SIZE = 5;
 const SPLITTER_KEY_STEP = 24;
 
 export function ChangeWorkspace({
+  repositoryId,
   changes,
   selectedChange,
   workingCopyMode,
@@ -153,6 +157,7 @@ export function ChangeWorkspace({
   onOpenFileInEditor,
   onRevealFile,
   onCopyFilePath,
+  onOpenFileTimeline,
   inspectorView,
   onInspectorViewChange,
   operationLog,
@@ -307,6 +312,7 @@ export function ChangeWorkspace({
         onOpenFileInEditor={onOpenFileInEditor}
         onRevealFile={onRevealFile}
         onCopyFilePath={onCopyFilePath}
+        onOpenFileTimeline={onOpenFileTimeline}
         onLaunchMutation={onLaunchMutation}
       />
     );
@@ -428,6 +434,14 @@ export function ChangeWorkspace({
           </button>
           <button
             type="button"
+            className={inspectorView === "fileTree" ? "selected" : ""}
+            onClick={() => onInspectorViewChange("fileTree")}
+          >
+            <Folder aria-hidden="true" />
+            File Tree
+          </button>
+          <button
+            type="button"
             className={inspectorView === "operations" ? "selected" : ""}
             onClick={() => onInspectorViewChange("operations")}
           >
@@ -483,6 +497,25 @@ export function ChangeWorkspace({
               onRequestUndo={onRequestUndo}
               onRequestRedo={onRequestRedo}
             />
+          ) : inspectorView === "fileTree" && selectedChange ? (
+            <RevisionFileTreePanel
+              repositoryId={repositoryId}
+              change={selectedChange}
+              canRevealFiles={canRevealFiles}
+              onOpenDiff={(path) =>
+                onOpenDiffQuickLook(
+                  selectedChange,
+                  path,
+                  diffViewMode,
+                  whitespaceMode,
+                )
+              }
+              onOpenFileInEditor={onOpenFileInEditor}
+              onRevealFile={onRevealFile}
+              onCopyFilePath={onCopyFilePath}
+              onOpenFileTimeline={(path) => onOpenFileTimeline(selectedChange, path)}
+              onLaunchMutation={onLaunchMutation}
+            />
           ) : changeDetailsError ? (
             <aside className="details-empty detail-error" role="alert">
               <FolderGit2 aria-hidden="true" />
@@ -505,6 +538,7 @@ export function ChangeWorkspace({
               onOpenFileInEditor={onOpenFileInEditor}
               onRevealFile={onRevealFile}
               onCopyFilePath={onCopyFilePath}
+              onOpenFileTimeline={onOpenFileTimeline}
               onLaunchMutation={onLaunchMutation}
             />
           )}
@@ -543,6 +577,7 @@ function WorkingCopyWorkspace({
   onOpenFileInEditor,
   onRevealFile,
   onCopyFilePath,
+  onOpenFileTimeline,
   onLaunchMutation,
 }: {
   change?: ChangeRow;
@@ -568,6 +603,7 @@ function WorkingCopyWorkspace({
   onOpenFileInEditor: (path: string) => void;
   onRevealFile: (path: string) => void;
   onCopyFilePath: (path: string) => void;
+  onOpenFileTimeline: (change: ChangeRow, path: string) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   return (
@@ -612,6 +648,7 @@ function WorkingCopyWorkspace({
             onOpenFileInEditor={onOpenFileInEditor}
             onRevealFile={onRevealFile}
             onCopyFilePath={onCopyFilePath}
+            onOpenFileTimeline={onOpenFileTimeline}
             onLaunchMutation={onLaunchMutation}
           />
         )}
@@ -1377,6 +1414,7 @@ function ChangeInspector({
   onOpenFileInEditor,
   onRevealFile,
   onCopyFilePath,
+  onOpenFileTimeline,
   onLaunchMutation,
 }: {
   change?: ChangeRow;
@@ -1399,6 +1437,7 @@ function ChangeInspector({
   onOpenFileInEditor: (path: string) => void;
   onRevealFile: (path: string) => void;
   onCopyFilePath: (path: string) => void;
+  onOpenFileTimeline: (change: ChangeRow, path: string) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   return (
@@ -1420,6 +1459,7 @@ function ChangeInspector({
         onOpenFileInEditor={onOpenFileInEditor}
         onRevealFile={onRevealFile}
         onCopyFilePath={onCopyFilePath}
+        onOpenFileTimeline={onOpenFileTimeline}
         onLaunchMutation={onLaunchMutation}
       />
     </div>
@@ -1518,6 +1558,7 @@ function ChangeFiles({
   onOpenFileInEditor,
   onRevealFile,
   onCopyFilePath,
+  onOpenFileTimeline,
   onLaunchMutation,
 }: {
   change?: ChangeRow;
@@ -1540,6 +1581,7 @@ function ChangeFiles({
   onOpenFileInEditor: (path: string) => void;
   onRevealFile: (path: string) => void;
   onCopyFilePath: (path: string) => void;
+  onOpenFileTimeline: (change: ChangeRow, path: string) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
 }) {
   const fileListRef = useRef<HTMLElement>(null);
@@ -1577,7 +1619,7 @@ function ChangeFiles({
       x,
       y,
       popupWidth: 232,
-      popupHeight: 185,
+      popupHeight: 222,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
     });
@@ -1762,6 +1804,7 @@ function ChangeFiles({
             )
           }
           onOpenEditor={() => onOpenFileInEditor(contextFile.path)}
+          onOpenTimeline={() => onOpenFileTimeline(change, contextFile.path)}
           onReveal={() => onRevealFile(contextFile.path)}
           onSplit={() =>
             onLaunchMutation(mutationLaunchForFileSplit(change, contextFile.path))

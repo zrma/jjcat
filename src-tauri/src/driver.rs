@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -10,9 +11,11 @@ use time::format_description::well_known::Rfc3339;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
-    BookmarkRef, ChangeRow, ChangedFile, DiffHunk, DiffLine, DiffLineKind, FileDiffProjection,
-    JjCapability, OperationLogProjection, OperationRow, RemoteDirectoryListing, RepositoryLocation,
-    RepositoryProjection, RepositoryRecord, SyncStatus, WhitespaceMode, WorkspaceRow,
+    BookmarkRef, ChangeRow, ChangedFile, DiffHunk, DiffLine, DiffLineKind, FileAnnotationLine,
+    FileDiffProjection, FileHistoryEntry, FileTimelineProjection, JjCapability,
+    OperationLogProjection, OperationRow, RemoteDirectoryListing, RepositoryLocation,
+    RepositoryProjection, RepositoryRecord, RevisionFileProjection, RevisionTreeEntry,
+    RevisionTreeProjection, SyncStatus, WhitespaceMode, WorkspaceRow,
 };
 use crate::mutation::{MutationCandidate, MutationIntent, MutationValidationError};
 use crate::process::{
@@ -24,7 +27,12 @@ pub const MINIMUM_JJ_VERSION: &str = "0.30.0";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(20);
 const DIFF_OUTPUT_LIMIT: usize = 512 * 1024;
 const CHANGE_DETAILS_OUTPUT_LIMIT: usize = 4 * 1024 * 1024;
+const REVISION_TREE_OUTPUT_LIMIT: usize = 4 * 1024 * 1024;
+const REVISION_FILE_OUTPUT_LIMIT: usize = 512 * 1024;
+const FILE_HISTORY_OUTPUT_LIMIT: usize = 1024 * 1024;
+const FILE_ANNOTATION_OUTPUT_LIMIT: usize = 4 * 1024 * 1024;
 const HISTORY_CHANGE_LIMIT: &str = "200";
+const FILE_HISTORY_LIMIT: &str = "200";
 const NETWORK_REMOTE_HEADS: &str = r#"remote_bookmarks(remote=~exact:"git")"#;
 const OUTGOING_REVISIONS: &str = r#"remote_bookmarks(remote=~exact:"git")..bookmarks()"#;
 const BEHIND_REVISIONS: &str = r#"bookmarks()..remote_bookmarks(remote=~exact:"git")"#;
@@ -100,6 +108,34 @@ const CHANGE_DETAILS_TEMPLATE: &str = concat!(
     "\",\\\"working_copy\\\":\" ++ if(current_working_copy, \"true\", \"false\") ++ ",
     "\",\\\"workspace_copies\\\":\" ++ json(self.working_copies().map(|workspace| workspace.name())) ++ ",
     "\",\\\"empty\\\":\" ++ if(empty, \"true\", \"false\") ++ \"}\\n\"",
+);
+const REVISION_TREE_TEMPLATE: &str = concat!(
+    "\"{\" ++ ",
+    "\"\\\"path\\\":\" ++ stringify(path).escape_json() ++ ",
+    "\",\\\"fileType\\\":\" ++ file_type.escape_json() ++ ",
+    "\",\\\"conflict\\\":\" ++ if(conflict, \"true\", \"false\") ++ ",
+    "\",\\\"executable\\\":\" ++ if(executable, \"true\", \"false\") ++ ",
+    "\",\\\"status\\\":null}\\n\"",
+);
+const FILE_HISTORY_TEMPLATE: &str = concat!(
+    "\"{\" ++ ",
+    "\"\\\"changeId\\\":\" ++ change_id.short(12).escape_json() ++ ",
+    "\",\\\"commitId\\\":\" ++ stringify(commit_id).escape_json() ++ ",
+    "\",\\\"summary\\\":\" ++ description.first_line().escape_json() ++ ",
+    "\",\\\"author\\\":\" ++ author.name().escape_json() ++ ",
+    "\",\\\"timestamp\\\":\" ++ author.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ \"}\\n\"",
+);
+const FILE_ANNOTATION_TEMPLATE: &str = concat!(
+    "\"{\" ++ ",
+    "\"\\\"lineNumber\\\":\" ++ line_number ++ ",
+    "\",\\\"originalLineNumber\\\":\" ++ original_line_number ++ ",
+    "\",\\\"firstLineInHunk\\\":\" ++ if(first_line_in_hunk, \"true\", \"false\") ++ ",
+    "\",\\\"changeId\\\":\" ++ commit.change_id().short(12).escape_json() ++ ",
+    "\",\\\"commitId\\\":\" ++ stringify(commit.commit_id()).escape_json() ++ ",
+    "\",\\\"summary\\\":\" ++ commit.description().first_line().escape_json() ++ ",
+    "\",\\\"author\\\":\" ++ commit.author().name().escape_json() ++ ",
+    "\",\\\"timestamp\\\":\" ++ commit.author().timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
+    "\",\\\"content\\\":\" ++ stringify(content).escape_json() ++ \"}\\n\"",
 );
 
 #[derive(Clone, Debug)]
@@ -367,6 +403,207 @@ impl JjDriver {
             ));
         }
         Ok(change)
+    }
+
+    pub async fn revision_tree(
+        &self,
+        repository: &RepositoryRecord,
+        change_id: String,
+        commit_id: String,
+        changed_files: &[ChangedFile],
+        cancellation: CancellationToken,
+    ) -> Result<RevisionTreeProjection, DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        if !valid_commit_id(&commit_id) {
+            return Err(DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "revision tree commit is invalid".into(),
+            });
+        }
+        let output = self
+            .run_query_capture_with_limit(
+                repository,
+                JjQuery::RevisionTree {
+                    commit_id: commit_id.clone(),
+                    path: None,
+                },
+                cancellation,
+                REVISION_TREE_OUTPUT_LIMIT,
+            )
+            .await?;
+        let mut entries = parse_json_lines::<RevisionTreeEntry>(
+            &output.stdout,
+            "revision tree",
+            output.truncated,
+        )?;
+        let statuses = changed_files
+            .iter()
+            .map(|file| (file.path.as_str(), file.status.as_str()))
+            .collect::<BTreeMap<_, _>>();
+        for entry in &mut entries {
+            entry.status = statuses
+                .get(entry.path.as_str())
+                .map(|status| (*status).into());
+        }
+        Ok(RevisionTreeProjection {
+            repository_id: repository.id.clone(),
+            change_id,
+            commit_id,
+            entries,
+            truncated: output.truncated,
+        })
+    }
+
+    pub async fn revision_file(
+        &self,
+        repository: &RepositoryRecord,
+        change_id: String,
+        commit_id: String,
+        path: String,
+        cancellation: CancellationToken,
+    ) -> Result<RevisionFileProjection, DriverError> {
+        repository.validate().map_err(|error| DriverError {
+            kind: DriverErrorKind::InvalidRepository,
+            message: error.to_string(),
+        })?;
+        if !valid_commit_id(&commit_id) || !valid_repository_path(&path) {
+            return Err(DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "revision file commit or repository path is invalid".into(),
+            });
+        }
+        let metadata = self
+            .run_query_with_limit(
+                repository,
+                JjQuery::RevisionTree {
+                    commit_id: commit_id.clone(),
+                    path: Some(path.clone()),
+                },
+                cancellation.clone(),
+                64 * 1024,
+            )
+            .await?;
+        let mut entries = parse_json_lines::<RevisionTreeEntry>(
+            &metadata.stdout,
+            "revision file metadata",
+            false,
+        )?;
+        if entries.len() != 1 || entries[0].path != path {
+            return Err(DriverError {
+                kind: DriverErrorKind::InvalidRepository,
+                message: "the selected file is not present in this revision".into(),
+            });
+        }
+        let entry = entries.remove(0);
+        let output = self
+            .run_query_capture_with_limit(
+                repository,
+                JjQuery::RevisionFile {
+                    commit_id: commit_id.clone(),
+                    path,
+                },
+                cancellation,
+                REVISION_FILE_OUTPUT_LIMIT,
+            )
+            .await?;
+        let (content, binary) = decode_revision_file(&output.stdout, output.truncated);
+        Ok(RevisionFileProjection {
+            repository_id: repository.id.clone(),
+            change_id,
+            commit_id,
+            entry,
+            content,
+            binary,
+            truncated: output.truncated,
+        })
+    }
+
+    pub async fn file_timeline(
+        &self,
+        repository: &RepositoryRecord,
+        change_id: String,
+        commit_id: String,
+        path: String,
+        cancellation: CancellationToken,
+    ) -> Result<FileTimelineProjection, DriverError> {
+        let file = self
+            .revision_file(
+                repository,
+                change_id.clone(),
+                commit_id.clone(),
+                path.clone(),
+                cancellation.clone(),
+            )
+            .await?;
+        let history_output = self
+            .run_query_with_limit(
+                repository,
+                JjQuery::FileHistory {
+                    commit_id: commit_id.clone(),
+                    path: path.clone(),
+                },
+                cancellation.clone(),
+                FILE_HISTORY_OUTPUT_LIMIT,
+            )
+            .await?;
+        let mut history =
+            parse_json_lines::<FileHistoryEntry>(&history_output.stdout, "file history", false)?;
+        if !history.iter().any(|entry| entry.commit_id == commit_id) {
+            let details = self
+                .change_details(
+                    repository,
+                    change_id.clone(),
+                    commit_id.clone(),
+                    cancellation.clone(),
+                )
+                .await?;
+            history.insert(
+                0,
+                FileHistoryEntry {
+                    change_id: details.change_id,
+                    commit_id: details.commit_id,
+                    summary: details.summary,
+                    author: details.author,
+                    timestamp: details.author_timestamp,
+                },
+            );
+        }
+        let (lines, annotation_truncated) = if file.binary {
+            (Vec::new(), false)
+        } else {
+            let annotation_output = self
+                .run_query_capture_with_limit(
+                    repository,
+                    JjQuery::FileAnnotation {
+                        commit_id: commit_id.clone(),
+                        path: path.clone(),
+                    },
+                    cancellation,
+                    FILE_ANNOTATION_OUTPUT_LIMIT,
+                )
+                .await?;
+            (
+                parse_json_lines::<FileAnnotationLine>(
+                    &annotation_output.stdout,
+                    "file annotation",
+                    annotation_output.truncated,
+                )?,
+                annotation_output.truncated,
+            )
+        };
+        Ok(FileTimelineProjection {
+            repository_id: repository.id.clone(),
+            change_id,
+            commit_id,
+            path,
+            history,
+            lines,
+            binary: file.binary,
+            truncated: file.truncated || annotation_truncated,
+        })
     }
 
     pub async fn operation_log(
@@ -876,6 +1113,28 @@ impl JjDriver {
         output_limit: usize,
     ) -> Result<CommandOutput, DriverError> {
         let output_label = query.output_label();
+        let output = self
+            .run_query_capture_with_limit(repository, query, cancellation, output_limit)
+            .await?;
+        if output.truncated {
+            return Err(DriverError {
+                kind: DriverErrorKind::OutputLimit,
+                message: format!(
+                    "{output_label} exceeded the {} safe capture limit",
+                    format_output_limit(output_limit)
+                ),
+            });
+        }
+        Ok(output)
+    }
+
+    async fn run_query_capture_with_limit(
+        &self,
+        repository: &RepositoryRecord,
+        query: JjQuery,
+        cancellation: CancellationToken,
+        output_limit: usize,
+    ) -> Result<CommandOutput, DriverError> {
         let plan = self.command_plan(repository, query);
         let output = match repository.location {
             RepositoryLocation::Local { .. } => {
@@ -886,15 +1145,6 @@ impl JjDriver {
             }
         }
         .map_err(|error| process_error(repository, error))?;
-        if output.truncated {
-            return Err(DriverError {
-                kind: DriverErrorKind::OutputLimit,
-                message: format!(
-                    "{output_label} exceeded the {} safe capture limit",
-                    format_output_limit(output_limit)
-                ),
-            });
-        }
         if output.exit_code != Some(0) {
             let raw = String::from_utf8_lossy(&output.stderr);
             return Err(DriverError {
@@ -996,6 +1246,43 @@ fn remote_script(path: &str, query: JjQuery) -> String {
             let encoded_commit = encode_hex(&commit_id);
             format!(
                 "commit=$(decode_hex '{encoded_commit}')\ncd \"$repo\"\nexec \"$jj_bin\" --ignore-working-copy log --no-graph --color never -r \"$commit\" -T '{CHANGE_DETAILS_TEMPLATE}'"
+            )
+        }
+        JjQuery::RevisionTree { commit_id, path } => {
+            let encoded_commit = encode_hex(&commit_id);
+            let path_command = path.map_or_else(String::new, |path| {
+                let encoded_fileset = encode_hex(&exact_file_fileset(&path));
+                format!(
+                    "\nfileset=$(decode_hex '{encoded_fileset}')\nexec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy file list -r \"$commit\" -T '{REVISION_TREE_TEMPLATE}' -- \"$fileset\""
+                )
+            });
+            if path_command.is_empty() {
+                format!(
+                    "commit=$(decode_hex '{encoded_commit}')\nexec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy file list -r \"$commit\" -T '{REVISION_TREE_TEMPLATE}'"
+                )
+            } else {
+                format!("commit=$(decode_hex '{encoded_commit}'){path_command}")
+            }
+        }
+        JjQuery::RevisionFile { commit_id, path } => {
+            let encoded_commit = encode_hex(&commit_id);
+            let encoded_fileset = encode_hex(&exact_file_fileset(&path));
+            format!(
+                "commit=$(decode_hex '{encoded_commit}')\nfileset=$(decode_hex '{encoded_fileset}')\nexec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy file show -r \"$commit\" -- \"$fileset\""
+            )
+        }
+        JjQuery::FileHistory { commit_id, path } => {
+            let encoded_commit = encode_hex(&commit_id);
+            let encoded_fileset = encode_hex(&exact_file_fileset(&path));
+            format!(
+                "commit=$(decode_hex '{encoded_commit}')\nfileset=$(decode_hex '{encoded_fileset}')\nexec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r \"ancestors($commit)\" -n {FILE_HISTORY_LIMIT} -T '{FILE_HISTORY_TEMPLATE}' -- \"$fileset\""
+            )
+        }
+        JjQuery::FileAnnotation { commit_id, path } => {
+            let encoded_commit = encode_hex(&commit_id);
+            let encoded_path = encode_hex(&path);
+            format!(
+                "commit=$(decode_hex '{encoded_commit}')\npath=$(decode_hex '{encoded_path}')\ncd \"$repo\"\nexec \"$jj_bin\" --ignore-working-copy file annotate -r \"$commit\" -T '{FILE_ANNOTATION_TEMPLATE}' -- \"$path\""
             )
         }
         JjQuery::Diff {
@@ -1244,6 +1531,22 @@ enum JjQuery {
     ChangeDetails {
         commit_id: String,
     },
+    RevisionTree {
+        commit_id: String,
+        path: Option<String>,
+    },
+    RevisionFile {
+        commit_id: String,
+        path: String,
+    },
+    FileHistory {
+        commit_id: String,
+        path: String,
+    },
+    FileAnnotation {
+        commit_id: String,
+        path: String,
+    },
     Diff {
         commit_id: String,
         path: String,
@@ -1285,6 +1588,10 @@ impl JjQuery {
             Self::WorkspaceRoot => "current workspace root",
             Self::WorkspaceRootByName { .. } => "registered workspace root",
             Self::ChangeDetails { .. } => "selected change details",
+            Self::RevisionTree { .. } => "revision file tree",
+            Self::RevisionFile { .. } => "revision file content",
+            Self::FileHistory { .. } => "file history",
+            Self::FileAnnotation { .. } => "file annotation",
             Self::Diff { .. } => "file diff",
             Self::SyncMetric(SyncMetric::RemoteHeads) => "remote bookmark count",
             Self::SyncMetric(SyncMetric::Outgoing) => "outgoing change count",
@@ -1366,6 +1673,66 @@ impl JjQuery {
             ]
             .into_iter()
             .map(OsString::from)
+            .collect(),
+            Self::RevisionTree { commit_id, path } => {
+                let mut args = [
+                    "--ignore-working-copy",
+                    "file",
+                    "list",
+                    "-r",
+                    commit_id.as_str(),
+                    "-T",
+                    REVISION_TREE_TEMPLATE,
+                ]
+                .into_iter()
+                .map(OsString::from)
+                .collect::<Vec<_>>();
+                if let Some(path) = path {
+                    args.push("--".into());
+                    args.push(exact_file_fileset(path).into());
+                }
+                args
+            }
+            Self::RevisionFile { commit_id, path } => [
+                "--ignore-working-copy".into(),
+                "file".into(),
+                "show".into(),
+                "-r".into(),
+                commit_id.into(),
+                "--".into(),
+                exact_file_fileset(path).into(),
+            ]
+            .into_iter()
+            .collect(),
+            Self::FileHistory { commit_id, path } => [
+                "--ignore-working-copy".into(),
+                "log".into(),
+                "--no-graph".into(),
+                "--color".into(),
+                "never".into(),
+                "-r".into(),
+                format!("ancestors({commit_id})").into(),
+                "-n".into(),
+                FILE_HISTORY_LIMIT.into(),
+                "-T".into(),
+                FILE_HISTORY_TEMPLATE.into(),
+                "--".into(),
+                exact_file_fileset(path).into(),
+            ]
+            .into_iter()
+            .collect(),
+            Self::FileAnnotation { commit_id, path } => [
+                "--ignore-working-copy".into(),
+                "file".into(),
+                "annotate".into(),
+                "-r".into(),
+                commit_id.into(),
+                "-T".into(),
+                FILE_ANNOTATION_TEMPLATE.into(),
+                "--".into(),
+                path.into(),
+            ]
+            .into_iter()
             .collect(),
             Self::Diff {
                 commit_id,
@@ -1922,6 +2289,44 @@ fn parse_files(value: &str) -> Vec<ChangedFile> {
         .collect()
 }
 
+fn parse_json_lines<T: for<'de> Deserialize<'de>>(
+    stdout: &[u8],
+    label: &str,
+    allow_incomplete_final_line: bool,
+) -> Result<Vec<T>, DriverError> {
+    let text = std::str::from_utf8(stdout)
+        .map_err(|_| invalid_output(&format!("{label} output was not UTF-8")))?;
+    let mut lines = text.split_inclusive('\n').peekable();
+    let mut parsed = Vec::new();
+    while let Some(line) = lines.next() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if allow_incomplete_final_line && !line.ends_with('\n') && lines.peek().is_none() {
+            break;
+        }
+        parsed.push(
+            serde_json::from_str(line.trim_end_matches('\n'))
+                .map_err(|_| invalid_output(&format!("{label} template returned invalid JSONL")))?,
+        );
+    }
+    Ok(parsed)
+}
+
+fn decode_revision_file(stdout: &[u8], truncated: bool) -> (String, bool) {
+    if stdout.contains(&0) {
+        return (String::new(), true);
+    }
+    match std::str::from_utf8(stdout) {
+        Ok(content) => (content.into(), false),
+        Err(error) if truncated && error.error_len().is_none() => (
+            String::from_utf8_lossy(&stdout[..error.valid_up_to()]).into_owned(),
+            false,
+        ),
+        Err(_) => (String::new(), true),
+    }
+}
+
 fn parse_count(stdout: &[u8], label: &str) -> Result<usize, DriverError> {
     let text = std::str::from_utf8(stdout)
         .map_err(|_| invalid_output(&format!("{label} count was not UTF-8")))?;
@@ -2417,6 +2822,102 @@ mod tests {
             Some(r#"root-file:"docs/file => \"quoted\"\\name.md""#)
         );
         assert!(!args.iter().any(|arg| arg == path));
+    }
+
+    #[test]
+    fn revision_file_queries_keep_exact_paths_in_structured_arguments() {
+        let path = r#"docs/file => \"quoted\"\\name.md"#;
+        let tree_args = JjQuery::RevisionTree {
+            commit_id: "012345abcdef".into(),
+            path: Some(path.into()),
+        }
+        .args()
+        .into_iter()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+        let history_args = JjQuery::FileHistory {
+            commit_id: "012345abcdef".into(),
+            path: path.into(),
+        }
+        .args()
+        .into_iter()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+        let annotation_args = JjQuery::FileAnnotation {
+            commit_id: "012345abcdef".into(),
+            path: path.into(),
+        }
+        .args()
+        .into_iter()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+
+        assert_eq!(
+            tree_args.last().map(String::as_str),
+            Some(r#"root-file:"docs/file => \\\"quoted\\\"\\\\name.md""#)
+        );
+        assert_eq!(history_args.last(), tree_args.last());
+        assert!(
+            history_args
+                .windows(2)
+                .any(|pair| pair == ["-r", "ancestors(012345abcdef)"])
+        );
+        assert_eq!(annotation_args.last().map(String::as_str), Some(path));
+    }
+
+    #[test]
+    fn remote_annotation_query_encodes_revision_and_path() {
+        let repository = remote_repository();
+        let path = "folder/file with spaces.txt";
+        let plan = JjDriver::default().command_plan(
+            &repository,
+            JjQuery::FileAnnotation {
+                commit_id: "012345abcdef".into(),
+                path: path.into(),
+            },
+        );
+        let script = String::from_utf8(plan.stdin.unwrap()).unwrap();
+
+        assert!(!script.contains(path));
+        assert!(!script.contains("012345abcdef"));
+        assert!(script.contains(&encode_hex(path)));
+        assert!(script.contains(&encode_hex("012345abcdef")));
+        assert!(script.contains("file annotate"));
+        assert!(script.contains("\"$path\""));
+    }
+
+    #[test]
+    fn bounded_jsonl_parser_keeps_complete_records_only() {
+        let output = concat!(
+            "{\"path\":\"README.md\",\"fileType\":\"file\",",
+            "\"conflict\":false,\"executable\":false,\"status\":null}\n",
+            "{\"path\":\"src/partial"
+        );
+        let entries =
+            parse_json_lines::<RevisionTreeEntry>(output.as_bytes(), "revision tree", true)
+                .unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path, "README.md");
+        assert!(
+            parse_json_lines::<RevisionTreeEntry>(output.as_bytes(), "revision tree", false,)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn revision_file_decode_distinguishes_binary_and_partial_utf8() {
+        assert_eq!(
+            decode_revision_file(b"plain text\n", false),
+            ("plain text\n".into(), false)
+        );
+        assert_eq!(
+            decode_revision_file(b"image\0data", false),
+            (String::new(), true)
+        );
+        let (partial, binary) = decode_revision_file(b"hello \xe2\x82", true);
+        assert_eq!(partial, "hello ");
+        assert!(!binary);
     }
 
     #[test]

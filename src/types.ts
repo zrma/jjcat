@@ -42,9 +42,73 @@ export interface ChangedFile {
   displayPath?: string;
 }
 
+export interface RevisionTreeEntry {
+  path: string;
+  fileType: "file" | "symlink" | "tree" | "git-submodule" | "conflict" | string;
+  conflict: boolean;
+  executable: boolean;
+  status: string | null;
+}
+
+export interface RevisionTreeProjection {
+  repositoryId: RepositoryId;
+  changeId: string;
+  commitId: string;
+  entries: RevisionTreeEntry[];
+  truncated: boolean;
+}
+
+export interface RevisionFileProjection {
+  repositoryId: RepositoryId;
+  changeId: string;
+  commitId: string;
+  entry: RevisionTreeEntry;
+  content: string;
+  binary: boolean;
+  truncated: boolean;
+}
+
+export interface FileHistoryEntry {
+  changeId: string;
+  commitId: string;
+  summary: string;
+  author: string;
+  timestamp: string;
+}
+
+export interface FileAnnotationLine {
+  lineNumber: number;
+  originalLineNumber: number;
+  firstLineInHunk: boolean;
+  changeId: string;
+  commitId: string;
+  summary: string;
+  author: string;
+  timestamp: string;
+  content: string;
+}
+
+export interface FileTimelineProjection {
+  repositoryId: RepositoryId;
+  changeId: string;
+  commitId: string;
+  path: string;
+  history: FileHistoryEntry[];
+  lines: FileAnnotationLine[];
+  binary: boolean;
+  truncated: boolean;
+}
+
+export interface RevisionFileRequest {
+  repositoryId: RepositoryId;
+  changeId: string;
+  commitId: string;
+  path: string;
+}
+
 export type WhitespaceMode = "preserve" | "ignoreAll";
 export type DiffViewMode = "unified" | "sideBySide";
-export type InspectorView = "changes" | "operations";
+export type InspectorView = "changes" | "fileTree" | "operations";
 export type DiffLineKind = "context" | "addition" | "deletion" | "metadata";
 
 export interface DiffLine {

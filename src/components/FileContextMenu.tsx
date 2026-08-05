@@ -2,6 +2,7 @@ import {
   Code2,
   Copy,
   FolderSearch,
+  History,
   Maximize2,
   Scissors,
 } from "lucide-react";
@@ -14,7 +15,9 @@ interface FileContextMenuProps {
   y: number;
   canReveal: boolean;
   canSplit: boolean;
+  canOpenDiff?: boolean;
   onOpenDiff: () => void;
+  onOpenTimeline: () => void;
   onOpenEditor: () => void;
   onReveal: () => void;
   onSplit: () => void;
@@ -75,7 +78,9 @@ export function FileContextMenu({
   y,
   canReveal,
   canSplit,
+  canOpenDiff = true,
   onOpenDiff,
+  onOpenTimeline,
   onOpenEditor,
   onReveal,
   onSplit,
@@ -120,7 +125,14 @@ export function FileContextMenu({
         icon={<Maximize2 aria-hidden="true" />}
         label="Open Diff"
         shortcut="Space"
+        disabled={!canOpenDiff}
+        title={canOpenDiff ? undefined : "This file is unchanged in the selected revision"}
         onSelect={() => run(onOpenDiff)}
+      />
+      <MenuItem
+        icon={<History aria-hidden="true" />}
+        label="Blame / Timeline…"
+        onSelect={() => run(onOpenTimeline)}
       />
       <MenuItem
         icon={<Code2 aria-hidden="true" />}

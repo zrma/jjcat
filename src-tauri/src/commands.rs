@@ -9,9 +9,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::discovery::RepositoryDiscovery;
 use crate::domain::{
-    CachedProjection, ChangeRow, FileDiffProjection, OperationLogProjection, Registry,
-    RemoteDirectoryListing, RepositoryId, RepositoryLocation, RepositoryReadiness,
-    RepositoryRecord, RepositorySourceId, RepositorySourceRecord, SourceCatalog, WhitespaceMode,
+    CachedProjection, ChangeRow, FileDiffProjection, FileTimelineProjection,
+    OperationLogProjection, Registry, RemoteDirectoryListing, RepositoryId, RepositoryLocation,
+    RepositoryReadiness, RepositoryRecord, RepositorySourceId, RepositorySourceRecord,
+    RevisionFileProjection, RevisionTreeProjection, SourceCatalog, WhitespaceMode,
 };
 use crate::driver::{DriverError, DriverErrorKind, JjDriver};
 use crate::handoff::{
@@ -211,6 +212,15 @@ pub struct FileDiffRequest {
     whitespace_mode: WhitespaceMode,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionFileRequest {
+    repository_id: RepositoryId,
+    change_id: String,
+    commit_id: String,
+    path: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppError {
@@ -377,6 +387,95 @@ pub async fn load_file_diff(
             request.commit_id,
             file,
             request.whitespace_mode,
+            CancellationToken::new(),
+        )
+        .await
+        .map_err(driver_error)
+}
+
+#[tauri::command]
+pub async fn load_revision_tree(
+    repository_id: RepositoryId,
+    change_id: String,
+    commit_id: String,
+    state: State<'_, AppState>,
+) -> Result<RevisionTreeProjection, AppError> {
+    let repository = find_cached_revision(&repository_id, &change_id, &commit_id, &state).await?;
+    let details = state
+        .driver
+        .change_details(
+            &repository,
+            change_id.clone(),
+            commit_id.clone(),
+            CancellationToken::new(),
+        )
+        .await
+        .map_err(driver_error)?;
+    state
+        .driver
+        .revision_tree(
+            &repository,
+            change_id,
+            commit_id,
+            &details.files,
+            CancellationToken::new(),
+        )
+        .await
+        .map_err(driver_error)
+}
+
+#[tauri::command]
+pub async fn load_revision_file(
+    request: RevisionFileRequest,
+    state: State<'_, AppState>,
+) -> Result<RevisionFileProjection, AppError> {
+    let repository = find_repository(&request.repository_id, &state).await?;
+    state
+        .driver
+        .change_details(
+            &repository,
+            request.change_id.clone(),
+            request.commit_id.clone(),
+            CancellationToken::new(),
+        )
+        .await
+        .map_err(driver_error)?;
+    state
+        .driver
+        .revision_file(
+            &repository,
+            request.change_id,
+            request.commit_id,
+            request.path,
+            CancellationToken::new(),
+        )
+        .await
+        .map_err(driver_error)
+}
+
+#[tauri::command]
+pub async fn load_file_timeline(
+    request: RevisionFileRequest,
+    state: State<'_, AppState>,
+) -> Result<FileTimelineProjection, AppError> {
+    let repository = find_repository(&request.repository_id, &state).await?;
+    state
+        .driver
+        .change_details(
+            &repository,
+            request.change_id.clone(),
+            request.commit_id.clone(),
+            CancellationToken::new(),
+        )
+        .await
+        .map_err(driver_error)?;
+    state
+        .driver
+        .file_timeline(
+            &repository,
+            request.change_id,
+            request.commit_id,
+            request.path,
             CancellationToken::new(),
         )
         .await
@@ -1115,6 +1214,44 @@ async fn find_repository(
             kind: AppErrorKind::NotFound,
             message: "repository is not registered".into(),
         })
+}
+
+async fn find_cached_revision(
+    repository_id: &RepositoryId,
+    change_id: &str,
+    commit_id: &str,
+    state: &State<'_, AppState>,
+) -> Result<RepositoryRecord, AppError> {
+    let store = state.store.lock().await;
+    let loaded = store.load().map_err(storage_error)?;
+    let repository = loaded
+        .registry
+        .repositories
+        .iter()
+        .find(|repository| &repository.id == repository_id)
+        .cloned()
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::NotFound,
+            message: "repository is not registered".into(),
+        })?;
+    let projection = loaded
+        .registry
+        .cached_projections
+        .get(repository_id)
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "refresh the repository before inspecting its file tree".into(),
+        })?;
+    projection
+        .projection
+        .changes
+        .iter()
+        .find(|change| change.change_id == change_id && change.commit_id == commit_id)
+        .ok_or_else(|| AppError {
+            kind: AppErrorKind::InvalidInput,
+            message: "the selected revision is no longer in the cached projection".into(),
+        })?;
+    Ok(repository)
 }
 
 #[tauri::command]

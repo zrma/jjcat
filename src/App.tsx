@@ -50,6 +50,7 @@ import { ChangeWorkspace } from "./components/ChangeWorkspace";
 import { CliSpinner } from "./components/CliSpinner";
 import { adjacentNavigationIndex } from "./lib/keyboardNavigation";
 import { toggleDiffQuickLookWindow } from "./lib/diffQuickLook";
+import { openFileTimelineWindow } from "./lib/fileTimeline";
 import { AddRepositorySourceDialog } from "./components/AddRepositorySourceDialog";
 import { MutationDialog } from "./components/MutationDialog";
 import { RepositoryQuickSwitcher } from "./components/RepositoryQuickSwitcher";
@@ -2362,6 +2363,7 @@ function App() {
               />
             ) : (
             <ChangeWorkspace
+              repositoryId={selectedRepository.id}
               changes={visibleChanges}
               selectedChange={selectedChange}
               workingCopyMode={historyView === "working-copy"}
@@ -2407,6 +2409,19 @@ function App() {
               }
               onRevealFile={(path) => void launchFileHandoff(path, "reveal")}
               onCopyFilePath={(path) => void copyFilePath(path)}
+              onOpenFileTimeline={(change, path) => {
+                void openFileTimelineWindow({
+                  repositoryId: selectedRepository.id,
+                  repositoryName: selectedRepository.displayName,
+                  changeId: change.changeId,
+                  commitId: change.commitId,
+                  path,
+                }).catch((error: unknown) => {
+                  setRepositoryActionError(
+                    error instanceof Error ? error.message : String(error),
+                  );
+                });
+              }}
               inspectorView={inspectorView}
               onInspectorViewChange={setInspectorView}
               operationLog={operationLog}
