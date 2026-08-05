@@ -47,7 +47,7 @@ Status: active
 | R2 | done | Rust unit/integration tests | path-filtered file history와 grouped line annotation projection |
 | R3 | done | frontend unit/build tests | File Tree inspector, source states와 selection/keyboard behavior |
 | R4 | done | browser interaction + design QA | context menu에서 Blame/Timeline 창을 열고 revision을 탐색 |
-| R5 | todo | `scripts/check.sh` | canonical frontend, Rust와 repository/publication gates |
+| R5 | done | `scripts/check.sh` | canonical frontend, Rust와 repository/publication gates |
 | R6 | todo | signed release verification | `v0.9.12` same-SHA CI, release assets와 rolling updater manifest |
 
 ## Required Evidence
@@ -70,6 +70,8 @@ Status: active
   Blame/Timeline older/newer navigation, 1280/1024px desktop layout과 console health를 확인했다.
 - local-only `design-qa.md`는 reference와 implementation을 한 comparison image에서 검토하고
   actionable P0/P1/P2가 없는 `passed`로 닫혔다.
+- canonical `scripts/check.sh`는 177개 frontend test, 78개 Rust unit test, local/simulated
+  SSH driver와 6개 mutation integration test, repository/publication contract를 통과했다.
 
 ## Publication Impact
 

@@ -24,7 +24,10 @@ source repository를 연 뒤에도 그 스크롤 위치를 유지한다.
 `v0.9.10` Apple Silicon macOS beta는 incoming main window가 marker 없이 스스로
 show/focus하도록 해 이 bootstrap gap을 제거한다. `v0.9.11` Apple Silicon macOS beta는
 Working Copy와 Changes file tree에 compact context action menu, exact single-file split과
-transport-aware editor/Finder handoff를 추가한다. 현재 active milestone은 없다.
+transport-aware editor/Finder handoff를 추가한다. 현재 active milestone은
+`docs/todo-revision-file-inspection/spec.md`이며 File Tree/Blame 구현과 canonical gate를
+완료하고 `v0.9.12` publication verification을 남겨두고 있다.
+`v0.9.12` Apple Silicon macOS beta는 이 active milestone의 release target이다.
 
 완료된 기반:
 

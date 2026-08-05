@@ -68,6 +68,10 @@ source tree의 독립 스크롤 및 repository open 뒤 위치 보존을 설명�
 `v0.9.8 → v0.9.9` bootstrap 적용 경계를 설명한다.
 [v0.9.10 release notes](docs/releases/v0.9.10.md)는 incoming version이 직접 소유하는
 main window presentation을 설명한다.
+[v0.9.11 release notes](docs/releases/v0.9.11.md)는 file tree의 compact context action과
+local/SSH file handoff를 설명한다.
+[v0.9.12 release notes](docs/releases/v0.9.12.md)는 선택 revision의 전체 File Tree와
+file-level Blame/Timeline을 설명한다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
 distribution decision으로 재검토한다.

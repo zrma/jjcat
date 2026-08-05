@@ -36,9 +36,10 @@
 
 ## Current Work
 
-현재 active todo는 없다. `docs/milestones/ai-first-adoption/spec.md`에서 제품 기능과
-release behavior를 바꾸지 않고 versioned core/profile, repository overlay,
-immutable source lock와 standalone drift check 도입을 완료했다.
+현재 active todo는 `docs/todo-revision-file-inspection/spec.md`다. 선택 revision의 전체
+tracked File Tree와 bounded source, file-level Blame/Timeline을 local/SSH 공통 typed driver와
+별도 app-owned window로 구현했고 canonical gate를 통과했다. `v0.9.12` signed tag, same-SHA
+CI/Release, fresh artifact와 rolling updater manifest 검증 뒤 milestone namespace로 닫는다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
