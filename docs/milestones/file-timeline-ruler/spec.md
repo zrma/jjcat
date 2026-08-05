@@ -1,6 +1,6 @@
 # Spec: File Timeline Ruler
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -35,7 +35,7 @@ Status: active
 | R2 | done | browser interaction | hover/focus preview, singleton/cluster click와 arrow navigation |
 | R3 | done | design QA | source/current comparison, theme tokens와 narrow desktop layout |
 | R4 | done | `scripts/check.sh` | canonical frontend, Rust와 repository/publication gates |
-| R5 | todo | signed release verification | `v0.9.13` same-SHA CI, release assets와 rolling updater manifest |
+| R5 | done | signed release verification | `v0.9.13` same-SHA CI, release assets와 rolling updater manifest |
 
 ## Required Evidence
 
@@ -50,6 +50,11 @@ Status: active
   mutation integration, repository/publication contract를 통과했다.
 - feature commit `0521a72a8a973649b536d7ecf8f135453bf3aa3b`는 GPG signature, remote main
   equality와 terminal CI를 통과했다.
+- release commit `ba56a9da060d98696373d78c6e319b7196b035b3`는 remote main과 GPG-signed
+  `v0.9.13` tag가 가리키며 main CI, tag CI와 macOS Release workflow가 성공했다.
+- 공개 prerelease의 6개 asset은 fresh download에서 checksum, Tauri Minisign updater
+  signature, manifest URL, arm64 app/zip/tar/DMG code seal과 DMG Applications shortcut을
+  통과했다. rolling `updater-beta` manifest는 versioned release manifest와 일치했다.
 
 ## Publication Impact
 
@@ -64,4 +69,4 @@ Status: active
 ## Completion Rule
 
 모든 acceptance가 evidence와 함께 done이고 `v0.9.13` remote main, signed tag, terminal
-CI/Release, fresh artifact와 rolling manifest가 같은 release revision으로 검증된다.
+CI/Release, fresh artifact와 rolling manifest가 같은 release revision으로 검증됐다.

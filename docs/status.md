@@ -26,10 +26,9 @@ show/focus하도록 해 이 bootstrap gap을 제거한다. `v0.9.11` Apple Silic
 Working Copy와 Changes file tree에 compact context action menu, exact single-file split과
 transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon macOS beta는
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
-local/SSH 공통 contract로 배포했다. 현재 active milestone은
-`docs/todo-file-timeline-ruler/spec.md`다. 실제 timestamp 비례 연·월 ruler, commit marker,
-responsive cluster와 preview/navigation 구현 및 local gate를 완료했다. `v0.9.13` Apple
-Silicon macOS beta는 이 active milestone의 release target이다.
+local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
+비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
+현재 active milestone은 없다.
 
 완료된 기반:
 
@@ -163,11 +162,13 @@ Silicon macOS beta는 이 active milestone의 release target이다.
 
 ## Latest Release
 
-`v0.9.13` Apple Silicon macOS beta release target은 ad-hoc-signed/not-notarized prerelease로,
+`v0.9.13` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로 게시됐다.
 File Blame/Timeline 상단의 index-based slider를 실제 timestamp 비례 연·월 ruler와 commit
-marker로 교체한다. marker hover/focus preview, direct navigation과 좁은 구간의 responsive
+marker로 교체했다. marker hover/focus preview, direct navigation과 좁은 구간의 responsive
 cluster picker를 제공하며 기존 revision select, older/newer와 Arrow Left/Right navigation을
-유지한다. `v0.9.12`의 File Tree/source와 local/SSH typed projection도 그대로 유지된다.
+유지한다. signed tag와 같은 revision의 CI/Release, 6개 fresh public asset, updater signature와
+rolling beta manifest 검증을 통과했다. `v0.9.12`의 File Tree/source와 local/SSH typed
+projection도 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

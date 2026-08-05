@@ -1,5 +1,14 @@
 # Completed Milestones
 
+## 2026-08-05: File Timeline Ruler
+
+- File Blame/Timeline의 균등 index slider를 실제 commit timestamp에 비례하는 연·월 ruler,
+  선택 cursor와 commit marker로 교체했다.
+- marker hover/focus preview와 direct click navigation을 제공하고, 화면상 가까운 commit은
+  responsive cluster와 keyboard-accessible picker로 탐색한다.
+- focused frontend test, rendered browser/design QA, canonical/publication gate, signed
+  `v0.9.13` same-SHA CI/Release와 fresh public artifact 및 rolling updater 검증을 통과했다.
+
 ## 2026-08-05: Revision File Inspection
 
 - 선택 revision의 전체 tracked snapshot을 lazy File Tree로 탐색하고, 선택 파일의 bounded

@@ -36,12 +36,12 @@
 
 ## Current Work
 
-현재 active todo는 `docs/todo-file-timeline-ruler/spec.md`다. 기존 index-based range input을
-실제 timestamp 비례 연·월 ruler, commit marker, responsive cluster, hover/focus preview와
-click/keyboard navigation으로 교체했다. focused/browser/design QA, canonical gate와 feature
-commit same-SHA CI를 통과했다. `v0.9.13` signed tag, Release workflow, fresh artifact와 rolling
-updater manifest 검증 뒤 milestone namespace로 닫는다. 기반인
-`docs/milestones/revision-file-inspection/spec.md`와 `v0.9.12` release 검증은 완료 상태다.
+현재 active todo는 없다. 완료된 `docs/milestones/file-timeline-ruler/spec.md`는 기존
+index-based range input을 실제 timestamp 비례 연·월 ruler, commit marker, responsive
+cluster, hover/focus preview와 click/keyboard navigation으로 교체했다. focused/browser/design
+QA, canonical gate, signed `v0.9.13` same-SHA CI/Release, fresh artifact와 rolling updater
+manifest 검증을 통과했다. 기반인 `docs/milestones/revision-file-inspection/spec.md`와
+`v0.9.12` release 검증도 완료 상태다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
