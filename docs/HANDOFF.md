@@ -36,14 +36,13 @@
 
 ## Current Work
 
-현재 active todo는 `docs/todo-file-timeline-loading-continuity/spec.md`다. `v0.9.13`의
-File Blame/Timeline은 revision 전환마다 기존 provenance surface를 중앙 loading state로
-교체해 화면이 깜빡인다. 첫 로딩은 기존 상태를 유지하되, 이후 revision 전환에서는 직전
-내용을 보존하고 비차단 progress만 표시한 뒤 새 projection을 한 번에 교체한다. 기반인
-`docs/milestones/file-timeline-ruler/spec.md`와
-`docs/milestones/revision-file-inspection/spec.md`는 완료 상태다. window-lifetime bounded
-LRU와 in-flight dedup으로 immediate older/newer revision을 선로딩하며 `v0.9.14` release를
-준비한다.
+현재 active todo는 없다. 완료된
+`docs/milestones/file-timeline-loading-continuity/spec.md`는 File Blame/Timeline의 첫
+load와 revision refresh를 구분해, 이후 전환에서는 직전 provenance를 유지하고 compact
+progress만 겹쳐 표시한 뒤 새 projection을 한 번에 교체한다. window-lifetime bounded
+LRU와 in-flight dedup으로 immediate older/newer revision을 선로딩하며 `v0.9.14`에
+배포됐다. 기반인 `docs/milestones/file-timeline-ruler/spec.md`와
+`docs/milestones/revision-file-inspection/spec.md`도 완료 상태다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,

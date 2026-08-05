@@ -1,6 +1,6 @@
 # Spec: File Timeline Loading Continuity
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -38,7 +38,7 @@ Status: active
 | C3 | done | rendered interaction | uncached 전환은 provenance 유지, prefetched 전환은 즉시 표시 |
 | C4 | done | production build | layout shift, framework overlay와 console error 없음 |
 | C5 | done | `scripts/check.sh` | frontend, Rust와 repository/publication contract |
-| C6 | todo | signed release verification | `v0.9.14` same-SHA CI, 6개 asset와 rolling updater manifest |
+| C6 | done | signed release verification | `v0.9.14` same-SHA CI, 6개 asset와 rolling updater manifest |
 
 ## Required Evidence
 
@@ -57,6 +57,10 @@ Status: active
   console error가 없었고 production build가 통과했다.
 - canonical gate는 frontend 183건, Rust unit 78건, integration 7건과 repository/publication
   contract를 통과했다.
+- GPG-signed `v0.9.14` tag는 release change와 같은 commit을 가리키고 main/tag CI 및 macOS
+  Release workflow가 성공했다. fresh public asset 6개는 checksum, updater signature, arm64
+  ad-hoc/hardened-runtime app bundle과 DMG 구조 검증을 통과했으며 rolling manifest와
+  byte-for-byte 일치한다.
 
 ## Publication Impact
 

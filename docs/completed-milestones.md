@@ -1,5 +1,14 @@
 # Completed Milestones
 
+## 2026-08-05: File Timeline Loading Continuity
+
+- revision refresh 중 기존 text/binary/empty provenance surface를 유지하고 compact activity를
+  겹쳐 표시한 뒤 새 projection을 한 번에 교체해 전체 화면 깜빡임을 제거했다.
+- window-lifetime bounded LRU, 동일 revision in-flight dedup과 immediate older/newer
+  best-effort prefetch로 인접 탐색을 가능한 경우 즉시 전환한다.
+- focused test, rendered uncached/cached interaction, canonical/publication gate, signed
+  `v0.9.14` same-SHA CI/Release와 fresh public artifact 및 rolling updater 검증을 통과했다.
+
 ## 2026-08-05: File Timeline Ruler
 
 - File Blame/Timeline의 균등 index slider를 실제 commit timestamp에 비례하는 연·월 ruler,
