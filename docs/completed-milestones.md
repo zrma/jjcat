@@ -1,5 +1,14 @@
 # Completed Milestones
 
+## 2026-08-07: Transient Handoff Notice
+
+- repository/file handoff와 path copy 성공 feedback을 4초 transient notice로 제한해
+  완료된 문구가 workspace 상단에 영구 잔류하지 않게 했다.
+- 같은 action을 반복해도 마지막 실행부터 timer를 다시 시작하고, sequence로
+  오래된 expiry가 최신 notice를 지우지 못하게 했다.
+- focused test, rendered repeated-action/auto-dismiss smoke, canonical/publication gate, signed
+  `v0.9.15` same-SHA CI/Release와 fresh public artifact 및 rolling updater 검증을 통과했다.
+
 ## 2026-08-05: File Timeline Loading Continuity
 
 - revision refresh 중 기존 text/binary/empty provenance surface를 유지하고 compact activity를

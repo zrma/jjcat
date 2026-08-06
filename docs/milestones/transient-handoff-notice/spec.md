@@ -1,6 +1,6 @@
 # Spec: Transient Handoff Notice
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -36,7 +36,7 @@ Status: active
 | C2 | done | Browser interaction | 성공 notice가 즉시 보이고 4초 뒤 사라지며 동일 action이 timer를 갱신한다. |
 | C3 | done | production build | framework overlay, console error와 layout regression이 없다. |
 | C4 | done | `scripts/check.sh` | frontend, Rust와 repository/publication contract가 통과한다. |
-| C5 | todo | signed release verification | `v0.9.15` same-SHA CI, 6개 asset와 rolling updater manifest를 검증한다. |
+| C5 | done | signed release verification | `v0.9.15` same-SHA CI, 6개 asset와 rolling updater manifest를 검증한다. |
 
 ## Required Evidence
 
@@ -60,6 +60,12 @@ Status: active
 - Apple Silicon release build에서 `0.9.15` app/DMG를 생성했다. 바깥 app과 DMG 내부 app은
   모두 `codesign --verify --deep --strict`를 통과했고 arm64, ad-hoc hardened runtime,
   `TeamIdentifier=not set` 경계를 확인했다. DMG의 `/Applications` shortcut도 정상이다.
+- release commit `ebd4dcea`와 GPG-signed `v0.9.15` tag가 같은 revision을 가리킨다.
+  main CI `31118278632`, tag CI `31119523159`와 Release `31119523195`는 terminal
+  success로 종료됐다.
+- draft가 아닌 prerelease에 6개 asset이 게시됐다. fresh download의 SHA256SUMS,
+  updater Minisign, ZIP/DMG/tar 내부 app의 arm64/ad-hoc strict signature를 검증했고,
+  rolling `updater-beta` manifest가 `0.9.15` versioned manifest와 byte-for-byte 일치한다.
 
 ## Publication Impact
 

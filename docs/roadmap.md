@@ -77,8 +77,8 @@
 - [x] file timeline revision 전환 중 provenance를 유지하는 비차단 loading feedback과
   immediate neighbor prefetch
   (`docs/milestones/file-timeline-loading-continuity/spec.md`, completed)
-- [ ] repository/file handoff와 path copy 성공 feedback의 bounded transient lifecycle
-  (`docs/todo-transient-handoff-notice/spec.md`, active)
+- [x] repository/file handoff와 path copy 성공 feedback의 bounded transient lifecycle
+  (`docs/milestones/transient-handoff-notice/spec.md`, completed)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.

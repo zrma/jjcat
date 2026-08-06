@@ -36,11 +36,12 @@
 
 ## Current Work
 
-현재 active todo는 `docs/todo-transient-handoff-notice/spec.md`다. repository/file handoff와
-path copy 성공 문구는 현재 해제 lifecycle이 없어 workspace 상단에 영구 잔류한다. 새
-notice마다 4초 만료를 시작하고 같은 action의 반복도 마지막 실행부터 시간을 다시 계산하며,
-오래된 timer가 최신 notice를 지우지 않게 한다. persistent error/recovery/activity notice와
-native handoff contract는 유지한다.
+현재 active todo는 없다. 완료된
+`docs/milestones/transient-handoff-notice/spec.md`는 repository/file handoff와 path copy
+성공 feedback을 4초 transient notice로 제한한다. 같은 action을 반복하면 마지막
+실행부터 만료를 다시 계산하고, 오래된 timer는 최신 notice를 지우지 않는다.
+persistent error/recovery/activity notice와 native handoff contract는 유지했으며
+`v0.9.15`에 배포됐다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,

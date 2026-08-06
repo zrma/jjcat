@@ -28,10 +28,10 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
 비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
-현재 active milestone은 `docs/todo-transient-handoff-notice/spec.md`다. repository/file
-handoff와 path copy의 성공 feedback을 4초 transient notice로 제한하고, 같은 action을
-반복하면 마지막 실행부터 만료 시간을 다시 계산해 영구 잔류를 제거한다. 이 변경은
-`v0.9.15` Apple Silicon macOS beta로 출고한다.
+현재 active milestone은 없다. `v0.9.15` Apple Silicon macOS beta는 repository/file
+handoff와 path copy의 성공 feedback을 4초 transient notice로 제한한다. 같은 action을
+반복하면 마지막 실행부터 만료 시간을 다시 계산하고, 오래된 timer가 최신
+notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다.
 
 완료된 기반:
 
@@ -165,12 +165,11 @@ handoff와 path copy의 성공 feedback을 4초 transient notice로 제한하고
 
 ## Latest Release
 
-`v0.9.14` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로 게시됐다.
-File Blame/Timeline revision 전환 중 기존 provenance surface를 유지하고 compact activity만
-겹쳐 표시하며, window-lifetime bounded LRU와 in-flight dedup으로 immediate older/newer
-revision을 선로딩한다. signed tag와 같은 revision의 main/tag CI 및 Release, 6개 fresh
-public asset, updater signature와 rolling beta manifest 검증을 통과했다. `v0.9.13`의 실제
-timestamp 비례 ruler와 marker navigation도 그대로 유지된다.
+`v0.9.15` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로 게시됐다.
+repository/file handoff와 path copy 성공 feedback에 4초 transient lifecycle을 적용하고
+반복 action의 timer를 다시 시작한다. signed tag와 같은 revision의 main/tag CI 및
+Release, 6개 fresh public asset, updater signature와 rolling beta manifest 검증을 통과했다.
+`v0.9.14`의 non-blocking timeline navigation과 neighbor prefetch도 그대로 유지된다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution
