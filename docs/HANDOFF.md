@@ -36,13 +36,11 @@
 
 ## Current Work
 
-현재 active todo는 없다. 완료된
-`docs/milestones/file-timeline-loading-continuity/spec.md`는 File Blame/Timeline의 첫
-load와 revision refresh를 구분해, 이후 전환에서는 직전 provenance를 유지하고 compact
-progress만 겹쳐 표시한 뒤 새 projection을 한 번에 교체한다. window-lifetime bounded
-LRU와 in-flight dedup으로 immediate older/newer revision을 선로딩하며 `v0.9.14`에
-배포됐다. 기반인 `docs/milestones/file-timeline-ruler/spec.md`와
-`docs/milestones/revision-file-inspection/spec.md`도 완료 상태다.
+현재 active todo는 `docs/todo-transient-handoff-notice/spec.md`다. repository/file handoff와
+path copy 성공 문구는 현재 해제 lifecycle이 없어 workspace 상단에 영구 잔류한다. 새
+notice마다 4초 만료를 시작하고 같은 action의 반복도 마지막 실행부터 시간을 다시 계산하며,
+오래된 timer가 최신 notice를 지우지 않게 한다. persistent error/recovery/activity notice와
+native handoff contract는 유지한다.
 
 local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
 candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,

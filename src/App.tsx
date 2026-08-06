@@ -78,6 +78,7 @@ import {
 } from "./lib/jjCommand";
 import { locationLabel, relativeTime } from "./lib/format";
 import { useDiffViewerPreferences } from "./lib/useDiffViewerPreferences";
+import { useTransientNotice } from "./lib/useTransientNotice";
 import {
   compactStateLabel,
   isDisconnectedState,
@@ -320,7 +321,7 @@ function App() {
   const [scanningSources, setScanningSources] = useState<Set<string>>(new Set());
   const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({});
   const [repositoryActionError, setRepositoryActionError] = useState<string | null>(null);
-  const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
+  const [handoffNotice, showHandoffNotice] = useTransientNotice();
   const [mutationDialog, setMutationDialog] = useState<MutationDialogState | null>(null);
   const [historyStepExecuting, setHistoryStepExecuting] = useState<
     "undo" | "redo" | null
@@ -1425,7 +1426,7 @@ function App() {
     if (!selectedRepository) return;
     try {
       const preview = await bridge.launchRepositoryHandoff(selectedRepository.id, target);
-      setHandoffNotice(`${preview.actionLabel}: ${preview.repositoryDisplayName}`);
+      showHandoffNotice(`${preview.actionLabel}: ${preview.repositoryDisplayName}`);
       setRepositoryActionError(null);
     } catch (error) {
       setRepositoryActionError((error as AppError).message);
@@ -1440,7 +1441,7 @@ function App() {
         path,
         target,
       );
-      setHandoffNotice(`${preview.actionLabel}: ${preview.filePath}`);
+      showHandoffNotice(`${preview.actionLabel}: ${preview.filePath}`);
       setRepositoryActionError(null);
     } catch (error) {
       setRepositoryActionError((error as AppError).message);
@@ -1453,7 +1454,7 @@ function App() {
         throw new Error("Clipboard access is unavailable");
       }
       await navigator.clipboard.writeText(path);
-      setHandoffNotice(`Copied path: ${path}`);
+      showHandoffNotice(`Copied path: ${path}`);
       setRepositoryActionError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

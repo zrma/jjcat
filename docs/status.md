@@ -28,9 +28,10 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
 비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
-현재 active milestone은 없다. `v0.9.14`는 timeline revision 전환 중 직전 provenance를
-유지하고 compact progress를 겹쳐 화면 전체의 loading 교체와 깜빡임을 제거한다.
-immediate older/newer revision은 window-lifetime bounded cache로 선로딩한다.
+현재 active milestone은 `docs/todo-transient-handoff-notice/spec.md`다. repository/file
+handoff와 path copy의 성공 feedback을 4초 transient notice로 제한하고, 같은 action을
+반복하면 마지막 실행부터 만료 시간을 다시 계산해 영구 잔류를 제거한다. 이 변경은
+`v0.9.15` Apple Silicon macOS beta로 출고한다.
 
 완료된 기반:
 
