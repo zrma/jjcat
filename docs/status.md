@@ -28,7 +28,9 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
 비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
-현재 active milestone은 없다. `v0.9.15` Apple Silicon macOS beta는 repository/file
+현재 active milestone은 없다. Graph는 revision tag를 local/SSH 공통 projection으로 읽어
+bookmark와 구분되는 read-only label로 표시하며, tag 검색과 reference-centered folding
+anchor를 지원한다. `v0.9.15` Apple Silicon macOS beta는 repository/file
 handoff와 path copy의 성공 feedback을 4초 transient notice로 제한한다. 같은 action을
 반복하면 마지막 실행부터 만료 시간을 다시 계산하고, 오래된 timer가 최신
 notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다.
@@ -60,7 +62,8 @@ notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다
   inspector와 change metadata search/filter
 - pointer/keyboard로 높이를 조절하고 double-click으로 초기화하는 history/inspector splitter
 - 통합 Add dialog의 native local picker, OpenSSH alias/dropdown 및 bounded remote folder browser
-- VisualJJ 방식의 local/remote inline bookmark label, source identity와 overflow
+- VisualJJ 방식의 local/remote inline bookmark label과 distinct read-only tag label,
+  source identity와 overflow
 - filesystem을 건드리지 않는 registry/cache/tab 전용 repository remove
 - local absolute path 및 `~/...` 입력의 canonical identity normalization
 - cat outline과 change DAG를 결합한 header/application identity asset
@@ -69,7 +72,7 @@ notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다
 - keyboard/pointer quick switcher search, close/reopen과 persistent tab reorder
 - stable pinned/local/SSH repository grouping과 compact freshness/error state
 - working copy, workspace, conflict, operation과 last-fetched repository navigation
-- working copy, local/remote bookmark, conflict와 workspace 기준점을 중심으로 오래된
+- working copy, local/remote bookmark, revision tag, conflict와 workspace 기준점을 중심으로 오래된
   선형 구간을 접고 구간별로 10개씩 또는 전체를 펼치는 reference-centered graph
 - graph filter와 분리된 working copy file tree/diff 작업면과 실제 changed-file count
 - 등록된 모든 current/other workspace의 path, working-copy change와

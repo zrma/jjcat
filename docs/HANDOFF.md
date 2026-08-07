@@ -36,7 +36,12 @@
 
 ## Current Work
 
-현재 active todo는 없다. 완료된
+현재 active todo는 없다. 완료된 `docs/milestones/graph-tag-labels/spec.md`는 Graph와
+selected-change projection에 revision tag를 추가한다. tag는 bookmark와 구분되는
+read-only label로 history row와 overview에 표시하며 검색과 reference-centered folding
+anchor에도 포함한다.
+
+완료된
 `docs/milestones/transient-handoff-notice/spec.md`는 repository/file handoff와 path copy
 성공 feedback을 4초 transient notice로 제한한다. 같은 action을 반복하면 마지막
 실행부터 만료를 다시 계산하고, 오래된 timer는 최신 notice를 지우지 않는다.

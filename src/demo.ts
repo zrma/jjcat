@@ -42,6 +42,7 @@ function change(
     parents: string[];
     parentCommitIds: string[];
     bookmarks: BookmarkRef[];
+    tags: string[];
     workingCopy: boolean;
     workspaceCopies: string[];
     empty: boolean;
@@ -64,6 +65,7 @@ function change(
     committerTimestamp: updatedAt,
     updatedAt,
     bookmarks: options.bookmarks ?? [],
+    tags: options.tags ?? [],
     parents: options.parents ?? [],
     parentCommitIds: options.parentCommitIds ?? [],
     files: options.files ?? [],
@@ -112,6 +114,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
         { name: "main", remote: "origin" },
         { name: "review-ready", remote: null },
       ],
+      tags: ["v0.9.15"],
       workingCopy: true,
       workspaceCopies: ["default"],
       description:

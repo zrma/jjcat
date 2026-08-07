@@ -25,6 +25,7 @@ function isReferenceAnchor(change: ChangeRow) {
     change.workingCopy ||
     change.conflict ||
     change.bookmarks.length > 0 ||
+    change.tags.length > 0 ||
     (change.workspaceCopies?.length ?? 0) > 0
   );
 }

@@ -78,6 +78,7 @@ const LOG_TEMPLATE: &str = concat!(
     "\",\\\"updated_at\\\":\" ++ committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
     "\",\\\"local_bookmarks\\\":\" ++ json(self.local_bookmarks()) ++ ",
     "\",\\\"remote_bookmarks\\\":\" ++ json(self.remote_bookmarks()) ++ ",
+    "\",\\\"tags\\\":\" ++ json(self.tags()) ++ ",
     "\",\\\"parents\\\":\" ++ stringify(parents.map(|p| p.change_id().short(12)).join(\",\")).escape_json() ++ ",
     "\",\\\"parent_commit_ids\\\":\" ++ stringify(parents.map(|p| p.commit_id()).join(\",\")).escape_json() ++ ",
     "\",\\\"files\\\":\\\"\\\"\" ++ ",
@@ -101,6 +102,7 @@ const CHANGE_DETAILS_TEMPLATE: &str = concat!(
     "\",\\\"updated_at\\\":\" ++ committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\").escape_json() ++ ",
     "\",\\\"local_bookmarks\\\":\" ++ json(self.local_bookmarks()) ++ ",
     "\",\\\"remote_bookmarks\\\":\" ++ json(self.remote_bookmarks()) ++ ",
+    "\",\\\"tags\\\":\" ++ json(self.tags()) ++ ",
     "\",\\\"parents\\\":\" ++ stringify(parents.map(|p| p.change_id().short(12)).join(\",\")).escape_json() ++ ",
     "\",\\\"parent_commit_ids\\\":\" ++ stringify(parents.map(|p| p.commit_id()).join(\",\")).escape_json() ++ ",
     "\",\\\"files\\\":\" ++ stringify(self.diff().files().map(|f| f.status_char() ++ \"\\t\" ++ f.path() ++ \"\\t\" ++ f.display_diff_path()).join(\"\\n\")).escape_json() ++ ",
@@ -1972,6 +1974,8 @@ struct LogRecord {
     updated_at: String,
     local_bookmarks: Vec<LogBookmarkRecord>,
     remote_bookmarks: Vec<LogBookmarkRecord>,
+    #[serde(default)]
+    tags: Vec<LogTagRecord>,
     parents: String,
     parent_commit_ids: String,
     files: String,
@@ -2038,6 +2042,11 @@ struct LogBookmarkRecord {
     name: String,
     #[serde(default)]
     remote: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LogTagRecord {
+    name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2205,6 +2214,7 @@ fn parse_log(stdout: &[u8]) -> Result<Vec<ChangeRow>, DriverError> {
                             }),
                     )
                     .collect(),
+                tags: record.tags.into_iter().map(|tag| tag.name).collect(),
                 parents: split_non_empty(&record.parents, ','),
                 parent_commit_ids: split_non_empty(&record.parent_commit_ids, ','),
                 files: parse_files(&record.files),
@@ -2583,8 +2593,20 @@ mod tests {
         assert_eq!(rows[0].files.len(), 2);
         assert_eq!(rows[0].files[0].path, "src/main.rs");
         assert_eq!(rows[0].files[0].display_path, "src/{legacy.rs => main.rs}");
+        assert!(rows[0].tags.is_empty());
         assert!(rows[0].working_copy);
         assert_eq!(rows[0].workspace_copies, vec!["default"]);
+    }
+
+    #[test]
+    fn jsonl_projection_preserves_tags() {
+        let rows = parse_log(
+            br#"{"change_id":"tagged","commit_id":"def0123456789abcdef0123456789abcdef012345","summary":"release","description":"release","author":"Agent","author_email":"agent@example.invalid","author_timestamp":"2026-01-01T00:00:00Z","committer":"Agent","committer_email":"agent@example.invalid","committer_timestamp":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","local_bookmarks":[],"remote_bookmarks":[],"tags":[{"name":"v0.9.15","target":[]}],"parents":"","parent_commit_ids":"","files":"","conflict":false,"working_copy":false,"empty":false}
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(rows[0].tags, vec!["v0.9.15"]);
     }
 
     #[test]
@@ -2923,6 +2945,8 @@ mod tests {
     #[test]
     fn graph_projection_defers_file_metadata_to_selected_change_details() {
         assert!(!LOG_TEMPLATE.contains("self.diff().files()"));
+        assert!(LOG_TEMPLATE.contains("self.tags()"));
+        assert!(CHANGE_DETAILS_TEMPLATE.contains("self.tags()"));
         assert!(CHANGE_DETAILS_TEMPLATE.contains("f.path()"));
         assert!(CHANGE_DETAILS_TEMPLATE.contains("f.display_diff_path()"));
         let args = JjQuery::Log

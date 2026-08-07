@@ -13,6 +13,7 @@ function change(
     author: "fixture",
     updatedAt: "2026-01-01T00:00:00Z",
     bookmarks: [],
+    tags: [],
     parents: [],
     files: [],
     conflict: false,
@@ -45,6 +46,27 @@ describe("foldHistory", () => {
       "change-13",
     ]);
     expect(folds.map((fold) => fold.hiddenCount)).toEqual([9, 10]);
+  });
+
+  it("keeps tagged revision neighborhoods visible", () => {
+    const changes = Array.from({ length: 24 }, (_, index) =>
+      change(`change-${index}`, {
+        workingCopy: index === 0,
+        tags: index === 12 ? ["v0.9.15"] : [],
+      }),
+    );
+
+    const visibleIds = foldHistory(changes, undefined, {})
+      .filter((item) => item.kind === "change")
+      .map((item) => item.change.changeId);
+
+    expect(visibleIds).toEqual([
+      "change-0",
+      "change-1",
+      "change-11",
+      "change-12",
+      "change-13",
+    ]);
   });
 
   it("reveals a bounded batch and preserves a control row for collapsing", () => {

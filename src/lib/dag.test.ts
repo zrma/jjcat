@@ -16,6 +16,7 @@ function row(changeId: string, parents: string[]): ChangeRow {
     author: "fixture",
     updatedAt: "2026-01-01T00:00:00Z",
     bookmarks: [],
+    tags: [],
     parents,
     files: [],
     conflict: false,

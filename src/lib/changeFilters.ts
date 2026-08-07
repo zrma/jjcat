@@ -22,6 +22,7 @@ export function filterChanges(
       change.changeId,
       change.commitId,
       ...change.bookmarks.flatMap((bookmark) => [bookmark.name, bookmark.remote ?? ""]),
+      ...change.tags,
     ].some((value) => value.toLocaleLowerCase().includes(query));
   });
 }

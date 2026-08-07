@@ -59,6 +59,7 @@ import type {
   WhitespaceMode,
 } from "../types";
 import { BookmarkLabels } from "./BookmarkLabels";
+import { TagLabels } from "./TagLabels";
 import { ChangeActionMenu } from "./ChangeActionMenu";
 import { CliSpinner } from "./CliSpinner";
 import { DiffViewer } from "./DiffViewer";
@@ -1109,7 +1110,7 @@ function ChangeRows({
             <span className="change-refs">
               <BookmarkLabels
                 bookmarks={change.bookmarks}
-                limit={2}
+                limit={change.tags.length > 0 ? 1 : 2}
                 localBookmarkDrag={{
                   activeName:
                     bookmarkDrag?.sourceCommitId === change.commitId
@@ -1170,6 +1171,10 @@ function ChangeRows({
                     }
                   },
                 }}
+              />
+              <TagLabels
+                tags={change.tags}
+                limit={change.bookmarks.length > 0 ? 1 : 2}
               />
             </span>
             <span className="change-description">
@@ -1522,7 +1527,15 @@ function ChangeOverview({ change }: { change?: ChangeRow }) {
           <section className="commit-facts" aria-label="Commit references">
             <Detail
               label="Refs"
-              value={<BookmarkLabels bookmarks={change.bookmarks} emptyLabel="—" />}
+              value={
+                <span className="revision-reference-list">
+                  <BookmarkLabels
+                    bookmarks={change.bookmarks}
+                    emptyLabel={change.tags.length === 0 ? "—" : undefined}
+                  />
+                  <TagLabels tags={change.tags} />
+                </span>
+              }
             />
             <Detail label="Change ID" value={change.changeId} mono />
             <Detail label="Commit SHA" value={change.commitId} mono />

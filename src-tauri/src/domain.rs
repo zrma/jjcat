@@ -543,6 +543,8 @@ pub struct ChangeRow {
     pub committer_timestamp: String,
     pub updated_at: String,
     pub bookmarks: Vec<BookmarkRef>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub parents: Vec<String>,
     #[serde(default)]
     pub parent_commit_ids: Vec<String>,
@@ -1094,5 +1096,15 @@ mod tests {
                 remote: None,
             }
         );
+    }
+
+    #[test]
+    fn projection_cache_without_tags_remains_readable() {
+        let change: ChangeRow = serde_json::from_str(
+            r#"{"changeId":"abc","commitId":"def","summary":"fixture","author":"Agent","updatedAt":"2026-01-01T00:00:00Z","bookmarks":[],"parents":[],"files":[],"conflict":false,"workingCopy":false,"empty":false}"#,
+        )
+        .unwrap();
+
+        assert!(change.tags.is_empty());
     }
 }

@@ -1,5 +1,14 @@
 # Completed Milestones
 
+## 2026-08-07: Graph Tag Labels
+
+- local과 SSH가 공유하는 bounded graph/selected-change projection에 revision tag 이름을
+  추가하고 tag 없는 기존 projection cache도 계속 읽게 했다.
+- history row와 overview에서 bookmark와 구분되는 read-only tag label을 표시하고, tag
+  검색과 reference-centered folding anchor를 지원한다.
+- focused frontend/Rust test, local/simulated SSH integration, rendered tag/search smoke와
+  canonical/publication gate를 통과했다. remote write와 release는 수행하지 않았다.
+
 ## 2026-08-07: Transient Handoff Notice
 
 - repository/file handoff와 path copy 성공 feedback을 4초 transient notice로 제한해

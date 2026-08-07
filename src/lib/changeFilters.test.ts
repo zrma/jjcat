@@ -16,6 +16,7 @@ const changes: ChangeRow[] = [
     updatedAt: "2026-01-01T00:00:00Z",
     parents: ["local"],
     bookmarks: [],
+    tags: [],
     workingCopy: true,
     conflict: false,
     empty: false,
@@ -29,6 +30,7 @@ const changes: ChangeRow[] = [
     updatedAt: "2026-01-01T00:00:00Z",
     parents: ["remote"],
     bookmarks: [{ name: "main", remote: null }],
+    tags: [],
     workingCopy: false,
     conflict: false,
     empty: false,
@@ -42,6 +44,7 @@ const changes: ChangeRow[] = [
     updatedAt: "2026-01-01T00:00:00Z",
     parents: [],
     bookmarks: [{ name: "main", remote: "origin" }],
+    tags: ["v0.9.15"],
     workingCopy: false,
     conflict: true,
     empty: false,
@@ -70,5 +73,6 @@ describe("change history filters", () => {
     expect(filterChanges(changes, "all", "integration@example.invalid")).toEqual([
       changes[0],
     ]);
+    expect(filterChanges(changes, "all", "v0.9.15")).toEqual([changes[2]]);
   });
 });

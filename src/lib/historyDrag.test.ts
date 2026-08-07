@@ -17,6 +17,7 @@ function row(
     author: "fixture",
     updatedAt: "2026-01-01T00:00:00Z",
     bookmarks,
+    tags: [],
     parents,
     parentCommitIds: parents.map((parent) => `${parent}-commit`),
     files: [],

@@ -2608,7 +2608,9 @@ body.workspace-resizing {
 }
 
 .change-row.selected .bookmark-label,
-.change-row.selected .bookmark-overflow {
+.change-row.selected .bookmark-overflow,
+.change-row.selected .tag-label,
+.change-row.selected .tag-overflow {
   border-color: rgb(255 255 255 / 36%);
   background: rgb(255 255 255 / 12%);
   color: var(--selection-text);
@@ -2728,15 +2730,18 @@ body.workspace-resizing {
 }
 
 .change-refs {
+  gap: 4px;
   padding-right: 4px !important;
   padding-left: 4px !important;
 }
 
-.change-refs .bookmark-list {
-  width: 100%;
+.change-refs .bookmark-list,
+.change-refs .tag-list {
+  max-width: 100%;
 }
 
-.change-refs .bookmark-label {
+.change-refs .bookmark-label,
+.change-refs .tag-label {
   max-width: 132px;
 }
 
@@ -2789,8 +2794,18 @@ body.workspace-resizing {
   min-width: 0;
 }
 
+.tag-list {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .bookmark-label,
-.bookmark-overflow {
+.bookmark-overflow,
+.tag-label,
+.tag-overflow {
   display: inline-block;
   flex: 0 1 auto;
   max-width: 118px;
@@ -2805,6 +2820,29 @@ body.workspace-resizing {
   line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tag-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 3px;
+  padding-left: 3px;
+  border-color: color-mix(in srgb, var(--state-success) 48%, var(--border-default));
+  background: var(--state-success-soft);
+  color: var(--state-success);
+}
+
+.tag-label svg {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  stroke-width: 1.8;
+}
+
+.tag-label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bookmark-label {
@@ -2901,17 +2939,33 @@ body.workspace-resizing {
   color: var(--text-secondary);
 }
 
+.tag-overflow {
+  flex: 0 0 auto;
+  border-color: color-mix(in srgb, var(--state-success) 32%, var(--border-subtle));
+  background: var(--state-success-soft);
+  color: var(--state-success);
+}
+
 .bookmark-empty {
   color: var(--text-secondary);
 }
 
-.detail-pair .bookmark-list {
+.revision-reference-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.detail-pair .bookmark-list,
+.detail-pair .tag-list {
   flex-wrap: wrap;
   overflow: visible;
   white-space: normal;
 }
 
-.detail-pair .bookmark-label {
+.detail-pair .bookmark-label,
+.detail-pair .tag-label {
   max-width: 180px;
 }
 
@@ -4759,7 +4813,8 @@ body.workspace-resizing {
   white-space: nowrap;
 }
 
-.detail-pair dd:has(.bookmark-list) {
+.detail-pair dd:has(.bookmark-list),
+.detail-pair dd:has(.tag-list) {
   overflow: visible;
   white-space: normal;
 }

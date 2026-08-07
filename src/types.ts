@@ -178,6 +178,7 @@ export interface ChangeRow {
   committerTimestamp?: string;
   updatedAt: string;
   bookmarks: BookmarkRef[];
+  tags: string[];
   parents: string[];
   parentCommitIds?: string[];
   files: ChangedFile[];

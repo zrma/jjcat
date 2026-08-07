@@ -16,6 +16,7 @@ function change(overrides: Partial<ChangeRow> = {}): ChangeRow {
     author: "Example",
     updatedAt: "2026-01-01T00:00:00Z",
     bookmarks: [{ name: "main", remote: null }],
+    tags: [],
     parents: ["change-parent"],
     parentCommitIds: ["commit-parent"],
     files: [{ status: "M", path: "src/main.ts" }],

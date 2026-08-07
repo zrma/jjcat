@@ -35,6 +35,8 @@
 - [x] reference/conflict navigation과 resizable overview/changes/operations inspector
 - [x] working copy file tree/diff 작업면과 changed-file count
 - [x] reference-centered history folding과 구간별 progressive reveal/collapse
+- [x] local/SSH revision tag projection, graph/overview read-only label, 검색과 folding anchor
+  (`docs/milestones/graph-tag-labels/spec.md`, completed)
 
 ## P3: Safe Shaping
 

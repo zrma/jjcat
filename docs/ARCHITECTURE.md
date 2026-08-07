@@ -99,7 +99,7 @@ plain `jj` CLI만으로 안정적인 projection을 만들 수 없다는 evidence
 선택한 저장소의 last-known status, graph와 revision detail을 즉시 표시한다. stale state를
 명확히 표시하고 refresh 결과와 섞어 현재 상태처럼 보이지 않게 한다.
 graph projection은 visible head의 ancestor 중 최근 최대 200개 change만 topology,
-description, identity와 bookmark의 bounded JSONL로 읽고 change별 changed-file 목록은 포함하지
+description, identity, bookmark와 tag의 bounded JSONL로 읽고 change별 changed-file 목록은 포함하지
 않는다. 선택한 revision은 별도 bounded query로 동일 identity를 재검증하면서 changed-file
 metadata를 읽는다. commit trailer는 description의 일부로 그대로 보존하며 source file
 content는 포함하지 않는다. 이 row/file 분리는 visible head나 파일 수가 큰 repository가 전체
@@ -130,8 +130,8 @@ template와 remote terminal working-directory bootstrap은 이후 configuration 
 먼저 deterministic lane model로 계산하므로 virtual window 밖에서도 edge가 안정적이다.
 pointer와 위/아래 방향키 selection은 같은 revision state를 사용하며 화면 밖 선택은 scroll
 window가 따라간다.
-`All Changes`는 working copy, current/other workspace copy, local/remote bookmark와 conflict를
-reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
+`All Changes`는 working copy, current/other workspace copy, local/remote bookmark, revision
+tag와 conflict를 reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
 구간은 실제 projection을 삭제하지 않고 `~` fold row로 축약한다. 사용자는 각 구간에서 10개씩,
 전체를 펼치거나 다시 접을 수 있다. search와 dedicated conflict view는 일치 항목을 숨기지
 않으며 selection과 normal-state DAG layout은 원본 bounded projection을 기준으로 계산한다.
@@ -147,9 +147,10 @@ workspace의 `Remove`는 exact registered path를 preview한 뒤 registration과
 한 번에 정리한다. 제거 대상은 empty working-copy change로 제한하며 그 change도 같은
 mutation에서 abandon한다. current/non-empty workspace, filesystem root, current workspace의
 ancestor, symlink target은 backend에서 거부한다.
-local/remote bookmark는 graph label, search, mutation과 위 reference anchor로 노출하며
-동일한 `All Changes` 결과를 줄이는 별도 sidebar filter/count는 두지 않는다. conflict는
-dedicated repository view를 유지한다.
+local/remote bookmark는 graph label, search, mutation과 위 reference anchor로 노출한다.
+revision tag는 bookmark와 구분되는 read-only graph/overview label, search와 reference
+anchor로 노출하며 move/push affordance를 제공하지 않는다. 동일한 `All Changes` 결과를
+줄이는 별도 sidebar filter/count는 두지 않는다. conflict는 dedicated repository view를 유지한다.
 desktop density는 20px history row와 압축된 titlebar/toolbar를 사용해 기본 창 크기에서
 20개 이상의 change를 노출한다. system UI font, 10-12px의 readable text floor, 높은
 foreground contrast와 의미가 있는 state/graph에 한정된 accent color를 유지한다. repository와
