@@ -36,10 +36,10 @@
 
 ## Current Work
 
-현재 active todo는 `docs/todo-v0-9-16-release/spec.md`다. 완료된
-`docs/milestones/graph-tag-labels/spec.md`의 Graph revision tag projection, distinct
-read-only label, 검색과 reference-centered folding anchor를 `v0.9.16` Apple Silicon
-macOS beta와 signed updater로 배포하고 public artifact를 검증한다.
+현재 active todo는 없다. 완료된 `docs/milestones/v0-9-16-release/spec.md`는 Graph
+revision tag projection, distinct read-only label, 검색과 reference-centered folding
+anchor를 `v0.9.16` Apple Silicon macOS beta와 signed updater로 배포했다. signed tag,
+same-SHA CI/Release, fresh public asset 6개와 rolling updater manifest를 검증했다.
 
 완료된
 `docs/milestones/transient-handoff-notice/spec.md`는 repository/file handoff와 path copy

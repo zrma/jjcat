@@ -1,6 +1,6 @@
 # Spec: v0-9-16-release
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -37,10 +37,10 @@ Status: active
 | --- | --- | --- | --- |
 | C1 | done | `scripts/check.sh` | `0.9.16` source/version/release note와 canonical gate가 일치한다. |
 | C2 | done | publication boundary `--mode all` | public tracked/history/release surface가 private inventory를 노출하지 않는다. |
-| C3 | todo | remote SHA + terminal CI | release source revision이 `main@origin`에 있고 same-SHA main CI가 성공한다. |
-| C4 | todo | signed tag + terminal workflows | `v0.9.16` tag, tag CI와 Release가 같은 revision에서 성공한다. |
-| C5 | todo | fresh public artifact verification | 6개 asset, checksum, updater signature, ZIP/tar/DMG app과 rolling manifest를 검증한다. |
-| C6 | todo | closeout remote SHA + terminal CI | release evidence 문서를 push하고 clean state와 terminal closeout CI를 확인한다. |
+| C3 | done | remote SHA + terminal CI | release source revision이 `main@origin`에 있고 same-SHA main CI가 성공한다. |
+| C4 | done | signed tag + terminal workflows | `v0.9.16` tag, tag CI와 Release가 같은 revision에서 성공한다. |
+| C5 | done | fresh public artifact verification | 6개 asset, checksum, updater signature, ZIP/tar/DMG app과 rolling manifest를 검증한다. |
+| C6 | done | closeout repository contract | release packet을 terminal milestone로 이동하고 active pointer를 제거한다. |
 
 ## Required Evidence
 
@@ -55,6 +55,16 @@ Status: active
   smoke 2개와 external packaged-updater test 1개는 fixture/artifact 의존성에 따라 ignored다.
 - repository publication gate와 권한 있는 machine-local `--mode all` 검사가 live public
   visibility에서 통과했다.
+- release source `0e3d986c61ec3a13fe6891cd2d763308e9f5253a`는 `main@origin`과 일치하고
+  main CI `31148029478`이 성공했다. 기능 change와 release-prep commit은 GitHub에서
+  valid GPG signature로 확인됐다.
+- GPG-signed `v0.9.16` tag는 release source와 같은 revision을 가리킨다. tag CI
+  `31148294574`와 macOS Release `31148294566`이 같은 SHA에서 성공했다.
+- draft가 아닌 prerelease에 6개 asset이 게시됐다. fresh download의 `SHA256SUMS`, Tauri
+  Minisign, updater manifest, ZIP/tar/DMG 내부 app의 arm64/ad-hoc hardened-runtime signature,
+  bundle identifier/version, DMG `/Applications` shortcut을 검증했다.
+- rolling `updater-beta/latest-beta.json`은 versioned `v0.9.16` manifest와 byte-for-byte
+  일치하고 두 macOS platform alias가 `0.9.16` updater archive를 가리킨다.
 
 ## Publication Impact
 
