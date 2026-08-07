@@ -81,6 +81,8 @@
   (`docs/milestones/file-timeline-loading-continuity/spec.md`, completed)
 - [x] repository/file handoff와 path copy 성공 feedback의 bounded transient lifecycle
   (`docs/milestones/transient-handoff-notice/spec.md`, completed)
+- [ ] Graph revision tag label의 `v0.9.16` Apple Silicon beta와 signed updater 배포
+  (`docs/todo-v0-9-16-release/spec.md`, active)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.

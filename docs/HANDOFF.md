@@ -36,10 +36,10 @@
 
 ## Current Work
 
-현재 active todo는 없다. 완료된 `docs/milestones/graph-tag-labels/spec.md`는 Graph와
-selected-change projection에 revision tag를 추가한다. tag는 bookmark와 구분되는
-read-only label로 history row와 overview에 표시하며 검색과 reference-centered folding
-anchor에도 포함한다.
+현재 active todo는 `docs/todo-v0-9-16-release/spec.md`다. 완료된
+`docs/milestones/graph-tag-labels/spec.md`의 Graph revision tag projection, distinct
+read-only label, 검색과 reference-centered folding anchor를 `v0.9.16` Apple Silicon
+macOS beta와 signed updater로 배포하고 public artifact를 검증한다.
 
 완료된
 `docs/milestones/transient-handoff-notice/spec.md`는 repository/file handoff와 path copy

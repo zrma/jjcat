@@ -1,7 +1,7 @@
 {
   "name": "jjcat",
   "private": true,
-  "version": "0.9.15",
+  "version": "0.9.16",
   "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@10.24.0",

@@ -28,9 +28,11 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
 비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
-현재 active milestone은 없다. Graph는 revision tag를 local/SSH 공통 projection으로 읽어
-bookmark와 구분되는 read-only label로 표시하며, tag 검색과 reference-centered folding
-anchor를 지원한다. `v0.9.15` Apple Silicon macOS beta는 repository/file
+현재 active milestone은 `docs/todo-v0-9-16-release/spec.md`다. Graph는 revision tag를
+local/SSH 공통 projection으로 읽어 bookmark와 구분되는 read-only label로 표시하며,
+tag 검색과 reference-centered folding anchor를 지원한다. `v0.9.16` Apple Silicon macOS
+beta release target은 이 기능과 기존 updater contract를 배포한다. 현재 공개된 `v0.9.15`
+Apple Silicon macOS beta는 repository/file
 handoff와 path copy의 성공 feedback을 4초 transient notice로 제한한다. 같은 action을
 반복하면 마지막 실행부터 만료 시간을 다시 계산하고, 오래된 timer가 최신
 notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다.
@@ -168,6 +170,8 @@ notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다
 
 ## Latest Release
 
+`v0.9.16` Apple Silicon macOS beta release target은 Graph revision tag의 local/SSH
+projection, distinct read-only label, 검색과 folding anchor를 포함한다. 현재 공개된
 `v0.9.15` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로 게시됐다.
 repository/file handoff와 path copy 성공 feedback에 4초 transient lifecycle을 적용하고
 반복 action의 timer를 다시 시작한다. signed tag와 같은 revision의 main/tag CI 및

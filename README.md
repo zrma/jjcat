@@ -11,12 +11,12 @@
 
 jjcat은 로컬과 Remote SSH 환경의 여러 Jujutsu 저장소를 탭으로 오가며 살펴보는
 local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라우저 서버에
-종속되지 않고 change graph, bookmark, working copy와 diff를 한 세션에서 다룬다.
+종속되지 않고 change graph, bookmark, tag, working copy와 diff를 한 세션에서 다룬다.
 
 - **Local and SSH parity** — 로컬 폴더와 OpenSSH host의 저장소를 같은 repository rail,
   tab과 quick switcher에서 전환한다.
-- **Dense change cockpit** — compact multi-lane DAG, local/remote bookmark, last-fetched
-  divergence와 unified/side-by-side diff를 한 화면에서 읽는다.
+- **Dense change cockpit** — compact multi-lane DAG, local/remote bookmark, revision tag,
+  last-fetched divergence와 unified/side-by-side diff를 한 화면에서 읽는다.
 - **Local-first by design** — source code, SSH credential과 private host inventory를 hosted
   service로 전송하지 않는다.
 
@@ -78,6 +78,8 @@ commit marker를 사용하는 File Blame/Timeline 탐색을 설명한다.
 유지하는 non-blocking loading과 인접 revision 선로딩을 설명한다.
 [v0.9.15 release notes](docs/releases/v0.9.15.md)는 repository/file handoff와 path copy
 성공 feedback의 bounded transient lifecycle을 설명한다.
+[v0.9.16 release notes](docs/releases/v0.9.16.md)는 Graph와 selected-change overview의
+revision tag label, tag 검색과 folding anchor를 설명한다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
 distribution decision으로 재검토한다.
