@@ -1,6 +1,6 @@
 # Spec: statusbar-navigation-clarity
 
-Status: active
+Status: completed
 
 ## Goal
 
@@ -37,8 +37,8 @@ Status: active
 | C2 | done | rendered desktop/narrow smoke | 임의 repository 이름/readiness가 status bar 우측에 나타나지 않는다. |
 | C3 | done | rendered keyboard interaction | `Command-K` quick switcher로 repository를 계속 전환할 수 있다. |
 | C4 | done | `scripts/check.sh` + publication gate | canonical과 public-ready contract를 통과한다. |
-| C5 | todo | remote SHA + terminal CI/Release | signed `v0.9.17` tag와 같은 SHA의 CI/Release가 성공한다. |
-| C6 | todo | fresh public artifact verification | asset 6개, checksum, updater signature, app bundle/DMG와 rolling manifest를 검증한다. |
+| C5 | done | remote SHA + terminal CI/Release | signed `v0.9.17` tag와 같은 SHA의 CI/Release가 성공한다. |
+| C6 | done | fresh public artifact verification | asset 6개, checksum, updater signature, app bundle/DMG와 rolling manifest를 검증한다. |
 
 ## Required Evidence
 
@@ -59,6 +59,16 @@ Status: active
   local/simulated SSH integration 7개, updater/Python/repository contract가 통과했다.
   machine-local SSH smoke 2개와 external packaged-updater test 1개는 fixture/artifact
   의존성에 따라 ignored다.
+- release source `cd9fc9bbd18308275c888bb548639f7c1fa9afd0`는 `main@origin`과 일치하고
+  main CI `31253789176`이 성공했다. 구현 change와 release-prep commit은 GitHub에서
+  valid GPG signature로 확인됐다.
+- GPG-signed `v0.9.17` tag는 release source와 같은 revision을 가리킨다. tag CI
+  `31253948776`과 macOS Release `31253948787`이 같은 SHA에서 성공했다.
+- draft가 아닌 prerelease에 6개 asset이 게시됐다. fresh download의 `SHA256SUMS`, Tauri
+  Minisign, updater manifest, ZIP/tar/DMG 내부 app의 arm64/ad-hoc hardened-runtime signature,
+  bundle identifier/version, DMG `/Applications` shortcut을 검증했다.
+- rolling `updater-beta/latest-beta.json`은 versioned `v0.9.17` manifest와 byte-for-byte
+  일치하고 두 macOS platform alias가 `0.9.17` updater archive를 가리킨다.
 
 ## Publication Impact
 

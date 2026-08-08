@@ -36,10 +36,11 @@
 
 ## Current Work
 
-현재 active todo는 `docs/todo-statusbar-navigation-clarity/spec.md`다. status bar 우측의
-임의 secondary repository 이름/상태 shortcut을 제거해 현재 repository 상태와 navigation을
-분리한다. repository 전환은 상단 tab, 좌측 repository navigation과 `Command-K` quick
-switcher가 소유하며, 변경은 `v0.9.17` Apple Silicon macOS beta로 배포한다.
+현재 active todo는 없다. 완료된 `docs/milestones/statusbar-navigation-clarity/spec.md`는
+status bar 우측의 임의 secondary repository 이름/상태 shortcut을 제거해 현재 repository
+상태와 navigation을 분리했다. repository 전환은 상단 tab, 좌측 repository navigation과
+`Command-K` quick switcher가 소유하며, `v0.9.17` Apple Silicon macOS beta와 signed
+updater로 배포하고 same-SHA CI/Release와 fresh public asset을 검증했다.
 
 완료된 `docs/milestones/v0-9-16-release/spec.md`는 Graph revision tag projection,
 distinct read-only label, 검색과 reference-centered folding anchor를 `v0.9.16` Apple

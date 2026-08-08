@@ -1,5 +1,15 @@
 # Completed Milestones
 
+## 2026-08-08: Status Bar Navigation Clarity
+
+- status bar 우측의 임의 secondary repository 이름/readiness shortcut을 제거해 현재
+  repository 상태 정보와 navigation을 분리했다.
+- repository 전환은 상단 tab, 좌측 repository navigation과 `Command-K` Quick Switcher로
+  일원화하고 기존 selection domain/transport contract는 유지했다.
+- production build, desktop/narrow rendered smoke, `Command-K` keyboard interaction,
+  canonical/publication gate, signed `v0.9.17` same-SHA CI/Release와 fresh public asset 6개 및
+  rolling updater manifest 검증을 통과했다.
+
 ## 2026-08-07: Graph Tag Labels
 
 - local과 SSH가 공유하는 bounded graph/selected-change projection에 revision tag 이름을
