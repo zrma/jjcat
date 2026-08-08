@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "jjcat"
-version = "0.9.16"
+version = "0.9.17"
 dependencies = [
  "base64 0.22.1",
  "glob",
