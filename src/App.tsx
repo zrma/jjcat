@@ -2474,32 +2474,6 @@ function App() {
                 {relativeTime(selectedCache.cachedAt)}
               </span>
             )}
-            {registry.repositories
-              .filter((repository) => repository.id !== selectedRepository.id)
-              .slice(0, 1)
-              .map((repository) => {
-                const state = repositoryState(
-                  repository.id,
-                  repository.location.kind,
-                  registry.cachedProjections[repository.id],
-                  freshIds,
-                  refreshing,
-                  errors,
-                );
-                return (
-                  <button
-                    type="button"
-                    className="status-repository-switch status-secondary-repository"
-                    onClick={() => void selectRepository(repository.id)}
-                    key={repository.id}
-                  >
-                    <StatusDot state={state} />
-                    <span>{repository.displayName}</span>
-                    <span className="divider" />
-                    <strong>{stateLabel(state)}</strong>
-                  </button>
-                );
-              })}
           </>
         ) : (
           <>

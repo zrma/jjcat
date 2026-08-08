@@ -83,6 +83,9 @@
   (`docs/milestones/transient-handoff-notice/spec.md`, completed)
 - [x] Graph revision tag label의 `v0.9.16` Apple Silicon beta와 signed updater 배포
   (`docs/milestones/v0-9-16-release/spec.md`, completed)
+- [ ] status bar의 임의 secondary repository shortcut을 제거하고 명시적인 tab/navigation/
+  quick switcher로 전환 surface 일원화 및 `v0.9.17` 배포
+  (`docs/todo-statusbar-navigation-clarity/spec.md`, active)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.

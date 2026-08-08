@@ -5199,27 +5199,6 @@ body.workspace-resizing {
   font-weight: 600;
 }
 
-.status-repository-switch {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 20px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 2px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 10px;
-}
-
-.status-repository-switch:hover {
-  background: var(--surface-hover);
-}
-
-.status-repository-switch strong {
-  color: var(--state-warning);
-}
-
 .status-spacer {
   flex: 1;
 }
@@ -7025,8 +7004,7 @@ body.workspace-resizing {
     grid-template-columns: 230px minmax(0, 1fr);
   }
 
-  .status-cache-age,
-  .status-secondary-repository {
+  .status-cache-age {
     display: none;
   }
 }

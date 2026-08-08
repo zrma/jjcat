@@ -36,10 +36,14 @@
 
 ## Current Work
 
-현재 active todo는 없다. 완료된 `docs/milestones/v0-9-16-release/spec.md`는 Graph
-revision tag projection, distinct read-only label, 검색과 reference-centered folding
-anchor를 `v0.9.16` Apple Silicon macOS beta와 signed updater로 배포했다. signed tag,
-same-SHA CI/Release, fresh public asset 6개와 rolling updater manifest를 검증했다.
+현재 active todo는 `docs/todo-statusbar-navigation-clarity/spec.md`다. status bar 우측의
+임의 secondary repository 이름/상태 shortcut을 제거해 현재 repository 상태와 navigation을
+분리한다. repository 전환은 상단 tab, 좌측 repository navigation과 `Command-K` quick
+switcher가 소유하며, 변경은 `v0.9.17` Apple Silicon macOS beta로 배포한다.
+
+완료된 `docs/milestones/v0-9-16-release/spec.md`는 Graph revision tag projection,
+distinct read-only label, 검색과 reference-centered folding anchor를 `v0.9.16` Apple
+Silicon macOS beta와 signed updater로 배포했다.
 
 완료된
 `docs/milestones/transient-handoff-notice/spec.md`는 repository/file handoff와 path copy
