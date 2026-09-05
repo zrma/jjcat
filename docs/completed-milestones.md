@@ -1,5 +1,11 @@
 # Completed Milestones
 
+각 절은 종료 당시의 acceptance와 검증 범위를 기록한다. 현재 계약은
+`docs/ARCHITECTURE.md`, 배포 계약은 `docs/releases/`, 후속 trigger는 `docs/roadmap.md`가
+소유한다. 후속 slice가 대체한 typed confirmation, inline checkpoint와 marker-based
+activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
+이관했으며 새 active packet으로 복사하지 않는다.
+
 ## 2026-08-08: Status Bar Navigation Clarity
 
 - status bar 우측의 임의 secondary repository 이름/readiness shortcut을 제거해 현재
@@ -327,3 +333,10 @@ implementation은 다음 P0 milestone로 넘겼다.
 - registry schema v4와 v3 migration, source/catalog validation, local 및 simulated SSH
   discovery test를 추가했다. source 제거는 catalog만 정리하고 repository, open tab과
   filesystem content를 보존한다.
+
+## 2026-07-31: Update Check Cadence
+
+- startup check를 유지하고 main window focus 3초 dwell과 1시간 automatic cooldown을 추가했다.
+- manual check는 cooldown을 우회하며 automatic no-update/failure는 조용히 처리한다.
+- scheduler 경계 tests, production build, canonical/publication gates와 `v0.9.6` release
+  verification을 완료했다. 자동 download/restart와 fixed-interval polling은 범위 밖이다.

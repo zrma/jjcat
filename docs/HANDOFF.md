@@ -30,97 +30,26 @@
 - `docs/status.md`: implemented와 planned의 현재 경계.
 - `docs/roadmap.md`: milestone 순서.
 - `docs/PUBLICATION.md`: 공개 가능 기록과 최초 publish gate.
-- `docs/milestones/p2-graph-and-diff/`: 완료된 P2 acceptance와 결정.
-- `docs/milestones/p3-safe-shaping/`: 완료된 P3 safety, mutation과 interaction acceptance.
+- `docs/completed-milestones.md`: 완료된 acceptance와 당시 검증 범위.
+- `docs/releases/`: version별 배포 계약과 알려진 제한.
 - `scripts/check.sh`: canonical local gate.
 
 ## Current Work
 
-현재 active todo는 없다. 완료된 `docs/milestones/statusbar-navigation-clarity/spec.md`는
-status bar 우측의 임의 secondary repository 이름/상태 shortcut을 제거해 현재 repository
-상태와 navigation을 분리했다. repository 전환은 상단 tab, 좌측 repository navigation과
-`Command-K` quick switcher가 소유하며, `v0.9.17` Apple Silicon macOS beta와 signed
-updater로 배포하고 same-SHA CI/Release와 fresh public asset을 검증했다.
+현재 active todo는 없다. `v0.9.17` Apple Silicon macOS beta와 signed updater의 same-SHA
+CI/Release, fresh public assets 및 rolling manifest 검증을 완료했다. 현재 기능은
+`docs/status.md`, runtime·mutation·transport 안전 계약은 `docs/ARCHITECTURE.md`를 따른다.
 
-완료된 `docs/milestones/v0-9-16-release/spec.md`는 Graph revision tag projection,
-distinct read-only label, 검색과 reference-centered folding anchor를 `v0.9.16` Apple
-Silicon macOS beta와 signed updater로 배포했다.
+완료 spec과 resolved 질문의 결과는 `docs/completed-milestones.md`, architecture와
+`docs/releases/`로 이관했다. 완료 기록은 해당 시점의 evidence이며 후속 변경으로 대체된
+확인 UI나 activation 방식을 현재 계약으로 적용하지 않는다. 특히 typed confirmation과
+rebase inline checkpoint는 제거됐고, main-window activation은 incoming binary가 소유한다.
 
-완료된
-`docs/milestones/transient-handoff-notice/spec.md`는 repository/file handoff와 path copy
-성공 feedback을 4초 transient notice로 제한한다. 같은 action을 반복하면 마지막
-실행부터 만료를 다시 계산하고, 오래된 timer는 최신 notice를 지우지 않는다.
-persistent error/recovery/activity notice와 native handoff contract는 유지했으며
-`v0.9.15`에 배포됐다.
-
-local/SSH mutation은 opaque single-use preview, repository별 queue, execute 직전 operation과
-candidate recheck, fresh projection postcondition을 공유한다. new/edit/describe/fetch,
-rebase/squash/file-level split/abandon, protected empty pruning, undo, bookmark move와 confirmed
-push가 구현됐다. graph drag/drop과 keyboard shaping은 execute를 우회하지 않고 같은 rebase
-preview를 연다. workspace manager는 current/non-empty workspace와 unsafe path를 보호하면서
-다른 empty workspace의 working-copy change, registration과 exact directory를 단일
-preview-first action으로 정리한다.
-완료된 `docs/milestones/ui-state-and-confirmation/spec.md`는 native window와 ratio-based
-history/inspector 배치를 restart 뒤 복원하고, rebase drop을 단일 exact preview로 연결한다.
-typed confirmation은 제거했으며 `jj op`로 되감을 수 있는 mutation만 `Enter`/`Y` 실행을
-허용한다. directory 삭제와 remote push는 exact target이 표시된 pointer click으로만 실행한다.
-이 변경은 `v0.9.3` release에 포함된다.
-완료된 `docs/milestones/diff-viewer-preferences/spec.md`는 unified/side-by-side와 whitespace
-선택을 app-owned preference로 저장하고, 메인 창의 모든 viewer와 별도 diff 창이 같은 값을
-양방향 공유하도록 한다. 이 변경은 `v0.9.4` release 대상이다.
-완료된 `docs/milestones/diff-readability/spec.md`는 side-by-side pane의 상대 가로 위치를
-양방향 동기화하고, unified와 side-by-side 교체 줄을 bounded 단어/문자 단위로 강조한다.
-유사도가 낮거나 과도하게 긴 줄은 whole-line styling으로 fallback한다. 이 변경은
-`v0.9.5` release에 포함된다.
-완료된 `docs/milestones/update-check-cadence/spec.md`는 기존 startup check를 유지하면서 main
-window focus가 3초간 이어질 때 background update check를 예약한다. 실제 확인 시도에는
-1시간 cooldown을 적용하고 manual check는 언제나 즉시 실행한다. 이 변경은 `v0.9.6`
-release에 포함된다.
-완료된 `docs/milestones/repository-rail-scroll/spec.md`는 Workspace, Repository와
-Last Fetched navigation을 rail 상단에 고정하고 Repository Sources와 Standalone만
-독립적으로 스크롤한다. source repository를 연 뒤에도 같은 스크롤 위치를 유지한다.
-이 변경은 `v0.9.7` release에 포함된다.
-완료된 `docs/milestones/semantic-activity-status/spec.md`는 repository mutation과 겹친
-refresh를 failure 대신 waiting activity로 분류하고, 주요 indefinite loading/mutation
-surface를 공통 CLI형 spinner로 통일한다. 실제 driver/recovery warning은 그대로 유지하고
-Quick Look 실패는 repository refresh health와 분리한다. 이 변경은 `v0.9.8` release에
-포함된다.
-완료된 `docs/milestones/update-relaunch-activation/spec.md`는 사용자가 명시적으로 선택한
-update restart에 one-shot foreground intent를 남기고, 이 기능이 이미 있는 outgoing
-version에서 시작하는 후속 update의 새 main window가 이를 소비해 show/focus하도록 했다.
-marker가 없는 `v0.9.8 → v0.9.9` 첫 restart는 bootstrap 범위 밖이다.
-
-완료된 `docs/milestones/update-launch-activation-bootstrap/spec.md`는 `v0.9.10` incoming
-main window가 marker 없이 스스로 show/focus하고 Quick Look은 제외해 bootstrap version
-gap을 제거한다. native bundle smoke, canonical gate와 release verification을 통과했다.
-
-완료된 `docs/milestones/file-context-actions/spec.md`는 Working Copy와 하단 Changes의 file
-tree가 같은 compact context menu를 사용하고, 우클릭한 파일 선택과 diff/editor/Finder,
-single-file split, path copy action을 repository transport 경계에 맞게 제공한다. 이 변경은
-`v0.9.11` release에 포함된다.
-
-완료된 `docs/milestones/revision-file-inspection/spec.md`는 선택 revision의 전체 tracked
-File Tree와 bounded source를 lazy-load하고, file context menu에서 app-owned Blame/Timeline
-창을 연다. local/SSH 공통 typed projection, older/newer history 탐색, line provenance와
-binary/truncation 상태를 지원하며 `v0.9.12` release에 포함된다.
-
-완료된 release todo는 `docs/milestones/v0-9-0-release/spec.md`다. `v0.9.0` tag, release commit,
-same-SHA CI와 GitHub prerelease가 같은 revision에서 성공했고, 공개된 app archive,
-DMG와 checksum manifest를 다시 내려받아 검증했다. 첫 public beta는 Apple Silicon용
-ad-hoc-signed/not-notarized prerelease이며 Developer ID 신뢰 체인을 제공하지 않는다.
-완료된 `docs/milestones/v0-9-x-updater/spec.md`는 우하단의 available-only update action,
-Tauri 서명 검증, versioned updater artifacts, rolling beta manifest와 explicit restart를
-구현했다. focused/canonical gate와 ephemeral-key `0.9.0`→`0.9.1` fixture
-download/verify/install/relaunch smoke까지 통과했다. persistent password-protected
-updater key는 owner-controlled recovery archive에 보관하고 GitHub Actions
-secret/variable에 구성했으며, 그 키로 만든 release artifact도 서명 검증을 통과했다.
-첫 updater-enabled bootstrap인 `v0.9.1`은 signed tag, same-SHA CI와 Release
-workflow에서 게시됐고 공개 DMG 설치 및 rolling manifest 검증도 통과했다. 이어서
-`v0.9.2`를 게시하고 설치된 `v0.9.1`의 available-only action에서 공개 updater를
-download/verify/install한 뒤 명시적으로 restart해 `v0.9.2` 실행과 no-update 상태까지
-검증했다. 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은
-현재 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새
-distribution decision으로 재검토한다. remote helper도 별도 decision boundary로 남는다.
+다음 trigger는 `docs/roadmap.md`의 distribution acceptance와 `SECURITY.md`의 upstream
+constraint다. remote helper, 다른 OS, 유료 Developer ID signing/notarization은 별도 decision
+boundary다. 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은
+현재 계획된 작업이 아니며 배포량 또는 지원 비용이 구독을 정당화할 때 다시 검토한다.
+새 bounded slice를 선택하면 목적과 acceptance를 갖춘 spec을 연다.
 
 ## Completion Rule
 

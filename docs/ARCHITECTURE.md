@@ -304,8 +304,10 @@ intent의 parameter와 exact targets만 보여준다. 따라서 change, reposito
 ### macOS Beta Updater
 
 desktop shell은 registry load와 분리해 startup 1초 뒤 10초 bounded beta-channel check를
-한 번 실행한다. 장시간 열린 instance는 주기 polling하지 않으며 app menu의
-`Check for Updates…`가 명시적인 재확인 경로다. no-update와 자동 check 실패는 repository
+한 번 실행한다. main window focus가 3초간 유지되면 background check를 예약하고,
+그 전에 focus를 잃으면 취소한다. startup/focus/manual 경로의 실제 시도 시각을 공유하며
+focus check에는 1시간 cooldown을 적용한다. 주기 polling은 없고 app menu의
+`Check for Updates…`는 cooldown을 우회하는 명시적인 재확인 경로다. no-update와 자동 check 실패는 repository
 readiness를 가리지 않는다. update가 확인된 경우에만 status bar trailing edge에
 `jjcat <version>` download action을 노출하고,
 download/install을 시작한 `Update` handle은 ready 또는 retry 경계까지 다른 check로
@@ -350,3 +352,24 @@ projection acceptance가 plain CLI로 깨질 때만 다시 검토한다.
 - Identifier basis: product owner가 소유한 domain의 reverse-DNS form.
 - 이 값은 app-data location, bundle signing과 update identity의 안정 기준이므로 P0부터
   유지하고 변경이 필요하면 registry migration을 함께 설계한다.
+
+## Inspection And Feedback Continuity
+
+repository rail 상단의 Workspace, Repository와 Last Fetched navigation은 고정하고 source와
+standalone 목록만 독립적으로 스크롤한다. repository open 뒤에도 목록 위치를 보존한다.
+status bar는 현재 repository 정보와 app-global update를 표시하고, repository 전환은
+상단 tab, 좌측 navigation과 `Command-K` quick switcher가 소유한다.
+
+file context menu는 우클릭 또는 keyboard menu로 선택한 exact file을 대상으로 diff,
+editor, local Finder, single-file split과 path copy를 제공한다. SSH Finder는 비활성화하며
+split은 기존 exact preview boundary를 사용한다.
+
+file timeline은 실제 timestamp 비례 ruler와 가까운 marker의 keyboard-accessible cluster를
+사용한다. revision refresh 중 기존 provenance를 유지하고 새 결과가 준비되면 교체한다.
+window-lifetime bounded LRU와 in-flight dedup, immediate-neighbor best-effort prefetch는
+navigation 지연을 줄이지만 cross-path rename history나 무제한 source cache를 제공하지 않는다.
+
+repository mutation과 겹친 refresh는 waiting activity이며 실제 driver/recovery failure와
+구분한다. Quick Look 실패는 repository health를 바꾸지 않는다. handoff/path-copy 성공은
+4초 transient notice이며 반복 action마다 sequence를 갱신해 오래된 expiry가 최신 notice를
+지우지 못하게 한다. persistent error/recovery notice에는 이 만료 정책을 적용하지 않는다.

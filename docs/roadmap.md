@@ -20,7 +20,6 @@
 - [x] persistent repository tabs와 quick switcher
 - [x] cached status badge와 asynchronous refresh
 - [x] waiting activity와 실제 failure warning을 분리하는 semantic progress feedback
-  (`docs/milestones/semantic-activity-status/spec.md`, completed)
 - [x] local/remote editor 및 terminal open action
 - [x] bounded change-history virtualization spike
 
@@ -29,14 +28,12 @@
 - [x] multi-lane change DAG와 revision navigation
 - [x] file list, 긴 줄을 격리하는 unified와 side-by-side diff
 - [x] side-by-side 상대 가로 위치 동기화와 bounded 단어/문자 단위 intraline 강조
-  (`docs/milestones/diff-readability/spec.md`, completed)
 - [x] conflict, outgoing와 behind projection
 - [x] operation log와 read-only undo eligibility surface
 - [x] reference/conflict navigation과 resizable overview/changes/operations inspector
 - [x] working copy file tree/diff 작업면과 changed-file count
 - [x] reference-centered history folding과 구간별 progressive reveal/collapse
 - [x] local/SSH revision tag projection, graph/overview read-only label, 검색과 folding anchor
-  (`docs/milestones/graph-tag-labels/spec.md`, completed)
 
 ## P3: Safe Shaping
 
@@ -47,9 +44,7 @@
 - [x] pointer drag/drop, cycle-safe 예상 topology와 keyboard-equivalent shaping preview
 - [x] current/other workspace 검토와 exact directory까지 정리하는 one-step removal
 - [x] restart-persistent window/splitter 배치와 recoverable/irreversible 단일 preview 확인 정책
-  (`docs/milestones/ui-state-and-confirmation/spec.md`, completed)
 - [x] 메인/별도 창이 공유하는 restart-persistent diff layout/whitespace preference
-  (`docs/milestones/diff-viewer-preferences/spec.md`, completed)
 
 ## P4: Distribution
 
@@ -63,32 +58,25 @@
   secret/variable configuration
 - [x] rolling beta channel을 활성화한 `v0.9.1` manual bootstrap
 - [x] `v0.9.2`의 live in-app update
-  (`docs/milestones/v0-9-x-updater/spec.md`, completed)
 - [x] main window focus 3초 뒤 1시간 cooldown으로 실행되는 background update check
-  (`docs/milestones/update-check-cadence/spec.md`, completed)
 - [x] outgoing update restart의 one-shot foreground intent와 후속 version activation
-  (`docs/milestones/update-relaunch-activation/spec.md`, completed)
 - [x] incoming main window가 직접 소유하는 bootstrap-safe foreground activation
-  (`docs/milestones/update-launch-activation-bootstrap/spec.md`, completed)
 - [x] Working Copy와 Changes file tree의 compact context action menu
-  (`docs/milestones/file-context-actions/spec.md`, completed)
 - [x] 선택 revision의 전체 File Tree/source와 file-level Blame/Timeline
-  (`docs/milestones/revision-file-inspection/spec.md`, completed)
 - [x] 실제 시간 비례 연·월 눈금, commit marker와 preview/click navigation을 갖춘 file timeline
-  (`docs/milestones/file-timeline-ruler/spec.md`, completed)
 - [x] file timeline revision 전환 중 provenance를 유지하는 비차단 loading feedback과
   immediate neighbor prefetch
-  (`docs/milestones/file-timeline-loading-continuity/spec.md`, completed)
 - [x] repository/file handoff와 path copy 성공 feedback의 bounded transient lifecycle
-  (`docs/milestones/transient-handoff-notice/spec.md`, completed)
 - [x] Graph revision tag label의 `v0.9.16` Apple Silicon beta와 signed updater 배포
-  (`docs/milestones/v0-9-16-release/spec.md`, completed)
 - [x] status bar의 임의 secondary repository shortcut을 제거하고 명시적인 tab/navigation/
   quick switcher로 전환 surface 일원화 및 `v0.9.17` 배포
-  (`docs/milestones/statusbar-navigation-clarity/spec.md`, completed)
 - Deferred, not planned: 유료 Apple Developer Program을 사용하는 Developer ID
   signing/notarization은 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
   재검토한다.
 - [ ] Linux와 Windows acceptance
 - [ ] Linux packaging 전에 `RUSTSEC-2024-0429` upstream resolution 또는 validated pinned backport 재검토
 - [ ] optional `jjcat-agent` install/upgrade/remove contract
+
+완료 항목의 검증 범위는 `docs/completed-milestones.md`, 현재 구현 계약은
+`docs/ARCHITECTURE.md`, version별 배포 경계는 `docs/releases/`가 소유한다.
+현재 active spec은 없다. 위 미완료 후보 중 다음 범위를 선택할 때 새 spec을 연다.
