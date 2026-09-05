@@ -81,9 +81,9 @@ grep -Fq -- 'Repository Driver domain contract' AGENTS.md ||
   fail "jjcat transport contract is missing"
 grep -Fq -- 'opaque single-use preview' AGENTS.md ||
   fail "jjcat mutation safety contract is missing"
-grep -Fq -- '"source_kind": "commit"' .ai-first.lock ||
+grep -Fq -- '"source_kind": "release"' .ai-first.lock ||
   fail "framework release source is missing from lock"
-grep -Fq -- '"source_revision": "a0d0952b09b09d4ba3288b3e0061e6e885e292fd"' .ai-first.lock ||
+grep -Fq -- '"source_revision": "v1.4.0"' .ai-first.lock ||
   fail "framework release tag is missing from lock"
 grep -Fq -- '"source_commit": "a0d0952b09b09d4ba3288b3e0061e6e885e292fd"' .ai-first.lock ||
   fail "framework release commit is missing from lock"
