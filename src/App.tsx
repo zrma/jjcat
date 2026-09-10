@@ -723,36 +723,6 @@ function App() {
     };
   }, [selectedCache?.cachedAt, selectedRepository]);
 
-  const selectRepository = useCallback(
-    async (repositoryId: string) => {
-      const repository = registryRef.current?.repositories.find(
-        (candidate) => candidate.id === repositoryId,
-      );
-      if (repository && repositoryReadiness(repository) === "gitOnly") {
-        setGitOnboardingError(null);
-        setGitOnboardingTarget({
-          kind: "registered",
-          repositoryId: repository.id,
-          displayName: repository.displayName,
-          location: repository.location,
-        });
-        return;
-      }
-      const request = ++repositorySelectionRequestRef.current;
-      try {
-        const snapshot = await bridge.selectRepository(repositoryId);
-        if (request !== repositorySelectionRequestRef.current) return;
-        setRegistry(snapshot.registry);
-        setRecoveryNotice(snapshot.recoveryNotice);
-        setRepositoryActionError(null);
-      } catch (error) {
-        if (request !== repositorySelectionRequestRef.current) return;
-        setRepositoryActionError((error as AppError).message);
-      }
-    },
-    [],
-  );
-
   const refreshRepository = useCallback(
     async (
       repositoryId: string,
@@ -857,6 +827,37 @@ function App() {
       }
     },
     [completeActivity, registry, startActivity],
+  );
+
+  const selectRepository = useCallback(
+    async (repositoryId: string) => {
+      const repository = registryRef.current?.repositories.find(
+        (candidate) => candidate.id === repositoryId,
+      );
+      if (repository && repositoryReadiness(repository) === "gitOnly") {
+        setGitOnboardingError(null);
+        setGitOnboardingTarget({
+          kind: "registered",
+          repositoryId: repository.id,
+          displayName: repository.displayName,
+          location: repository.location,
+        });
+        return;
+      }
+      const request = ++repositorySelectionRequestRef.current;
+      try {
+        const snapshot = await bridge.selectRepository(repositoryId);
+        if (request !== repositorySelectionRequestRef.current) return;
+        setRegistry(snapshot.registry);
+        setRecoveryNotice(snapshot.recoveryNotice);
+        setRepositoryActionError(null);
+        void refreshRepository(repositoryId, false, "background");
+      } catch (error) {
+        if (request !== repositorySelectionRequestRef.current) return;
+        setRepositoryActionError((error as AppError).message);
+      }
+    },
+    [refreshRepository],
   );
 
   const cancelActivity = useCallback(

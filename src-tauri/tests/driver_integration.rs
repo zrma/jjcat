@@ -84,6 +84,93 @@ fn current_operation_id(path: &Path) -> String {
 }
 
 #[tokio::test]
+async fn refresh_observes_external_edits_and_jj_operations_without_fetch() {
+    let directory = tempdir().unwrap();
+    let fake_ssh = directory.path().join("ssh-fixture");
+    fs::write(
+        &fake_ssh,
+        "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nshift\nexec \"$@\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(&fake_ssh, fs::Permissions::from_mode(0o755)).unwrap();
+    let driver = JjDriver::with_programs("jj".into(), fake_ssh);
+
+    for remote in [false, true] {
+        let path = directory.path().join(if remote {
+            "remote fixture"
+        } else {
+            "local fixture"
+        });
+        fixture_repository(&path);
+        jj(
+            &["new", "-m", "chore: external refresh fixture"],
+            Some(&path),
+        );
+        let location = if remote {
+            RepositoryLocation::Ssh {
+                host: "fixture-host".into(),
+                path: path.to_string_lossy().into_owned(),
+            }
+        } else {
+            RepositoryLocation::Local {
+                path: path.to_string_lossy().into_owned(),
+            }
+        };
+        let repository = RepositoryRecord::new("refresh-fixture", location).unwrap();
+        let before = driver
+            .project(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(before.working_copy_file_count, 0);
+
+        fs::write(path.join("external.txt"), "external edit\n").unwrap();
+        let operation_before = current_operation_id(&path);
+        // Preview/postcondition projection은 파일 편집을 snapshot하지 않는다.
+        let inspection = driver
+            .project(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(inspection.working_copy_file_count, 0);
+        assert_eq!(current_operation_id(&path), operation_before);
+        let refreshed = driver
+            .refresh(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(refreshed.working_copy_file_count, 1);
+        assert!(refreshed.working_copy_has_changes);
+        let operation_after = current_operation_id(&path);
+        assert_ne!(operation_after, operation_before);
+        driver
+            .refresh(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(current_operation_id(&path), operation_after);
+
+        jj(
+            &["describe", "-m", "feat: external description"],
+            Some(&path),
+        );
+        jj(&["new", "-m", "chore: external next change"], Some(&path));
+        let refreshed = driver
+            .refresh(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(refreshed.working_copy_file_count, 0);
+        assert!(
+            refreshed
+                .changes
+                .iter()
+                .any(|change| change.summary == "feat: external description")
+        );
+        assert!(
+            refreshed.changes.iter().any(
+                |change| change.working_copy && change.summary == "chore: external next change"
+            )
+        );
+    }
+}
+
+#[tokio::test]
 async fn local_and_simulated_ssh_share_the_projection_contract() {
     let directory = tempdir().unwrap();
     let repository_path = directory.path().join("fixture-repository");

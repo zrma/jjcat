@@ -176,6 +176,25 @@ impl JjDriver {
         repository: &RepositoryRecord,
         cancellation: CancellationToken,
     ) -> Result<RepositoryProjection, DriverError> {
+        self.project_with_snapshot(repository, cancellation, false)
+            .await
+    }
+
+    pub async fn refresh(
+        &self,
+        repository: &RepositoryRecord,
+        cancellation: CancellationToken,
+    ) -> Result<RepositoryProjection, DriverError> {
+        self.project_with_snapshot(repository, cancellation, true)
+            .await
+    }
+
+    async fn project_with_snapshot(
+        &self,
+        repository: &RepositoryRecord,
+        cancellation: CancellationToken,
+        snapshot: bool,
+    ) -> Result<RepositoryProjection, DriverError> {
         repository.validate().map_err(|error| DriverError {
             kind: DriverErrorKind::InvalidRepository,
             message: error.to_string(),
@@ -193,6 +212,12 @@ impl JjDriver {
                     capability.detected_version
                 ),
             });
+        }
+
+        if snapshot {
+            // 병렬 projection 조회 전에 한 번만 snapshot하고 colocated Git 변경을 import한다.
+            self.run_query(repository, JjQuery::Snapshot, cancellation.child_token())
+                .await?;
         }
 
         let (
@@ -1226,6 +1251,9 @@ fn remote_script(path: &str, query: JjQuery) -> String {
         .collect::<String>();
     let command = match query {
         JjQuery::Version => "exec \"$jj_bin\" --repository \"$repo\" --version".to_owned(),
+        JjQuery::Snapshot => {
+            "exec \"$jj_bin\" --repository \"$repo\" log --no-graph --color never -r @ -T '\"\"'".into()
+        }
         JjQuery::Log => format!(
             "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(visible_heads())' -n {HISTORY_CHANGE_LIMIT} -T '{LOG_TEMPLATE}'"
         ),
@@ -1523,6 +1551,7 @@ fn remote_directory_script(path: &str) -> String {
 #[derive(Clone)]
 enum JjQuery {
     Version,
+    Snapshot,
     Log,
     WorkingCopyFileCount,
     Workspaces,
@@ -1584,6 +1613,7 @@ impl JjQuery {
     fn output_label(&self) -> &'static str {
         match self {
             Self::Version => "jj version probe",
+            Self::Snapshot => "working copy snapshot",
             Self::Log => "history projection",
             Self::WorkingCopyFileCount => "working copy file count",
             Self::Workspaces => "workspace inventory",
@@ -1608,6 +1638,19 @@ impl JjQuery {
     fn args(&self) -> Vec<OsString> {
         match self {
             Self::Version => vec!["--version".into()],
+            Self::Snapshot => [
+                "log",
+                "--no-graph",
+                "--color",
+                "never",
+                "-r",
+                "@",
+                "-T",
+                "\"\"",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
             Self::Log => [
                 "--ignore-working-copy",
                 "log",

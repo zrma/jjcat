@@ -65,6 +65,20 @@ registry에 저장한다. process working directory 기준 relative path는 허�
 local과 SSH 구현이 공유하는 typed request/result contract다. command invocation, capability,
 status/log/diff projection과 mutation result를 추상화한다.
 
+### Repository Refresh
+
+Refresh는 local/SSH 모두 supported jj version을 확인한 뒤 작업 사본을 한 번 snapshot하고
+colocated Git 변경을 import한 다음 bounded projection query를 실행한다. network fetch는
+실행하지 않으므로 outgoing/behind는 계속 last-fetched 상태를 뜻한다. tab, rail 또는
+quick switcher에서 repository를 선택하면 cached view를 즉시 표시하고 비동기 refresh를
+요청한다. 이미 선택된 tab을 다시 눌러도 같은 경로를 사용하며 진행 중인 refresh는
+취소하지 않고 deduplicate한다. background refresh도 같은 snapshot 경로를 사용한다.
+
+snapshot은 기존 repository별 refresh/mutation exclusion 안에서 실행하며 timeout,
+cancellation과 redacted failure를 유지한다. read-only `project`는 snapshot하지 않아 mutation
+preview와 postcondition inspection의 operation precondition을 보존한다. 다른 process와의
+동시 변경을 잠그거나 다른 workspace의 stale 상태를 강제로 복구하지는 않는다.
+
 ### Repository Source Discovery
 
 source root부터 사용자가 고른 1–6 folder depth만 탐색하고 최대 500개 repository를

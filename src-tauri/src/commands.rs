@@ -1297,7 +1297,7 @@ pub async fn refresh_repository(
             })?
     };
 
-    let result = state.driver.project(&repository, cancellation).await;
+    let result = state.driver.refresh(&repository, cancellation).await;
     state
         .active_refreshes
         .lock()

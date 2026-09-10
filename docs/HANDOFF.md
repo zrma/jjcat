@@ -40,6 +40,10 @@
 CI/Release, fresh public assets 및 rolling manifest 검증을 완료했다. 현재 기능은
 `docs/status.md`, runtime·mutation·transport 안전 계약은 `docs/ARCHITECTURE.md`를 따른다.
 
+외부 변경 갱신 수정은 local/SSH snapshot regression, browser의 Refresh·tab 전환·재선택
+smoke와 전체 local gate를 통과했다. 계약은 `docs/ARCHITECTURE.md`의 Repository Refresh가
+소유한다. 이 수정의 package/release 반영은 아직 수행하지 않았다.
+
 완료 spec과 resolved 질문의 결과는 `docs/completed-milestones.md`, architecture와
 `docs/releases/`로 이관했다. 완료 기록은 해당 시점의 evidence이며 후속 변경으로 대체된
 확인 UI나 activation 방식을 현재 계약으로 적용하지 않는다. 특히 typed confirmation과

@@ -87,6 +87,8 @@ notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다
   registered directory와 registration을 함께 정리하는 local/SSH workspace removal
   preview/execute
 - repository별 refresh dedup/cancel, active/inactive interval과 bounded failure backoff
+- Refresh의 local/SSH working-copy snapshot과 tab 전환·재선택 시 비동기 갱신;
+  외부 파일 편집 및 jj 작업 반영은 driver fixture와 browser bridge smoke로 검증
 - `busy` refresh의 waiting 상태, 주요 indefinite 작업의 공통 activity spinner와 실제
   driver/recovery warning을 분리하는 semantic progress feedback
 - structured argv를 사용하는 local/SSH VS Code 및 platform terminal handoff
