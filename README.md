@@ -82,6 +82,8 @@ commit marker를 사용하는 File Blame/Timeline 탐색을 설명한다.
 revision tag label, tag 검색과 folding anchor를 설명한다.
 [v0.9.17 release notes](docs/releases/v0.9.17.md)는 status bar의 의미 불명확한 secondary
 repository shortcut 제거와 명시적인 repository 전환 surface를 설명한다.
+[v0.9.18 release notes](docs/releases/v0.9.18.md)는 외부 작업 사본 변경의 Refresh 반영과
+repository tab 선택 시 비동기 갱신을 설명한다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
 distribution decision으로 재검토한다.
