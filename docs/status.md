@@ -3,7 +3,9 @@
 ## Current Milestone
 
 `v0.9.18` Apple Silicon macOS beta는 외부 작업 사본의 Refresh 반영과 repository tab
-선택 시 비동기 갱신을 포함한 출고 대상이다. package와 updater 게시 검증을 진행 중이다.
+선택 시 비동기 갱신을 배포했다. same-SHA CI/Release, fresh public asset의 checksum과
+Minisign·app 서명, rolling updater manifest 및 native updater의 설치 버전·실행 파일
+일치 검증을 완료했다. native app에서도 외부 문서 변경이 Fetch 없이 반영됐다.
 
 `P3: Safe Shaping`과 `P4: Distribution`까지 완료됐다. preview-first safe shaping을
 포함한 local/SSH cockpit과 Apple Silicon macOS용 `v0.9.0` public beta가 게시됐다.

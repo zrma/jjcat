@@ -1,5 +1,8 @@
 # Product Roadmap
 
+`v0.9.18`의 외부 작업 사본 Refresh와 repository tab 선택 갱신을 배포했다.
+후속 배포 범위와 재검토 trigger는 아래 P4 조건을 유지한다.
+
 ## P0: Read-only Repository Cockpit Foundation
 
 - [x] 제품 identity와 MVP/non-goal 계약
