@@ -2,9 +2,13 @@
 
 ## Start Here
 
+적용되는 agent 지침과 권한·공개 경계는 항상 준수한다. 아래 순서는 변경·작업 재개를
+위한 안내다. 설명·조사·리뷰·계획은 관련 자료와 필요한 재현·검증부터 확인하며, 시작
+안내만을 이유로 전체 검사를 실행하지 않는다. 변경 작업의 필수 local gate는 유지한다.
+
 1. `AGENTS.md`와 `docs/agent-harness.md`를 읽는다.
 2. `jj status`로 기존 변경을 확인한다.
-3. `docs/status.md`, `docs/roadmap.md`와 `docs/ARCHITECTURE.md`를 읽는다.
+3. 현재 상태는 `docs/status.md`, 우선순위 판단은 `docs/roadmap.md`, 구조 변경은 `docs/ARCHITECTURE.md`에서 확인한다.
 4. tracked artifact를 바꾸면 `docs/PUBLICATION.md`의 public boundary를 적용한다.
 5. 활성 `docs/todo-*/spec.md`와 `open-questions.md`의 acceptance를 우선한다.
 6. focused test 뒤 `scripts/check.sh`로 닫는다.
