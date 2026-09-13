@@ -9,146 +9,79 @@
   <sub>All your jj repos, one window.</sub>
 </p>
 
-jjcat은 로컬과 Remote SSH 환경의 여러 Jujutsu 저장소를 탭으로 오가며 살펴보는
-local-first 데스크톱 repository cockpit이다. 편집기 workspace나 브라우저 서버에
-종속되지 않고 change graph, bookmark, tag, working copy와 diff를 한 세션에서 다룬다.
+jjcat은 로컬과 SSH 환경의 여러 [Jujutsu](https://www.jj-vcs.dev/) 저장소를
+한 창에서 관리하는 데스크톱 앱이다. 저장소를 탭으로 오가며 change graph와 diff를
+살펴보고, 변경 이력을 편집하거나 편집기와 터미널로 작업을 이어갈 수 있다.
 
-- **Local and SSH parity** — 로컬 폴더와 OpenSSH host의 저장소를 같은 repository rail,
-  tab과 quick switcher에서 전환한다.
-- **Dense change cockpit** — compact multi-lane DAG, local/remote bookmark, revision tag,
-  last-fetched divergence와 unified/side-by-side diff를 한 화면에서 읽는다.
-- **Local-first by design** — source code, SSH credential과 private host inventory를 hosted
-  service로 전송하지 않는다.
+**[macOS beta 다운로드](https://github.com/zrma/jjcat/releases)** ·
+[릴리스 노트](docs/releases/) · [문제 보고](https://github.com/zrma/jjcat/issues)
 
-## Current Status
+## 주요 기능
 
-jjcat은 P3 기능과 `v0.9.0` macOS public beta 출고를 완료하고, updater-enabled
-bootstrap인 `v0.9.1`과 live in-app update를 검증한 `v0.9.2`, 창 배치를 복원한
-`v0.9.3`, diff 설정을 보존한 `v0.9.4`, diff 가독성을 개선한 `v0.9.5`에 이어
-포커스 기반 background update check를 제공한 `v0.9.6`, 독립적인 repository source
-scroll 영역의 `v0.9.7`, 진행 중 activity와 실제 warning의 의미를 분리한 `v0.9.8`에
-이어 `v0.9.9`에서 후속 update용 foreground intent를 도입했다. **v0.9.10**은
-incoming main window가 스스로 전면에 나타나도록 해 최초 적용 update의 bootstrap gap을
-제거한다.
-local/SSH 저장소 직접 등록과 folder source discovery, drag-reorder가 가능한 persistent
-tab과 quick switcher, cached background refresh, multi-lane history, bounded file diff와
-editor/terminal handoff가 동작한다.
+- **여러 저장소 관리** — 로컬·SSH 저장소를 직접 열거나 상위 폴더에서 찾아 등록한다.
+  탭 순서와 열린 저장소를 보존하고, quick switcher로 빠르게 전환한다.
+- **변경 이력과 diff 탐색** — change graph, bookmark, tag와 충돌 상태를 함께 확인한다.
+  unified·side-by-side diff, 선택 revision의 전체 파일 트리와 파일별 Blame/Timeline을 제공한다.
+- **실행 전 확인과 되돌리기** — new, edit, describe, rebase, squash, 파일 단위 split,
+  abandon, bookmark 이동과 push를 지원한다. 이력 편집은 실행 전 대상을 미리 확인하며,
+  Undo/Redo로 operation을 한 단계씩 이동한다.
+- **외부 작업과 연동** — 편집기·터미널에서 바꾼 작업 사본을 Refresh로 반영한다.
+  저장소 전환 시 캐시를 먼저 보여주고 백그라운드에서 갱신한다.
+- **로컬 중심 설계** — 소스 코드와 SSH 인증 정보를 별도 hosted service에 업로드하지 않는다.
+  SSH 연결은 사용자의 OpenSSH 설정과 key·agent를 사용한다.
 
-모든 repository mutation은 repository, exact target과 expected operation을 고정한 backend
-preview token을 거친다. new/edit/describe/fetch, rebase/squash/file-level split/abandon,
-protected empty-change pruning, multi-step undo/redo, bookmark move와 explicit push를 제공한다.
-Undo/Redo는 별도 확인 dialog 없이 한 번의 입력으로 실행하고 나머지 shaping 작업은 실행 전
-preview를 보여준다. `jj undo`로 복원 가능한 local preview는 `Enter`/`Y`로 실행하고
-`Esc`/`N`으로 취소할 수 있다. directory를 삭제하는 workspace removal과 remote push는
-명시적 button 조작만 허용한다. 0.9.0 version contract와 macOS app/DMG build surface는
-[P4 Distribution](docs/roadmap.md#p4-distribution)에서 출고했다. 첫 public beta는
-번들 무결성용 ad-hoc 서명만 적용하고 Developer ID 서명과 공증 없이 Apple Silicon용
-prerelease로 배포하며, SHA-256 checksum, 표준 Gatekeeper 최초 실행 안내, clean
-install/restart와 local/SSH smoke evidence를 release contract로 삼는다. 자세한 설치 경계는
-[v0.9.0 release notes](docs/releases/v0.9.0.md)에 기록했다. `v0.9.0` 자체에는 updater가
-없다. available-only download와 signed in-app update runtime은 다음 manual bootstrap용으로
-구현했다. password-protected persistent updater key는 owner-controlled recovery
-archive와 GitHub Actions secret/variable에 구성했다. `v0.9.1` manual bootstrap,
-rolling beta channel과 `v0.9.2`를 게시했으며, 설치된 `v0.9.1`에서 공개 updater의
-download/verify/install/explicit-restart를 거쳐 `v0.9.2`로 실행되는 경로를 검증했다.
-[v0.9.2 release notes](docs/releases/v0.9.2.md)는 이 in-app update 절차를 설명한다.
-[v0.9.3 release notes](docs/releases/v0.9.3.md)는 창/inspector 배치 복원과 단순화한
-mutation 확인 정책을 설명한다.
-[v0.9.4 release notes](docs/releases/v0.9.4.md)는 메인 창과 별도 diff 창이 공유하는
-restart-persistent viewer 설정을 설명한다.
-[v0.9.5 release notes](docs/releases/v0.9.5.md)는 동기화된 side-by-side 탐색과
-intraline 변경 강조를 설명한다.
-[v0.9.6 release notes](docs/releases/v0.9.6.md)는 main window focus 3초 뒤 1시간
-cooldown으로 실행되는 background update check를 설명한다.
-[v0.9.7 release notes](docs/releases/v0.9.7.md)는 고정된 repository navigation과
-source tree의 독립 스크롤 및 repository open 뒤 위치 보존을 설명한다.
-[v0.9.8 release notes](docs/releases/v0.9.8.md)는 repository refresh waiting 상태와
-주요 작업 surface의 일관된 CLI형 activity 표시를 설명한다.
-[v0.9.9 release notes](docs/releases/v0.9.9.md)는 outgoing one-shot marker와
-`v0.9.8 → v0.9.9` bootstrap 적용 경계를 설명한다.
-[v0.9.10 release notes](docs/releases/v0.9.10.md)는 incoming version이 직접 소유하는
-main window presentation을 설명한다.
-[v0.9.11 release notes](docs/releases/v0.9.11.md)는 file tree의 compact context action과
-local/SSH file handoff를 설명한다.
-[v0.9.12 release notes](docs/releases/v0.9.12.md)는 선택 revision의 전체 File Tree와
-file-level Blame/Timeline을 설명한다.
-[v0.9.13 release notes](docs/releases/v0.9.13.md)는 실제 시간 비례 연·월 ruler와
-commit marker를 사용하는 File Blame/Timeline 탐색을 설명한다.
-[v0.9.14 release notes](docs/releases/v0.9.14.md)는 revision 전환 중 기존 line provenance를
-유지하는 non-blocking loading과 인접 revision 선로딩을 설명한다.
-[v0.9.15 release notes](docs/releases/v0.9.15.md)는 repository/file handoff와 path copy
-성공 feedback의 bounded transient lifecycle을 설명한다.
-[v0.9.16 release notes](docs/releases/v0.9.16.md)는 Graph와 selected-change overview의
-revision tag label, tag 검색과 folding anchor를 설명한다.
-[v0.9.17 release notes](docs/releases/v0.9.17.md)는 status bar의 의미 불명확한 secondary
-repository shortcut 제거와 명시적인 repository 전환 surface를 설명한다.
-[v0.9.18 release notes](docs/releases/v0.9.18.md)는 외부 작업 사본 변경의 Refresh 반영과
-repository tab 선택 시 비동기 갱신을 설명한다.
-유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
-계획된 작업이 아니며, 배포량 또는 Gatekeeper 지원 비용이 구독을 정당화할 때만 새
-distribution decision으로 재검토한다.
+## 설치
 
-## Quick Start
+현재 **Apple Silicon Mac용 public beta**를 제공한다. macOS 13 이상이 필요하며,
+Intel Mac·Windows·Linux용 배포 패키지는 제공하지 않는다.
 
-필요한 도구는 `pnpm`, `cargo`를 포함한 Rust toolchain, 지원되는 Jujutsu CLI다. 현재
-지원하는 `jj` 하한은 0.30.0이며 desktop build에는 Tauri 2의 platform prerequisite도
-필요하다.
+1. 저장소를 실행할 환경에 Jujutsu CLI를 설치한다. 지원 하한은 `jj 0.30.0`이며,
+   `v0.9.18` 릴리스의 검증 기준은 `jj 0.43.x`다.
+2. [GitHub Releases](https://github.com/zrma/jjcat/releases)에서 사용할 버전의
+   `.dmg`를 내려받아 열고, `jjcat.app`을 Applications 폴더에 복사한다.
+3. jjcat을 실행한다. 앱은 번들 무결성을 위한 ad-hoc 서명만 적용되어 있으며,
+   **Developer ID 서명과 Apple 공증은 제공하지 않는다.** Gatekeeper가 실행을 차단하면
+   **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**에서 실행을 허용한다.
+
+유료 Apple Developer Program을 통한 서명·공증은 현재 계획된 작업이 아니며,
+재검토 조건은 [배포 정책](docs/PUBLICATION.md#macos-developer-identity-decision)에 정리되어 있다.
+
+다운로드 체크섬과 릴리스별 설치 조건은 [릴리스 노트](docs/releases/)에서 확인할 수 있다.
+설치 후에는 앱 메뉴의 **Check for Updates…**로 업데이트를 확인한다.
+다운로드와 재시작은 사용자가 선택하며, 자동으로 재시작하지 않는다.
+
+SSH 저장소를 사용하려면 원격 환경에도 `jj`가 설치되어 있어야 하며,
+OpenSSH host alias로 비대화형 접속이 가능해야 한다.
+
+## 시작하기
+
+1. 왼쪽 저장소 목록의 **+ → Open repository…**에서 로컬 폴더 또는 SSH 저장소를 연다.
+   여러 저장소를 한꺼번에 찾으려면 **Add repository source…**로 상위 폴더를 등록한다.
+2. 탭이나 **⌘K** quick switcher로 저장소를 전환한다.
+3. graph에서 change를 선택해 변경 파일과 diff를 확인한다.
+   **File Tree**에서는 해당 revision의 전체 파일을 살펴볼 수 있다.
+4. **Change** 메뉴에서 이력을 편집하거나, change를 다른 change 위로 끌어
+   rebase preview를 연다. 실행 전에 대상과 영향을 확인한다.
+5. **Undo/Redo** 또는 **⌘Z / ⌘⇧Z**로 operation을 한 단계씩 되돌리거나 다시 적용한다.
+
+외부 편집기의 파일 변경은 **Refresh**로 반영한다. 원격 bookmark 상태를 가져오려면
+**Fetch**를 실행한다. outgoing/behind 표시는 마지막 Fetch에서 확인한 상태를 기준으로 한다.
+
+## 소스에서 실행하기
+
+개발에는 Node.js, `pnpm`, Rust toolchain(`cargo` 포함), Jujutsu CLI와
+Tauri 2의 플랫폼별 빌드 도구가 필요하다. `pnpm` 버전은
+[package.json](package.json)의 `packageManager`를 따른다.
+
+저장소 루트에서 실행한다.
 
 ```sh
 pnpm install
 pnpm tauri dev
 ```
 
-`pnpm dev`는 Vite frontend만 브라우저에서 실행한다. native folder picker, local process와
-SSH integration까지 확인하려면 `pnpm tauri dev`를 사용한다.
-
-앱이 열리면 repository rail의 `+`에서 다음 두 흐름 중 하나로 시작한다.
-
-1. 저장소 하나만 열려면 **Open repository…**에서 local 폴더를 고르거나 OpenSSH host와
-   remote folder를 선택한다. local은 `~/...` 또는 absolute path 직접 입력도 허용한다.
-2. 여러 저장소의 상위 폴더를 관리하려면 **Add repository source…**에서 local 또는 SSH
-   source folder와 bounded scan depth를 정한다.
-3. source 아래에서 발견한 저장소를 double-click하거나 `Enter`로 열면 기존 tab을
-   재사용하거나 새 persistent tab을 연다. source의 rescan과 registry-only removal도
-   같은 tree에서 수행한다.
-4. tab 또는 quick switcher로 저장소를 전환하고 tab을 끌어 순서를 정리한다.
-5. change와 file을 선택해 graph, metadata와 diff를 살펴본다.
-6. `Change` 메뉴를 사용하거나 change를 다른 change 위에 끌어 mutation preview를 연다.
-7. toolbar의 **Undo/Redo** 또는 `⌘Z`/`⌘⇧Z` (`Ctrl+Z`/`Ctrl+Y`)로 한 operation씩 바로 이동한다.
-8. 되돌릴 수 있는 local mutation preview에서는 `Enter`/`Y`로 실행하고 `Esc`/`N`으로 취소한다.
-
-SSH key와 agent는 jjcat이 저장하지 않고 사용자의 OpenSSH 설정을 그대로 사용한다.
-Repository source를 제거해도 source folder, 발견한 repository 또는 이미 연 tab의
-filesystem content는 삭제하지 않는다.
-
-## Product Principles
-
-- **Repository first:** 연결 방식보다 사용자가 관리하는 저장소와 상태를 먼저 보여준다.
-- **Fast switching:** cached view를 즉시 표시하고 refresh는 background에서 수행한다.
-- **Dense by default:** change ID, description, bookmark와 핵심 metadata를 compact row에
-  배치한다.
-- **Safe shaping:** mutation은 대상 revision, 예상 operation, 실행 범위와 recovery 경로를
-  확인할 수 있어야 한다.
-- **Keyboard and pointer:** tab, quick switcher, graph navigation과 drag-and-drop shaping에
-  동등한 keyboard 흐름을 제공한다.
-
-자세한 제품 범위와 non-goal은 [Product Contract](docs/PRODUCT.md), runtime과 transport
-경계는 [Architecture](docs/ARCHITECTURE.md)에서 관리한다.
-
-## Project Navigation
-
-- 현재 구현 상태: [Project Status](docs/status.md)
-- milestone 순서: [Product Roadmap](docs/roadmap.md)
-- architecture와 security boundary: [Architecture](docs/ARCHITECTURE.md)
-- public-ready 기록 기준: [Publication Policy](docs/PUBLICATION.md)
-- contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-- security report와 dependency 경계: [SECURITY.md](SECURITY.md)
-
-AI agent의 진입점은 [AGENTS.md](AGENTS.md)와 [Agent Harness](docs/agent-harness.md)다.
-무컨텍스트 handoff는 [docs/HANDOFF.md](docs/HANDOFF.md)에서 현재 상태와 다음 작업을
-확인한다.
-
-## Development
+`pnpm dev`는 브라우저에서 frontend만 실행한다. 폴더 선택, 로컬 명령 실행과
+SSH 연결을 포함한 데스크톱 기능은 `pnpm tauri dev`로 확인한다.
 
 전체 로컬 검증:
 
@@ -156,31 +89,16 @@ AI agent의 진입점은 [AGENTS.md](AGENTS.md)와 [Agent Harness](docs/agent-ha
 scripts/check.sh
 ```
 
-새 작업 bootstrap:
+기여 절차는 [CONTRIBUTING.md](CONTRIBUTING.md), AI 도구의 작업 지침은
+[AGENTS.md](AGENTS.md)를 참고한다.
 
-```sh
-scripts/start-work.sh --work-id <work-id>
-```
+## 문서와 지원
 
-로컬 change 검증과 설명 정리:
+- [제품 범위](docs/PRODUCT.md) · [아키텍처](docs/ARCHITECTURE.md)
+- [구현 상태](docs/status.md) · [로드맵](docs/roadmap.md) · [릴리스 노트](docs/releases/)
+- [버그 보고와 기능 제안](https://github.com/zrma/jjcat/issues)
+- [보안 문제 신고](SECURITY.md) · [공개 자료 작성 정책](docs/PUBLICATION.md)
 
-```sh
-scripts/finalize-change.sh --message "docs: describe the milestone"
-```
-
-push, visibility 변경, package publish와 release는 별도 사용자 결정과 publication gate를
-요구한다.
-
-## Public Repository Boundary
-
-tracked content는 remote visibility와 무관하게 `public-ready` 기준을 적용한다. 제품
-계약, 합성 fixture, source code와 재현 가능한 검증 규칙만 기록하고 실제 SSH host,
-repository checkout path, credential, private inventory, agent 대화·memory·raw tool log는
-기록하지 않는다.
-
-[GitHub origin](https://github.com/zrma/jjcat)은 public으로 구성했으며 source code는
-Apache License 2.0으로 제공한다.
-
-## License
+## 라이선스
 
 jjcat은 [Apache License 2.0](LICENSE)으로 제공한다.
