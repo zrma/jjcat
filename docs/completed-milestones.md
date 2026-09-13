@@ -6,6 +6,23 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## History Keyboard Focus — v0.9.20
+
+- graph 방향키 selection 뒤 실제 focus를 선택 행으로 옮겨 이전 클릭 행의 focus ring과
+  Enter 재선택을 제거했다. 선택 행만 Tab 진입점이며 접근성 selected 상태를 노출한다.
+- 접힘·가상 window 경계에서는 선택 행 렌더링과 focus를 함께 갱신한다. 펼침 버튼의 방향키가
+  graph selection을 바꾸지 않으며 search·file panel 등 다른 입력 소유자의 focus를 보존한다.
+- frontend 189 tests, canonical gate, 독립 focused review, 클릭→방향키→Enter/Space와
+  browser 180회 왕복 경계 이동·control focus regression을 통과했다.
+- source/tag `837cd2273f449fb16916407637adc7c85f0cf43e`의 main/tag CI와 Release가 통과했다.
+  fresh public asset 6개, checksum·Minisign·ZIP/tar/DMG 내부 app 서명과 rolling manifest를 검증했다.
+- native updater 설치 후 버전·공개 binary 일치·서명을 확인했다. native 클릭→위·아래→
+  Enter/Space에서 선택과 실제 focus 일치, 이전 행의 focus ring 제거를 확인했다.
+  반복 가상 window 경계와 다른 panel focus의 전체 matrix는 browser fixture에서 검증했다.
+- 현재 동작은 `docs/ARCHITECTURE.md`의 Change History Rendering, 배포와 제한은
+  `docs/releases/v0.9.20.md`가 소유한다. 원래 acceptance는 위 source revision의
+  `docs/todo-history-keyboard-focus/spec.md`에서 추적하며 별도 완료 packet은 유지하지 않는다.
+
 ## History Expansion Stability — v0.9.19
 
 - 구간 경계에 종속되던 펼침 상태를 change ID 집합으로 바꿔 선택 이동 중 명시적 노출을 보존했다.

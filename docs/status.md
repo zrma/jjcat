@@ -2,9 +2,13 @@
 
 ## Current Milestone
 
-`v0.9.20` Apple Silicon macOS beta를 준비 중이다. graph 방향키 selection과 실제 focus를
-동기화하고 선택 행만 Tab 진입점으로 유지한다. 클릭→방향키→Enter/Space, 접힘·가상 window
-왕복 180회 이동, search/fold control/file panel 포커스 보존을 browser에서 검증했다.
+`v0.9.20` Apple Silicon macOS beta는 graph 방향키 selection과 실제 focus를 동기화한다.
+클릭→방향키→Enter/Space, 접힘·가상 window 왕복 180회 이동과 search/fold control/file panel
+포커스 보존을 browser에서 검증했다. frontend 189 tests와 canonical gate, same-SHA
+main/tag CI·Release가 통과했다. 6개 fresh public asset의 checksum·Minisign·ZIP/tar/DMG
+내부 app 서명과 rolling manifest를 검증했다. native updater로 설치한 공개 binary에서
+위·아래 이동과 Enter/Space의 선택·포커스 일치 및 이전 행의 focus ring 제거를 확인했다.
+현재 계약은 `docs/ARCHITECTURE.md`, 배포 경계는 `docs/releases/v0.9.20.md`가 소유한다.
 
 `v0.9.19` Apple Silicon macOS beta는 선택 이동에도 명시적 history 펼침을 보존한다.
 경계 이동·복귀, 선택 아래 추가 펼침과 구간별 Collapse를 회귀 테스트와 rendered
@@ -39,7 +43,7 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
 비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
-현재 active milestone은 `docs/todo-history-keyboard-focus/spec.md`다. status bar는 현재 repository의 상태, jj version과 cache
+현재 active milestone은 없다. status bar는 현재 repository의 상태, jj version과 cache
 age만 표시하고 임의 secondary repository shortcut은 제거했다. repository 전환은 상단
 tab, 좌측 navigation과 `Command-K` quick switcher로 일원화했으며 `v0.9.17` Apple Silicon
 macOS beta로 배포했다. Graph는 revision
