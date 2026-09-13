@@ -2,14 +2,12 @@
 
 ## Current Milestone
 
-`v0.9.19` Apple Silicon macOS beta를 준비 중이다. history의 명시적 펼침 상태를 change
-ID로 유지해 선택 이동으로 재접히는 문제를 수정했다. 합성 history 회귀, rendered
-keyboard/pointer smoke와 전체 local gate를 통과했다. 공개 artifact·설치 검증은 남아 있다.
-
-`v0.9.18` Apple Silicon macOS beta는 외부 작업 사본의 Refresh 반영과 repository tab
-선택 시 비동기 갱신을 배포했다. same-SHA CI/Release, fresh public asset의 checksum과
-Minisign·app 서명, rolling updater manifest 및 native updater의 설치 버전·실행 파일
-일치 검증을 완료했다. native app에서도 외부 문서 변경이 Fetch 없이 반영됐다.
+`v0.9.19` Apple Silicon macOS beta는 선택 이동에도 명시적 history 펼침을 보존한다.
+경계 이동·복귀, 선택 아래 추가 펼침과 구간별 Collapse를 회귀 테스트와 rendered
+keyboard/pointer smoke로 검증했다. same-SHA main/tag CI와 Release, fresh public asset의
+checksum·Minisign·ZIP/tar/DMG app 서명과 rolling manifest 일치를 확인했다.
+native updater 설치 후 실행 버전·공개 실행 파일 일치 및 graph 렌더링도 확인했다.
+세부 동작은 `docs/ARCHITECTURE.md`, 배포 경계는 `docs/releases/v0.9.19.md`가 소유한다.
 
 `P3: Safe Shaping`과 `P4: Distribution`까지 완료됐다. preview-first safe shaping을
 포함한 local/SSH cockpit과 Apple Silicon macOS용 `v0.9.0` public beta가 게시됐다.
@@ -37,7 +35,7 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
 비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
-현재 active milestone은 `docs/todo-history-expansion/spec.md`다. status bar는 현재 repository의 상태, jj version과 cache
+현재 active milestone은 없다. status bar는 현재 repository의 상태, jj version과 cache
 age만 표시하고 임의 secondary repository shortcut은 제거했다. repository 전환은 상단
 tab, 좌측 navigation과 `Command-K` quick switcher로 일원화했으며 `v0.9.17` Apple Silicon
 macOS beta로 배포했다. Graph는 revision
@@ -183,12 +181,11 @@ notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다
 
 ## Latest Release
 
-`v0.9.17` Apple Silicon macOS beta는 ad-hoc-signed/not-notarized prerelease로 게시됐다.
-status bar의 의미 불명확한 secondary repository shortcut을 제거하고 기존 tab, repository
-navigation과 `Command-K` quick switcher를 명시적인 repository 전환 surface로 유지한다.
-signed tag와 같은 revision의 main/tag CI 및 Release, 6개 fresh public asset, updater
-signature와 rolling beta manifest 검증을 통과했다. `v0.9.16`의 revision tag 표시·검색과
-folding anchor도 그대로 유지된다.
+`v0.9.19` Apple Silicon macOS beta를 ad-hoc-signed/not-notarized prerelease와 signed
+updater로 게시했다. 명시적 history 펼침을 selection과 분리하고 구간별 collapse와
+reference/tag/conflict anchor를 보존한다. frontend 189 tests, Rust unit/integration,
+rendered keyboard/pointer smoke와 canonical gate가 통과했다. 같은 source의 main/tag CI와
+Release, 6개 fresh public asset 및 updater 설치 검증을 완료했다.
 유료 Apple Developer Program을 사용하는 Developer ID signing/notarization은 현재
 계획된 작업이 아니며, 배포량 또는 지원 비용이 구독을 정당화할 때만 새 decision으로
 재검토한다. Linux package 작업 전에는 accepted GTK advisory의 upstream resolution

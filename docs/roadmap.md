@@ -1,6 +1,6 @@
 # Product Roadmap
 
-`v0.9.18`의 외부 작업 사본 Refresh와 repository tab 선택 갱신을 배포했다.
+`v0.9.19`의 선택 이동 중 history 펼침 보존 수정을 배포했다.
 후속 배포 범위와 재검토 trigger는 아래 P4 조건을 유지한다.
 
 ## P0: Read-only Repository Cockpit Foundation
@@ -36,6 +36,7 @@
 - [x] reference/conflict navigation과 resizable overview/changes/operations inspector
 - [x] working copy file tree/diff 작업면과 changed-file count
 - [x] reference-centered history folding과 구간별 progressive reveal/collapse
+- [x] 선택 경계 이동·아래쪽 추가 펼침에서 명시적 reveal 유지와 구간별 Collapse
 - [x] local/SSH revision tag projection, graph/overview read-only label, 검색과 folding anchor
 
 ## P3: Safe Shaping

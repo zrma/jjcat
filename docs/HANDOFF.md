@@ -40,18 +40,15 @@
 
 ## Current Work
 
-`docs/todo-history-expansion/spec.md`의 history 펼침 보존 수정을 진행 중이다.
-local regression·rendered smoke와 전체 gate를 통과했으며 `v0.9.19` 출고를 준비한다.
+현재 active todo는 없다. `v0.9.19` Apple Silicon macOS beta의 history 펼침 보존 수정을
+배포했다. 회귀 테스트, rendered keyboard/pointer smoke, 독립 focused review와 전체
+local gate가 통과했다. same-SHA main/tag CI·Release, 6개 fresh public asset의 checksum,
+Minisign·ZIP/tar/DMG 내부 app 서명 및 rolling updater manifest 일치를 확인했다.
+native updater 설치 후 새 버전 실행, 공개 실행 파일 일치와 graph 렌더링을 확인했다.
 
-직전 `v0.9.18` Apple Silicon macOS beta와 signed updater의 same-SHA
-CI/Release, fresh public assets 및 rolling manifest 검증을 완료했다. 현재 기능은
-`docs/status.md`, runtime·mutation·transport 안전 계약은 `docs/ARCHITECTURE.md`를 따른다.
-
-외부 변경 갱신 수정은 local/SSH snapshot regression, browser의 Refresh·tab 전환·재선택
-smoke와 전체 local gate를 통과했다. 계약은 `docs/ARCHITECTURE.md`의 Repository Refresh가
-소유한다. `v0.9.18` 공개 산출물의 checksum, Minisign, ZIP/tar/DMG 내부 app 서명과
-rolling updater manifest 일치도 확인했다. native updater로 설치한 새 app의 version과
-공개 실행 파일 일치 및 Fetch 없는 외부 문서 변경 반영을 확인했다.
+명시적 펼침·임시 selection context·구간별 collapse 계약은 `docs/ARCHITECTURE.md`의
+Change History Rendering, 배포와 제한은 `docs/releases/v0.9.19.md`가 소유한다.
+펼침 상태의 restart persistence와 history loading 한도 확장은 이번 범위에 포함하지 않는다.
 
 완료 spec과 resolved 질문의 결과는 `docs/completed-milestones.md`, architecture와
 `docs/releases/`로 이관했다. 완료 기록은 해당 시점의 evidence이며 후속 변경으로 대체된

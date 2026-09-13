@@ -6,6 +6,20 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## History Expansion Stability — v0.9.19
+
+- 구간 경계에 종속되던 펼침 상태를 change ID 집합으로 바꿔 선택 이동 중 명시적 노출을 보존했다.
+- 경계 너머 이동·복귀, 아래쪽 추가 펼침 후 선택, 구간별 Collapse와 source order를 회귀로 고정했다.
+- frontend 189 tests, Rust 단위·통합, canonical gate, 독립 focused review 및 rendered
+  keyboard/pointer smoke가 통과했다. 검색과 virtualization 경계도 유지됐다.
+- source/tag `58579d865dd49bbb1c7b68389aeee01d7b49598f`의 main/tag CI와 Release가 통과했다.
+  6개 공개 산출물을 새로 내려받아 checksum·updater signature·내부 app 서명과 rolling manifest를 검증했다.
+- native updater 설치 후 버전·공개 binary 일치와 graph 렌더링을 확인했다. 상세 선택 전이는
+  browser fixture에서 검증했으며 native에서 동일 입력을 완주한 검증으로 확대 해석하지 않는다.
+- 현재 계약은 `docs/ARCHITECTURE.md`의 Change History Rendering과 `docs/releases/v0.9.19.md`에
+  이관했다. 원래 acceptance는 위 source revision의 `docs/todo-history-expansion/spec.md`에서 추적한다.
+  별도 완료 packet은 유지하지 않는다.
+
 ## 2026-08-08: Status Bar Navigation Clarity
 
 - status bar 우측의 임의 secondary repository 이름/readiness shortcut을 제거해 현재
