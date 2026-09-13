@@ -1,7 +1,7 @@
 # Contributing to jjcat
 
-`jjcat`은 pre-alpha 단계다. 현재 구현 우선순위와 acceptance는 `docs/status.md`,
-`docs/roadmap.md`, 활성 `docs/todo-*/spec.md`가 소유한다.
+현재 배포 상태와 구현 우선순위는 [프로젝트 상태](docs/status.md)와
+[로드맵](docs/roadmap.md), 작업별 acceptance는 활성 `docs/todo-*/spec.md`에서 확인한다.
 
 ## Before You Start
 
