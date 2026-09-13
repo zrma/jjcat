@@ -147,7 +147,12 @@ window가 따라간다.
 `All Changes`는 working copy, current/other workspace copy, local/remote bookmark, revision
 tag와 conflict를 reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
 구간은 실제 projection을 삭제하지 않고 `~` fold row로 축약한다. 사용자는 각 구간에서 10개씩,
-전체를 펼치거나 다시 접을 수 있다. search와 dedicated conflict view는 일치 항목을 숨기지
+전체를 펼치거나 다시 접을 수 있다. 명시적으로 펼친 change ID는 selection·scroll 이동과
+독립적으로 유지한다. 숨긴 change를 선택하면 그 인접 행만 임시 노출하고 기존 펼침은
+보존한다. 떨어진 펼침 구간 사이의 fold row는 실제 숨긴 위치를 유지하며 Collapse는 해당
+control 구간의 명시적 펼침만 해제한다. history identity 변경 시 초기화하는 기존 정책과
+restart 간 펼침 상태를 저장하지 않는 경계는 유지한다.
+search와 dedicated conflict view는 일치 항목을 숨기지
 않으며 selection과 normal-state DAG layout은 원본 bounded projection을 기준으로 계산한다.
 rebase preview는 source와 destination을 임시 anchor로 노출한 뒤 제안 parent relation에 맞춘
 stable topological order를 별도 display projection으로 사용한다.

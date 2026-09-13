@@ -116,7 +116,7 @@ describe("estimated rebase topology", () => {
     const items = foldHistory(
       preview!.changes,
       undefined,
-      {},
+      new Set(),
       true,
       ["source", "destination"],
     );

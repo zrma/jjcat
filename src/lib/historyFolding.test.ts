@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChangeRow } from "../types";
-import { foldHistory, HISTORY_REVEAL_STEP } from "./historyFolding";
+import { foldHistory, revealHistoryFold, HISTORY_REVEAL_STEP } from "./historyFolding";
 
 function change(
   changeId: string,
@@ -32,7 +32,7 @@ describe("foldHistory", () => {
       }),
     );
 
-    const items = foldHistory(changes, undefined, {});
+    const items = foldHistory(changes, undefined, new Set());
     const visibleIds = items
       .filter((item) => item.kind === "change")
       .map((item) => item.change.changeId);
@@ -56,7 +56,7 @@ describe("foldHistory", () => {
       }),
     );
 
-    const visibleIds = foldHistory(changes, undefined, {})
+    const visibleIds = foldHistory(changes, undefined, new Set())
       .filter((item) => item.kind === "change")
       .map((item) => item.change.changeId);
 
@@ -73,20 +73,20 @@ describe("foldHistory", () => {
     const changes = Array.from({ length: 30 }, (_, index) =>
       change(`change-${index}`, { workingCopy: index === 0 }),
     );
-    const collapsed = foldHistory(changes, undefined, {});
+    const collapsed = foldHistory(changes, undefined, new Set());
     const fold = collapsed.find((item) => item.kind === "fold");
     expect(fold?.hiddenCount).toBe(28);
 
-    const revealed = foldHistory(changes, undefined, {
-      [fold!.id]: HISTORY_REVEAL_STEP,
-    });
+    const revealed = foldHistory(changes, undefined,
+      revealHistoryFold(changes, new Set(), fold!, HISTORY_REVEAL_STEP),
+    );
     const updatedFold = revealed.find((item) => item.kind === "fold");
     expect(updatedFold?.shownCount).toBe(HISTORY_REVEAL_STEP);
     expect(updatedFold?.hiddenCount).toBe(18);
 
-    const expanded = foldHistory(changes, undefined, {
-      [fold!.id]: fold!.totalCount,
-    });
+    const expanded = foldHistory(changes, undefined,
+      revealHistoryFold(changes, new Set(), fold!, fold!.totalCount),
+    );
     const expandedFold = expanded.find((item) => item.kind === "fold");
     expect(expandedFold?.hiddenCount).toBe(0);
     expect(expandedFold?.shownCount).toBe(28);
@@ -96,9 +96,9 @@ describe("foldHistory", () => {
     const changes = Array.from({ length: 30 }, (_, index) =>
       change(`change-${index}`, { workingCopy: index === 0 }),
     );
-    const collapsed = foldHistory(changes, undefined, {});
+    const collapsed = foldHistory(changes, undefined, new Set());
     const fold = collapsed.find((item) => item.kind === "fold");
-    const revealedByGap = { [fold!.id]: HISTORY_REVEAL_STEP };
+    const revealedByGap = revealHistoryFold(changes, new Set(), fold!, HISTORY_REVEAL_STEP);
 
     const beforeSelection = foldHistory(changes, undefined, revealedByGap);
     const afterSelection = foldHistory(
@@ -120,7 +120,7 @@ describe("foldHistory", () => {
       change(`change-${index}`, { workingCopy: index === 0 }),
     );
 
-    const items = foldHistory(changes, "change-20", {});
+    const items = foldHistory(changes, "change-20", new Set());
     const visibleIds = items
       .filter((item) => item.kind === "change")
       .map((item) => item.change.changeId);
@@ -140,7 +140,7 @@ describe("foldHistory", () => {
       change(`change-${index}`),
     );
 
-    expect(foldHistory(changes, undefined, {}, false)).toHaveLength(30);
+    expect(foldHistory(changes, undefined, new Set(), false)).toHaveLength(30);
   });
 
   it("keeps temporary preview anchors visible without permanently expanding gaps", () => {
@@ -151,7 +151,7 @@ describe("foldHistory", () => {
     const items = foldHistory(
       changes,
       undefined,
-      {},
+      new Set(),
       true,
       ["change-18"],
     );
@@ -163,5 +163,61 @@ describe("foldHistory", () => {
     expect(visibleIds).toContain("change-17");
     expect(visibleIds).toContain("change-19");
     expect(items.some((item) => item.kind === "fold")).toBe(true);
+  });
+});
+
+
+describe("history expansion navigation", () => {
+  const changes = Array.from({ length: 200 }, (_, index) =>
+    change(`change-${index}`, {
+      workingCopy: index === 0,
+      bookmarks: index === 1 ? [{ name: "main", remote: null }] : [],
+    }),
+  );
+  const rows = (selected: number, revealed: ReadonlySet<string>) =>
+    foldHistory(changes, `change-${selected}`, revealed);
+  const ids = (items: ReturnType<typeof foldHistory>) =>
+    items.filter((item) => item.kind === "change").map((item) => item.change.changeId);
+  const folds = (items: ReturnType<typeof foldHistory>) =>
+    items.filter((item) => item.kind === "fold");
+
+  it("keeps all twenty explicit rows when navigating beyond the expansion and back", () => {
+    const revealed = revealHistoryFold(changes, new Set(), folds(rows(0, new Set()))[0], 20);
+    const before = ids(rows(22, revealed));
+    for (const selected of [23, 24, 30, 60, 23, 22]) {
+      const after = ids(rows(selected, revealed));
+      expect(after).toEqual(expect.arrayContaining(before));
+      expect(after).toContain(`change-${selected}`);
+    }
+  });
+
+  it("keeps a lower expansion after clicking or navigating into it", () => {
+    const upper = revealHistoryFold(changes, new Set(), folds(rows(0, new Set()))[0], 20);
+    const lower = folds(rows(60, upper)).at(-1)!;
+    const revealed = revealHistoryFold(changes, upper, lower, 10);
+    const explicit = [...revealed];
+    for (const selected of [63, 64, 71, 72, 90, 63, 0]) {
+      expect(ids(rows(selected, revealed))).toEqual(expect.arrayContaining(explicit));
+    }
+    const items = rows(63, revealed);
+    const indexes = items.filter((item) => item.kind === "change").map((item) => item.sourceIndex);
+    expect(indexes).toEqual([...new Set(indexes)].sort((a, b) => a - b));
+    expect(folds(items).some((fold) => fold.startIndex === 3 && fold.endIndex === 61)).toBe(true);
+    expect(folds(items).map((fold) => fold.id).length).toBe(new Set(folds(items).map((fold) => fold.id)).size);
+  });
+
+  it("collapses only the chosen expansion and keeps the selected hidden row visible", () => {
+    const upper = revealHistoryFold(changes, new Set(), folds(rows(0, new Set()))[0], 20);
+    const lower = folds(rows(60, upper)).at(-1)!;
+    const revealed = revealHistoryFold(changes, upper, lower, 10);
+    const control = folds(rows(63, revealed)).at(-1)!;
+    const collapsed = revealHistoryFold(changes, revealed, control, 0);
+    expect([...collapsed]).toEqual([...upper]);
+    expect(ids(rows(63, collapsed))).toEqual(expect.arrayContaining([...upper, "change-63"]));
+    expect(ids(rows(63, collapsed))).not.toContain("change-70");
+    const all = revealHistoryFold(changes, collapsed, folds(rows(0, collapsed))[0], 197);
+    expect(ids(rows(150, all))).toHaveLength(200);
+    const reset = revealHistoryFold(changes, all, folds(rows(0, all))[0], 0);
+    expect(ids(rows(0, reset))).toEqual(["change-0", "change-1", "change-2"]);
   });
 });

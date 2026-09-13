@@ -40,7 +40,10 @@
 
 ## Current Work
 
-현재 active todo는 없다. `v0.9.18` Apple Silicon macOS beta와 signed updater의 same-SHA
+`docs/todo-history-expansion/spec.md`의 history 펼침 보존 수정을 진행 중이다.
+local regression·rendered smoke와 전체 gate를 통과했으며 `v0.9.19` 출고를 준비한다.
+
+직전 `v0.9.18` Apple Silicon macOS beta와 signed updater의 same-SHA
 CI/Release, fresh public assets 및 rolling manifest 검증을 완료했다. 현재 기능은
 `docs/status.md`, runtime·mutation·transport 안전 계약은 `docs/ARCHITECTURE.md`를 따른다.
 

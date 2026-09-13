@@ -42,50 +42,25 @@ function markAnchorContext(visible: boolean[], anchor: number) {
   for (let index = start; index <= end; index += 1) visible[index] = true;
 }
 
-function isRenderedByBaseFolds(
+export function revealHistoryFold(
   changes: ChangeRow[],
-  selectedIndex: number,
-  visible: readonly boolean[],
-  revealedByGap: Readonly<Record<string, number>>,
-) {
-  if (visible[selectedIndex]) return true;
-
-  let index = 0;
-  while (index < changes.length) {
-    if (visible[index]) {
-      index += 1;
-      continue;
-    }
-
-    const startIndex = index;
-    while (index < changes.length && !visible[index]) index += 1;
-    const endIndex = index - 1;
-    const totalCount = endIndex - startIndex + 1;
-    if (totalCount < MIN_FOLD_SIZE) {
-      if (selectedIndex >= startIndex && selectedIndex <= endIndex) return true;
-      continue;
-    }
-
-    const id = gapId(changes, startIndex, endIndex);
-    const shownCount = Math.min(
-      totalCount,
-      Math.max(0, revealedByGap[id] ?? 0),
-    );
-    if (
-      selectedIndex >= startIndex &&
-      selectedIndex < startIndex + shownCount
-    ) {
-      return true;
-    }
+  revealedChangeIds: ReadonlySet<string>,
+  fold: Extract<HistoryFoldItem, { kind: "fold" }>,
+  count: number,
+): Set<string> {
+  const next = new Set(revealedChangeIds);
+  for (let index = fold.startIndex; index <= fold.endIndex; index += 1) {
+    const id = changes[index].changeId;
+    if (index < fold.startIndex + count) next.add(id);
+    else next.delete(id);
   }
-
-  return false;
+  return next;
 }
 
 export function foldHistory(
   changes: ChangeRow[],
   selectedChangeId: string | undefined,
-  revealedByGap: Readonly<Record<string, number>>,
+  revealedChangeIds: ReadonlySet<string>,
   enabled = true,
   additionalAnchorChangeIds: readonly string[] = [],
 ): HistoryFoldItem[] {
@@ -110,17 +85,24 @@ export function foldHistory(
   });
   for (const anchor of anchors) markAnchorContext(visible, anchor);
 
+  // 작은 기본 구간은 selection과 무관하게 항상 노출한다.
+  for (let index = 0; index < changes.length;) {
+    if (visible[index]) {
+      index += 1;
+      continue;
+    }
+    const start = index;
+    while (index < changes.length && !visible[index]) index += 1;
+    if (index - start < MIN_FOLD_SIZE) visible.fill(true, start, index);
+  }
+
   const selectedIndex = selectedChangeId
     ? changes.findIndex((change) => change.changeId === selectedChangeId)
     : -1;
   if (
     selectedIndex >= 0 &&
-    !isRenderedByBaseFolds(
-      changes,
-      selectedIndex,
-      visible,
-      revealedByGap,
-    )
+    !visible[selectedIndex] &&
+    !revealedChangeIds.has(changes[selectedIndex].changeId)
   ) {
     markAnchorContext(visible, selectedIndex);
   }
@@ -135,25 +117,27 @@ export function foldHistory(
     }
 
     const startIndex = index;
-    while (index < changes.length && !visible[index]) index += 1;
+    // 명시적으로 펼친 prefix와 그 뒤의 숨긴 구간을 하나의 control로 묶는다.
+    // 다음 펼침 island 앞에서 멈춰 fold row가 실제 숨긴 위치를 유지하게 한다.
+    while (
+      index < changes.length && !visible[index] &&
+      revealedChangeIds.has(changes[index].changeId)
+    ) index += 1;
+    const shownCount = index - startIndex;
+    while (
+      index < changes.length && !visible[index] &&
+      !revealedChangeIds.has(changes[index].changeId)
+    ) index += 1;
     const endIndex = index - 1;
     const totalCount = endIndex - startIndex + 1;
-    if (totalCount < MIN_FOLD_SIZE) {
+    if (totalCount < MIN_FOLD_SIZE && shownCount === 0) {
       for (let sourceIndex = startIndex; sourceIndex <= endIndex; sourceIndex += 1) {
-        items.push({
-          kind: "change",
-          change: changes[sourceIndex],
-          sourceIndex,
-        });
+        items.push({ kind: "change", change: changes[sourceIndex], sourceIndex });
       }
       continue;
     }
 
     const id = gapId(changes, startIndex, endIndex);
-    const shownCount = Math.min(
-      totalCount,
-      Math.max(0, revealedByGap[id] ?? 0),
-    );
     for (
       let sourceIndex = startIndex;
       sourceIndex < startIndex + shownCount;

@@ -37,6 +37,7 @@ import {
 } from "../lib/rebaseTopology";
 import {
   foldHistory,
+  revealHistoryFold,
   HISTORY_REVEAL_STEP,
   type HistoryFoldItem,
 } from "../lib/historyFolding";
@@ -679,18 +680,18 @@ function ChangeLog({
 }) {
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
-  const [revealedByGap, setRevealedByGap] = useState<Record<string, number>>({});
+  const [revealedChangeIds, setRevealedChangeIds] = useState<Set<string>>(new Set());
   const historyIdentity = `${changes[0]?.commitId ?? ""}:${changes.at(-1)?.commitId ?? ""}:${changes.length}`;
   const foldItems = useMemo(
     () =>
       foldHistory(
         changes,
         selected,
-        revealedByGap,
+        revealedChangeIds,
         compactHistory,
         [],
       ),
-    [changes, compactHistory, revealedByGap, selected],
+    [changes, compactHistory, revealedChangeIds, selected],
   );
   const virtualized = foldItems.length >= VIRTUALIZATION_THRESHOLD;
   const dag = useMemo(() => layoutDag(changes), [changes]);
@@ -722,7 +723,7 @@ function ChangeLog({
     const element = scrollRef.current;
     if (element) element.scrollTop = 0;
     setViewport((current) => ({ ...current, scrollTop: 0 }));
-    setRevealedByGap({});
+    setRevealedChangeIds(new Set());
   }, [historyIdentity]);
 
   useEffect(() => {
@@ -803,9 +804,11 @@ function ChangeLog({
         rebaseSourceCommitId={rebaseSourceCommitId}
         onOpenActionMenu={onOpenActionMenu}
         onLaunchMutation={onLaunchMutation}
-        onRevealGap={(id, count) =>
-          setRevealedByGap((current) => ({ ...current, [id]: count }))
-        }
+        onRevealGap={(id, count) => {
+          const fold = foldItems.find((item) => item.kind === "fold" && item.id === id);
+          if (fold?.kind !== "fold") return;
+          setRevealedChangeIds((current) => revealHistoryFold(changes, current, fold, count));
+        }}
       />
     </section>
   );

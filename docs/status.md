@@ -2,6 +2,10 @@
 
 ## Current Milestone
 
+`v0.9.19` Apple Silicon macOS beta를 준비 중이다. history의 명시적 펼침 상태를 change
+ID로 유지해 선택 이동으로 재접히는 문제를 수정했다. 합성 history 회귀, rendered
+keyboard/pointer smoke와 전체 local gate를 통과했다. 공개 artifact·설치 검증은 남아 있다.
+
 `v0.9.18` Apple Silicon macOS beta는 외부 작업 사본의 Refresh 반영과 repository tab
 선택 시 비동기 갱신을 배포했다. same-SHA CI/Release, fresh public asset의 checksum과
 Minisign·app 서명, rolling updater manifest 및 native updater의 설치 버전·실행 파일
@@ -33,7 +37,7 @@ transport-aware editor/Finder handoff를 추가한다. `v0.9.12` Apple Silicon m
 선택 revision의 전체 tracked File Tree와 bounded source, file-level Blame/Timeline을
 local/SSH 공통 contract로 배포했다. `v0.9.13` Apple Silicon macOS beta는 실제 timestamp
 비례 연·월 ruler, commit marker, responsive cluster와 preview/navigation을 배포했다.
-현재 active milestone은 없다. status bar는 현재 repository의 상태, jj version과 cache
+현재 active milestone은 `docs/todo-history-expansion/spec.md`다. status bar는 현재 repository의 상태, jj version과 cache
 age만 표시하고 임의 secondary repository shortcut은 제거했다. repository 전환은 상단
 tab, 좌측 navigation과 `Command-K` quick switcher로 일원화했으며 `v0.9.17` Apple Silicon
 macOS beta로 배포했다. Graph는 revision
