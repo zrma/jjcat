@@ -726,7 +726,7 @@ function ChangeLog({
     setRevealedChangeIds(new Set());
   }, [historyIdentity]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const index = foldItems.findIndex(
       (item) => item.kind === "change" && item.change.changeId === selected,
     );
@@ -739,7 +739,21 @@ function ChangeLog({
     } else if (rowBottom > element.scrollTop + element.clientHeight) {
       element.scrollTop = rowBottom - element.clientHeight;
     }
+    // scroll event 이전에도 선택 행의 가상 window를 렌더링한다.
+    const scrollTop = element.scrollTop;
+    setViewport((current) => current.scrollTop === scrollTop
+      ? current
+      : { ...current, scrollTop });
   }, [foldItems, selected]);
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    const active = document.activeElement;
+    if (!element || !active || !element.contains(active)) return;
+    // 펼침 버튼, 검색창과 다른 panel에서 selection이 바뀌어도 포커스를 빼앗지 않는다.
+    if (active !== element && !active.classList.contains("change-row")) return;
+    element.querySelector<HTMLElement>(".change-row.selected")?.focus({ preventScroll: true });
+  }, [foldItems, selected, viewport.scrollTop, viewport.height]);
 
   if (changes.length === 0) {
     return (
@@ -1013,7 +1027,8 @@ function ChangeRows({
         return (
           <div
             role="row"
-            tabIndex={0}
+            tabIndex={change.changeId === selected ? 0 : -1}
+            aria-selected={change.changeId === selected}
             className={`change-row ${virtualized ? "virtualized-row" : ""} ${change.changeId === selected ? "selected" : ""} ${change.commitId === rebaseSourceCommitId ? "rebase-source" : ""} ${change.commitId === previewSourceCommitId ? "rebase-preview-source" : ""} ${activeDrag?.kind !== "bookmarkMove" && change.commitId === previewDestinationCommitId ? "rebase-drop-target" : ""} ${isBookmarkDropTarget ? "bookmark-drop-target" : ""}`}
             style={virtualized ? { top: displayIndex * HISTORY_ROW_HEIGHT } : undefined}
             aria-posinset={displayIndex + 1}

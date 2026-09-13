@@ -1116,7 +1116,7 @@ function App() {
         !(
           event.target instanceof Element &&
           event.target.closest(
-            '[data-keyboard-navigation="files"], [data-keyboard-navigation="diff"], [data-keyboard-navigation="operations"]',
+            '[data-keyboard-navigation="files"], [data-keyboard-navigation="diff"], [data-keyboard-navigation="operations"], .history-fold-actions',
           )
         )
       ) {
@@ -1131,6 +1131,13 @@ function App() {
         const next = visibleChanges[nextIndex];
         if (next && nextIndex !== currentIndex) {
           event.preventDefault();
+          // 가상 window가 교체돼도 포커스가 이전 행이나 body에 남지 않게 한다.
+          if (event.target instanceof Element) {
+            const graph = event.target.closest<HTMLElement>('[data-keyboard-navigation="graph"]');
+            if (event.target === graph || event.target.classList.contains("change-row")) {
+              graph?.focus({ preventScroll: true });
+            }
+          }
           setSelectedChangeId(next.changeId);
         }
       }

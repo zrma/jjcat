@@ -40,7 +40,10 @@
 
 ## Current Work
 
-현재 active todo는 없다. `v0.9.19` Apple Silicon macOS beta의 history 펼침 보존 수정을
+`docs/todo-history-keyboard-focus/spec.md`의 focus·selection 동기화를 진행 중이다.
+rendered regression을 통과했으며 `v0.9.20` 출고를 준비한다.
+
+직전 `v0.9.19` Apple Silicon macOS beta의 history 펼침 보존 수정을
 배포했다. 회귀 테스트, rendered keyboard/pointer smoke, 독립 focused review와 전체
 local gate가 통과했다. same-SHA main/tag CI·Release, 6개 fresh public asset의 checksum,
 Minisign·ZIP/tar/DMG 내부 app 서명 및 rolling updater manifest 일치를 확인했다.

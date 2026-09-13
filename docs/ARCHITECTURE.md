@@ -143,7 +143,11 @@ template와 remote terminal working-directory bootstrap은 이후 configuration 
 전체 row count와 item position은 accessibility metadata로 보존한다. parent relation 전체를
 먼저 deterministic lane model로 계산하므로 virtual window 밖에서도 edge가 안정적이다.
 pointer와 위/아래 방향키 selection은 같은 revision state를 사용하며 화면 밖 선택은 scroll
-window가 따라간다.
+window가 따라간다. graph 행에서 방향키로 이동할 때 실제 DOM focus도 선택 행을 따라간다.
+가상 window 교체 중에는 graph container가 focus를 유지하며 새 행 렌더링 후 해당 행에
+넘긴다. 선택 행만 Tab 진입점으로 두고 aria-selected로 선택을 노출한다. Enter·Space는
+현재 행에 적용된다. 펼침 control의 방향키는 graph selection을 바꾸지 않으며 search,
+fold control과 다른 panel에서 발생한 selection 갱신은 focus를 빼앗지 않는다.
 `All Changes`는 working copy, current/other workspace copy, local/remote bookmark, revision
 tag와 conflict를 reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
 구간은 실제 projection을 삭제하지 않고 `~` fold row로 축약한다. 사용자는 각 구간에서 10개씩,
