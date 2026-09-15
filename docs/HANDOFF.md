@@ -40,7 +40,8 @@
 
 ## Current Work
 
-command timeout 후 Unix descendant 종료, 전체 I/O deadline과 network mutation 오류 안내를
+`v0.9.21` 배포 대상은 command timeout 처리 개선이다. Unix descendant 종료,
+전체 I/O deadline과 network mutation 오류 안내를
 소스에 반영했다. 기존 SSH master는 보존한다. 소유 계약은 `docs/ARCHITECTURE.md`의
 Process Timeout And SSH Reuse다. 다음 배포 시 이 변경의 installed-binary 검증이 필요하며
 현재 공개 `v0.9.20`에는 포함되지 않는다.

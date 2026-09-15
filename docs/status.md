@@ -2,7 +2,8 @@
 
 ## Current Milestone
 
-소스의 command timeout 처리는 Unix 호출별 process group과 전체 I/O deadline을 사용한다.
+`v0.9.21` Apple Silicon macOS beta 배포를 준비하고 있다. command timeout 처리는 Unix 호출별 process
+group과 전체 I/O deadline을 사용한다.
 timeout·cancel·caller drop에서 소유한 descendant를 종료하고 기존 공유 SSH master는
 보존한다. Fetch와 Push timeout을 구분하며 Push는 remote 결과 확인을 안내한다.
 계약은 `docs/ARCHITECTURE.md`의 Process Timeout And SSH Reuse가 소유한다.
