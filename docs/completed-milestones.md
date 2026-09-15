@@ -6,6 +6,23 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## Command Timeout Recovery — v0.9.21
+
+- Unix 호출별 process group과 전체 stdin/stdout/stderr deadline으로 timeout·cancel·caller
+  drop에서 소유한 descendant를 정리한다. 기존 공유 SSH master와 다른 process group은 보존한다.
+- Fetch와 Push timeout을 구분해 network 확인과 refresh 또는 remote bookmark 검증을 안내한다.
+- descendant cleanup·pipe 보유·blocked stdin·caller drop 회귀, frontend 189 tests,
+  Rust 단위·통합, canonical gate, browser 오류 표시와 독립 focused review를 통과했다.
+  전체 gate에서 발견한 async stack 크기 회귀는 I/O buffer의 heap 배치로 수정한 뒤 재검증했다.
+- source/tag `1f8c1aaacd57e380a30df1230730bbd39c239119`의 main/tag CI와 Release가 통과했다.
+  fresh public asset 6개의 checksum·Minisign·ZIP/tar/DMG 내부 app 서명과 rolling manifest를 검증했다.
+- native updater 설치 후 버전·공개 binary 일치·서명을 확인했다. 정상 Fetch가 완료됐고,
+  합성 지연 Fetch는 60초 뒤 새 오류 안내와 Ready 상태로 돌아왔다. 호출 descendant가
+  모두 종료되고 기존 공유 SSH master가 유지되는 것도 확인했다.
+- 실제 network 전환 재현과 remote host process 종료 보장은 검증 범위 밖이다.
+  현재 계약은 `docs/ARCHITECTURE.md`의 Process Timeout And SSH Reuse,
+  배포와 제한은 `docs/releases/v0.9.21.md`가 소유한다.
+
 ## History Keyboard Focus — v0.9.20
 
 - graph 방향키 selection 뒤 실제 focus를 선택 행으로 옮겨 이전 클릭 행의 focus ring과

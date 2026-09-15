@@ -1,6 +1,6 @@
 # Product Roadmap
 
-`v0.9.21`의 command timeout 정리와 network mutation 오류 안내 개선을 배포 준비 중이다.
+`v0.9.21`의 command timeout 정리와 network mutation 오류 안내 개선을 배포했다.
 `v0.9.20`의 history 선택·키보드 포커스 동기화 수정을 배포했다.
 후속 배포 범위와 재검토 trigger는 아래 P4 조건을 유지한다.
 

@@ -2,12 +2,16 @@
 
 ## Current Milestone
 
-`v0.9.21` Apple Silicon macOS beta 배포를 준비하고 있다. command timeout 처리는 Unix 호출별 process
-group과 전체 I/O deadline을 사용한다.
-timeout·cancel·caller drop에서 소유한 descendant를 종료하고 기존 공유 SSH master는
-보존한다. Fetch와 Push timeout을 구분하며 Push는 remote 결과 확인을 안내한다.
-계약은 `docs/ARCHITECTURE.md`의 Process Timeout And SSH Reuse가 소유한다.
-이 변경은 아직 배포된 `v0.9.20` binary에 포함되지 않았다.
+`v0.9.21` Apple Silicon macOS beta를 배포했다. command timeout 처리는 Unix 호출별
+process group과 전체 I/O deadline을 사용한다. timeout·cancel·caller drop에서 소유한
+descendant를 종료하고 기존 공유 SSH master는 보존한다. Fetch와 Push timeout을 구분하며
+Push는 remote 결과 확인을 안내한다. canonical gate와 same-SHA main/tag CI·Release,
+fresh public asset 6개의 checksum·Minisign·ZIP/tar/DMG 내부 app 서명과 rolling manifest를
+검증했다. native updater 설치 후 버전·공개 binary 일치·서명, 정상 Fetch와 합성 지연
+Fetch의 60초 timeout 뒤 Ready 복귀·descendant 종료·기존 SSH master 보존을 확인했다.
+실제 network 전환 재현과 remote host process 종료 보장은 검증 범위 밖이다.
+계약은 `docs/ARCHITECTURE.md`의 Process Timeout And SSH Reuse, 배포 경계는
+`docs/releases/v0.9.21.md`가 소유한다.
 
 `v0.9.20` Apple Silicon macOS beta는 graph 방향키 selection과 실제 focus를 동기화한다.
 클릭→방향키→Enter/Space, 접힘·가상 window 왕복 180회 이동과 search/fold control/file panel

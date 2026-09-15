@@ -40,25 +40,19 @@
 
 ## Current Work
 
-`v0.9.21` 배포 대상은 command timeout 처리 개선이다. Unix descendant 종료,
-전체 I/O deadline과 network mutation 오류 안내를
-소스에 반영했다. 기존 SSH master는 보존한다. 소유 계약은 `docs/ARCHITECTURE.md`의
-Process Timeout And SSH Reuse다. 다음 배포 시 이 변경의 installed-binary 검증이 필요하며
-현재 공개 `v0.9.20`에는 포함되지 않는다.
+활성 작업은 없다. `v0.9.21` Apple Silicon macOS beta의 command timeout 처리를
+배포했다. Unix 호출별 process group과 전체 I/O deadline으로 timeout·cancel·caller drop의
+소유 descendant를 정리하고 기존 공유 SSH master를 보존한다. Fetch와 Push timeout을
+구분하며 Push는 remote 결과 확인을 안내한다.
 
-활성 작업은 없다. `v0.9.20` Apple Silicon macOS beta의 history keyboard focus 수정을
-배포했다. graph selection과 실제 focus가 함께 이동하고 Enter·Space가 이전 클릭 행을
-재선택하지 않는다. 검색·펼침 버튼·다른 panel 포커스와 `v0.9.19`의 펼침 보존을 유지한다.
+canonical gate, 독립 focused review와 same-SHA main/tag CI·Release가 통과했다.
+fresh public asset 6개와 rolling updater manifest를 검증하고 native updater로 설치했다.
+설치 버전·공개 binary 일치·서명, 정상 Fetch 완료와 합성 지연 Fetch의 60초 timeout 뒤
+오류 안내·Ready 복귀·descendant 종료·기존 SSH master 보존을 확인했다.
+실제 network 전환 재현과 remote host process 종료 보장은 이 검증 범위에 포함하지 않는다.
 
-browser regression, 독립 focused review, 전체 local gate와 same-SHA main/tag CI·Release가
-통과했다. fresh public asset 6개와 rolling updater manifest를 검증하고 native updater로
-설치했다. 설치 버전·공개 binary 일치·서명, native 클릭→위·아래→Enter/Space에서 선택과
-포커스 일치 및 이전 행의 focus ring 제거를 확인했다. 가상 window의 반복 경계 검증은
-browser fixture가 담당했다.
-
-선택·포커스와 펼침 계약은 `docs/ARCHITECTURE.md`의 Change History Rendering,
-배포와 제한은 `docs/releases/v0.9.20.md`가 소유한다. 펼침 상태의 restart persistence와
-history loading 한도 확장은 이번 범위에 포함하지 않는다.
+소유 계약은 `docs/ARCHITECTURE.md`의 Process Timeout And SSH Reuse, 배포와 제한은
+`docs/releases/v0.9.21.md`, 종료 당시 검증은 `docs/completed-milestones.md`에 기록했다.
 
 완료 spec과 resolved 질문의 결과는 `docs/completed-milestones.md`, architecture와
 `docs/releases/`로 이관했다. 완료 기록은 해당 시점의 evidence이며 후속 변경으로 대체된
