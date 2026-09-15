@@ -2,6 +2,12 @@
 
 ## Current Milestone
 
+소스의 command timeout 처리는 Unix 호출별 process group과 전체 I/O deadline을 사용한다.
+timeout·cancel·caller drop에서 소유한 descendant를 종료하고 기존 공유 SSH master는
+보존한다. Fetch와 Push timeout을 구분하며 Push는 remote 결과 확인을 안내한다.
+계약은 `docs/ARCHITECTURE.md`의 Process Timeout And SSH Reuse가 소유한다.
+이 변경은 아직 배포된 `v0.9.20` binary에 포함되지 않았다.
+
 `v0.9.20` Apple Silicon macOS beta는 graph 방향키 selection과 실제 focus를 동기화한다.
 클릭→방향키→Enter/Space, 접힘·가상 window 왕복 180회 이동과 search/fold control/file panel
 포커스 보존을 browser에서 검증했다. frontend 189 tests와 canonical gate, same-SHA

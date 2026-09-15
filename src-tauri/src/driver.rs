@@ -923,7 +923,7 @@ impl JjDriver {
             RepositoryLocation::Local { .. } => run_command(plan, timeout, cancellation).await,
             RepositoryLocation::Ssh { .. } => run_remote_command(plan, timeout, cancellation).await,
         }
-        .map_err(|error| process_error(repository, error))?;
+        .map_err(|error| mutation_process_error(repository, intent, error))?;
         if output.truncated {
             return Err(DriverError {
                 kind: DriverErrorKind::OutputLimit,
@@ -2524,6 +2524,22 @@ fn invalid_output(message: &str) -> DriverError {
     }
 }
 
+fn mutation_process_error(
+    repository: &RepositoryRecord,
+    intent: &MutationIntent,
+    error: ProcessError,
+) -> DriverError {
+    let mut error = process_error(repository, error);
+    if error.kind == DriverErrorKind::Timeout {
+        error.message = match intent {
+            MutationIntent::Fetch { .. } => "Fetch timed out. Check the network connection, then refresh the repository before retrying. After a network switch, a shared SSH connection may need to reconnect.",
+            MutationIntent::Push { .. } => "Push timed out. The remote outcome is unknown. Check the network connection and fetch to verify remote bookmarks before retrying. After a network switch, a shared SSH connection may need to reconnect.",
+            _ => "Repository operation timed out. Refresh the repository and inspect the operation log before retrying.",
+        }.into();
+    }
+    error
+}
+
 fn process_error(repository: &RepositoryRecord, error: ProcessError) -> DriverError {
     let kind = match error.kind {
         ProcessFailureKind::Timeout => DriverErrorKind::Timeout,
@@ -2531,8 +2547,8 @@ fn process_error(repository: &RepositoryRecord, error: ProcessError) -> DriverEr
         ProcessFailureKind::Spawn | ProcessFailureKind::Wait => DriverErrorKind::Transport,
     };
     let message = match error.kind {
-        ProcessFailureKind::Timeout => "repository refresh timed out".into(),
-        ProcessFailureKind::Cancelled => "repository refresh was cancelled".into(),
+        ProcessFailureKind::Timeout => "repository command timed out".into(),
+        ProcessFailureKind::Cancelled => "repository command was cancelled".into(),
         ProcessFailureKind::Spawn | ProcessFailureKind::Wait => error
             .detail
             .map(|detail| redact_error(&detail, &repository.location))
@@ -2595,6 +2611,60 @@ mod tests {
             },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn mutation_timeout_identifies_fetch_and_unknown_push_outcome() {
+        let repository = remote_repository();
+        for (intent, expected) in [
+            (MutationIntent::Fetch { remote: None }, "Fetch timed out."),
+            (
+                MutationIntent::Push {
+                    name: "main".into(),
+                    remote: "origin".into(),
+                },
+                "Push timed out. The remote outcome is unknown.",
+            ),
+        ] {
+            let error = mutation_process_error(
+                &repository,
+                &intent,
+                ProcessError {
+                    kind: ProcessFailureKind::Timeout,
+                    detail: None,
+                },
+            );
+            assert_eq!(error.kind, DriverErrorKind::Timeout);
+            assert!(error.message.starts_with(expected));
+            assert!(!error.message.contains("refresh timed out"));
+            assert!(error.message.contains("before retrying"));
+        }
+    }
+
+    #[test]
+    fn mutation_process_errors_preserve_cancellation_and_redaction() {
+        let repository = remote_repository();
+        let intent = MutationIntent::Fetch { remote: None };
+        let cancelled = mutation_process_error(
+            &repository,
+            &intent,
+            ProcessError {
+                kind: ProcessFailureKind::Cancelled,
+                detail: None,
+            },
+        );
+        assert_eq!(cancelled.kind, DriverErrorKind::Cancelled);
+        let failed = mutation_process_error(
+            &repository,
+            &intent,
+            ProcessError {
+                kind: ProcessFailureKind::Spawn,
+                detail: Some("failed on fixture-host at ~/work/fixture".into()),
+            },
+        );
+        assert_eq!(failed.kind, DriverErrorKind::Transport);
+        assert!(!failed.message.contains("fixture-host"));
+        assert!(!failed.message.contains("~/work/fixture"));
     }
 
     #[test]

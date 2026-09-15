@@ -40,6 +40,11 @@
 
 ## Current Work
 
+command timeout 후 Unix descendant 종료, 전체 I/O deadline과 network mutation 오류 안내를
+소스에 반영했다. 기존 SSH master는 보존한다. 소유 계약은 `docs/ARCHITECTURE.md`의
+Process Timeout And SSH Reuse다. 다음 배포 시 이 변경의 installed-binary 검증이 필요하며
+현재 공개 `v0.9.20`에는 포함되지 않는다.
+
 활성 작업은 없다. `v0.9.20` Apple Silicon macOS beta의 history keyboard focus 수정을
 배포했다. graph selection과 실제 focus가 함께 이동하고 Enter·Space가 이전 클릭 행을
 재선택하지 않는다. 검색·펼침 버튼·다른 panel 포커스와 `v0.9.19`의 펼침 보존을 유지한다.

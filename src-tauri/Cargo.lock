@@ -1562,6 +1562,7 @@ version = "0.9.20"
 dependencies = [
  "base64 0.22.1",
  "glob",
+ "libc",
  "minisign-verify",
  "regex",
  "semver",

@@ -316,6 +316,26 @@ intent의 parameter와 exact targets만 보여준다. 따라서 change, reposito
 - output은 bounded하며 ANSI와 terminal prompt를 허용하지 않는다.
 - remote error는 secret, host detail과 absolute path를 redaction한 뒤 UI에 전달한다.
 
+### Process Timeout And SSH Reuse
+
+Unix command는 호출별 process group에서 실행한다. timeout, cancellation과 caller future
+drop은 그 그룹의 자식 프로세스까지 종료한다. 기존 공유 SSH master와 별도 세션으로
+분리된 프로세스는 종료하지 않는다. remote host의 프로세스 종료까지 보장하지 않으므로
+중단된 mutation은 repository state와 operation log를 확인한 뒤 다시 preview한다.
+
+deadline은 command wait, stdin 전달과 stdout/stderr 수집 전체에 적용한다. 부모 command가
+먼저 종료해도 descendant나 공유 SSH master가 pipe를 보유하면 같은 deadline에서 반환하며,
+분리된 I/O task를 남기지 않는다. Fetch timeout은 network와 공유 연결 재접속 가능성을
+안내하고, Push timeout은 remote 결과가 미확정임을 명시해 fetch로 확인한 뒤 재시도하도록
+한다. 자동 mutation 재시도나 공유 master 강제 종료는 하지 않는다.
+
+네트워크 전환 후 기존 SSH 연결이 응답하지 않으면 공유 연결을 사용하는 새 command도
+대기할 수 있다. 사용자 SSH 설정의 `ServerAliveInterval`과 `ServerAliveCountMax`는
+무응답 감지 시간을 제어하고 `ControlPersist`는 client가 없는 연결의 보관 시간을
+제어한다. 이 설정과 credential은 사용자 소유이며 앱이 수정하지 않는다. 설정 변경은
+새 master부터 적용된다. `ControlMaster no`만으로 기존 연결 재사용을 막을 수는 없으며,
+명시적으로 우회할 때는 `ControlPath none`을 사용한다.
+
 ## Security Boundary
 
 - source file content는 사용자가 diff를 요청한 범위에서만 읽는다.

@@ -97,6 +97,8 @@ pub async fn run_command_with_limit(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     if let Some(current_dir) = &plan.current_dir {
         command.current_dir(current_dir);
     }
@@ -110,46 +112,58 @@ pub async fn run_command_with_limit(
         kind: ProcessFailureKind::Spawn,
         detail: Some(error.to_string()),
     })?;
+    let mut process_group = OwnedProcessGroup(child.id());
 
-    if let Some(input) = plan.stdin
-        && let Some(mut stdin) = child.stdin.take()
-    {
-        tokio::spawn(async move {
+    let stdin = child.stdin.take();
+    let write_stdin = async move {
+        if let Some(input) = plan.stdin
+            && let Some(mut stdin) = stdin
+        {
             let _ = stdin.write_all(&input).await;
             let _ = stdin.shutdown().await;
-        });
-    }
+        }
+        Ok::<(), std::io::Error>(())
+    };
 
     let stdout = child.stdout.take().expect("stdout must be piped");
     let stderr = child.stderr.take().expect("stderr must be piped");
-    let stdout_task = tokio::spawn(read_bounded(stdout, output_limit));
-    let stderr_task = tokio::spawn(read_bounded(stderr, output_limit));
-    let deadline = tokio::time::sleep(timeout);
-    tokio::pin!(deadline);
-
-    let status = tokio::select! {
-        status = child.wait() => status.map_err(|error| ProcessError {
-            kind: ProcessFailureKind::Wait,
-            detail: Some(error.to_string()),
-        })?,
-        _ = cancellation.cancelled() => {
-            terminate(&mut child).await;
-            return Err(ProcessError { kind: ProcessFailureKind::Cancelled, detail: None });
-        }
-        _ = &mut deadline => {
-            terminate(&mut child).await;
-            return Err(ProcessError { kind: ProcessFailureKind::Timeout, detail: None });
-        }
+    // 공유 SSH master가 pipe를 보유해도 종료·출력 수집 모두 같은 deadline을 따른다.
+    // I/O future를 분리 spawn하지 않아 취소 시 pipe와 stdin도 함께 닫힌다.
+    let result = tokio::select! {
+        result = async {
+            let (status, (stdout, stdout_truncated), (stderr, stderr_truncated), ()) =
+                tokio::try_join!(
+                    child.wait(),
+                    read_bounded(stdout, output_limit),
+                    read_bounded(stderr, output_limit),
+                    write_stdin,
+                ).map_err(|error| ProcessError {
+                    kind: ProcessFailureKind::Wait,
+                    detail: Some(error.to_string()),
+                })?;
+            Ok(CommandOutput {
+                exit_code: status.code(),
+                stdout,
+                stderr,
+                truncated: stdout_truncated || stderr_truncated,
+            })
+        } => result,
+        _ = cancellation.cancelled() => Err(ProcessError {
+            kind: ProcessFailureKind::Cancelled, detail: None,
+        }),
+        _ = tokio::time::sleep(timeout) => Err(ProcessError {
+            kind: ProcessFailureKind::Timeout, detail: None,
+        }),
     };
 
-    let (stdout, stdout_truncated) = join_reader(stdout_task).await?;
-    let (stderr, stderr_truncated) = join_reader(stderr_task).await?;
-    Ok(CommandOutput {
-        exit_code: status.code(),
-        stdout,
-        stderr,
-        truncated: stdout_truncated || stderr_truncated,
-    })
+    if result.is_err() {
+        process_group.terminate();
+        let _ = child.start_kill();
+        let _ = child.wait().await;
+    } else {
+        process_group.0 = None;
+    }
+    result
 }
 
 fn command_environment(program: &Path) -> (PathBuf, OsString) {
@@ -244,23 +258,27 @@ fn is_executable_file(path: &Path) -> bool {
     }
 }
 
-async fn terminate(child: &mut tokio::process::Child) {
-    let _ = child.start_kill();
-    let _ = child.wait().await;
+struct OwnedProcessGroup(Option<u32>);
+
+impl OwnedProcessGroup {
+    fn terminate(&mut self) {
+        if let Some(id) = self.0.take() {
+            #[cfg(unix)]
+            // 이 호출에서 process_group(0)으로 만든 그룹만 대상으로 한다.
+            // 기존 SSH master나 별도 세션으로 분리된 프로세스에는 신호를 보내지 않는다.
+            unsafe {
+                libc::kill(-(id as libc::pid_t), libc::SIGKILL);
+            }
+            #[cfg(not(unix))]
+            let _ = id;
+        }
+    }
 }
 
-async fn join_reader(
-    task: tokio::task::JoinHandle<std::io::Result<(Vec<u8>, bool)>>,
-) -> Result<(Vec<u8>, bool), ProcessError> {
-    task.await
-        .map_err(|error| ProcessError {
-            kind: ProcessFailureKind::Wait,
-            detail: Some(error.to_string()),
-        })?
-        .map_err(|error| ProcessError {
-            kind: ProcessFailureKind::Wait,
-            detail: Some(error.to_string()),
-        })
+impl Drop for OwnedProcessGroup {
+    fn drop(&mut self) {
+        self.terminate();
+    }
 }
 
 async fn read_bounded<R: AsyncRead + Unpin>(
@@ -268,7 +286,8 @@ async fn read_bounded<R: AsyncRead + Unpin>(
     limit: usize,
 ) -> std::io::Result<(Vec<u8>, bool)> {
     let mut stored = Vec::with_capacity(limit.min(8192));
-    let mut buffer = [0_u8; 8192];
+    // 상위 driver가 여러 command future를 합성해도 stack 크기가 누적되지 않게 한다.
+    let mut buffer = vec![0_u8; 8192];
     let mut truncated = false;
     loop {
         let read = reader.read(&mut buffer).await?;
@@ -440,6 +459,123 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(error.kind, ProcessFailureKind::Cancelled);
+    }
+
+    #[cfg(unix)]
+    async fn descendant_fixture(cancel: bool, parent_exits: bool, abort: bool) {
+        let directory = tempfile::tempdir().unwrap();
+        let pid_file = directory.path().join("descendant.pid");
+        let script = if parent_exits {
+            "sleep 30 & echo $! > descendant.pid; exit 0"
+        } else {
+            "sleep 30 & echo $! > descendant.pid; wait"
+        };
+        let mut plan = shell_plan(script);
+        plan.current_dir = Some(directory.path().to_path_buf());
+        let cancellation = CancellationToken::new();
+        let mut unrelated = Command::new("/bin/sleep")
+            .arg("30")
+            .process_group(0)
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let task = tokio::spawn(run_command(
+            plan,
+            Duration::from_secs(1),
+            cancellation.clone(),
+        ));
+        let pid = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if let Ok(text) = fs::read_to_string(&pid_file)
+                    && let Ok(pid) = text.trim().parse::<i32>()
+                {
+                    break pid;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("fixture must start its descendant");
+        if cancel {
+            cancellation.cancel();
+        }
+        if abort {
+            task.abort();
+        }
+        let result = tokio::time::timeout(Duration::from_secs(3), task).await;
+        let stopped = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let state = std::process::Command::new("ps")
+                    .args(["-p", &pid.to_string(), "-o", "stat="])
+                    .output()
+                    .unwrap();
+                let state = String::from_utf8_lossy(&state.stdout);
+                if state.trim().is_empty() || state.trim().starts_with('Z') {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        if stopped.is_err() {
+            // 테스트 실패 시에도 fixture descendant를 남기지 않는다.
+            unsafe { libc::kill(pid, libc::SIGKILL) };
+        }
+        let unrelated_survived = unrelated.try_wait().unwrap().is_none();
+        unrelated.kill().await.unwrap();
+        assert!(unrelated_survived, "other process groups must survive");
+        assert!(stopped.is_ok(), "owned descendant must stop");
+        let result = result.expect("process and pipe waits must remain bounded");
+        if abort {
+            assert!(result.unwrap_err().is_cancelled());
+        } else {
+            assert_eq!(
+                result.unwrap().unwrap_err().kind,
+                if cancel {
+                    ProcessFailureKind::Cancelled
+                } else {
+                    ProcessFailureKind::Timeout
+                }
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn timeout_stops_descendants_and_preserves_other_process_groups() {
+        descendant_fixture(false, false, false).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cancellation_stops_descendants() {
+        descendant_fixture(true, false, false).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn timeout_covers_pipes_held_after_parent_exit() {
+        descendant_fixture(false, true, false).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dropped_command_future_stops_descendants() {
+        descendant_fixture(false, false, true).await;
+    }
+
+    #[tokio::test]
+    async fn timeout_covers_blocked_stdin() {
+        let mut plan = shell_plan("sleep 30");
+        plan.stdin = Some(vec![b'x'; 1024 * 1024]);
+        let error = tokio::time::timeout(
+            Duration::from_secs(2),
+            run_command(plan, Duration::from_millis(100), CancellationToken::new()),
+        )
+        .await
+        .expect("stdin must not outlive the command deadline")
+        .unwrap_err();
+        assert_eq!(error.kind, ProcessFailureKind::Timeout);
     }
 
     #[tokio::test]

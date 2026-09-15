@@ -30,6 +30,9 @@ tokio = { version = "1.53", features = ["io-util", "macros", "process", "rt-mult
 tokio-util = "0.7"
 uuid = { version = "1.24", features = ["serde", "v4", "v5"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 base64 = "0.22"
 minisign-verify = "0.2.5"
