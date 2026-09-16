@@ -1,9 +1,16 @@
 # Product Roadmap
 
-History pagination은 local 구현·검증을 완료했으며 후속 beta에 아직 배포하지 않았다.
+History pagination을 `v0.9.22`로 배포하고 공개 artifact·native updater·전체 기록 탐색을 검증했다.
 `v0.9.21`의 command timeout 정리와 network mutation 오류 안내 개선을 배포했다.
 `v0.9.20`의 history 선택·키보드 포커스 동기화 수정을 배포했다.
 후속 배포 범위와 재검토 trigger는 아래 P4 조건을 유지한다.
+
+## Follow-up Triggers
+
+- 업데이트 재시작 관찰 중 동시 인스턴스와 registry JSON 손상을 발견했다. 등록 정보는
+  보존된 유효 JSON으로 복구했고 단일 인스턴스 검증을 완료했다. 중복 기동 원인을 확정하지
+  않았으므로 후속 안정성 slice에서 재시작·관찰 도구의 기동 경로와 process 간 registry
+  쓰기 보호를 함께 검토한다. history pagination의 기능 검증과 별도 범위다.
 
 ## P0: Read-only Repository Cockpit Foundation
 

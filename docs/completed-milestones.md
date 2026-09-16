@@ -6,7 +6,7 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
-## History Pagination — local implementation
+## History Pagination — v0.9.22
 
 - 기존 전체 200개 cap을 초기/추가 요청당 200개로 바꾸고 로딩 범위·이전 기록·완료를 구분한다.
   `Show more`/`Show all`과 추가 조회를 분리하며 검색 결과가 없어도 추가 로딩을 제공한다.
@@ -21,9 +21,20 @@ activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolve
   aria-disabled로 해소했다. 후속 scroll guard의 reset 순서 회귀 후보는 layout effect 순서를
   수정하고 검색어 공백 변경 후 선택 행의 가시성과 input focus로 검증했다. 이는 이번 변경의
   회귀 점검이며 기존 history UI 전체에 대한 전수 검토를 의미하지 않는다.
-- 현재 계약은 `docs/ARCHITECTURE.md`의 Projection Cache와 Change History Rendering이 소유한다.
-  자동 무한 로딩, 전체 저장소 검색, cache eviction, 실제 SSH host와 설치된 native beta 검증,
-  package/release는 범위 밖이다. 개별 query budget 초과는 오류로 남기며 전체 완료로 숨기지 않는다.
+- source/tag `d3b6bb0404d67bc114a1d9a67b2d7bd4feb7e89d`의 main/tag CI와 Release가 통과했다.
+  fresh public asset 6개의 checksum·Minisign·ZIP/tar/DMG 내부 app 서명과 rolling manifest를
+  검증했다. release source와 이후 문서 closeout revision은 구분한다.
+- native updater 설치 후 버전·공개 binary 일치·서명을 확인했다. 첫 page 밖의 change
+  검색·선택, 추가 로딩 중 선택 유지와 방향키·Enter focus를 검증했다. 마지막 page까지
+  읽은 결과는 고정 operation의 CLI 전체 결과와 순서·개수가 일치하며 중복이 없었다.
+- 업데이트 재시작 관찰 중 동시 앱 인스턴스와 registry JSON 뒤의 잉여 문자를 발견했다.
+  보존된 유효 JSON으로 모든 등록 정보를 복구하고 단일 인스턴스에서 다시 검증했다.
+  중복 기동 원인은 미확정이다. process 간 registry 쓰기 보호를 구현·검증한 것은 아니며
+  후속 검토는 `docs/roadmap.md`에 남겼다.
+- 현재 계약은 `docs/ARCHITECTURE.md`의 Projection Cache와 Change History Rendering,
+  배포 계약은 `docs/releases/v0.9.22.md`가 소유한다. 자동 무한 로딩, 전체 저장소 검색,
+  cache eviction과 실제 SSH host 검증은 범위 밖이다. 개별 query budget 초과는 오류로
+  남기며 전체 완료로 숨기지 않는다.
 
 ## Command Timeout Recovery — v0.9.21
 
