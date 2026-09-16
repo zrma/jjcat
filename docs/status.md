@@ -2,6 +2,13 @@
 
 ## Current Milestone
 
+History pagination의 로컬 구현을 완료했다. 초기 200개와 요청당 최대 200개로 전체 ancestry를
+탐색하며, 고정 operation과 다중 head/merge 경계를 유지한다. 로딩 범위·종료·filter 범위를
+표시하고 append/동일 operation refresh의 선택·scroll·펼침 및 마지막 page 버튼 focus를
+보존한다. frontend 190 tests, local/simulated-SSH integration과 browser smoke를 검증했다.
+설치된 beta는 여전히 아래 `v0.9.21`이며 이 기능의 package/release/native 설치는 수행하지 않았다.
+
+
 `v0.9.21` Apple Silicon macOS beta를 배포했다. command timeout 처리는 Unix 호출별
 process group과 전체 I/O deadline을 사용한다. timeout·cancel·caller drop에서 소유한
 descendant를 종료하고 기존 공유 SSH master는 보존한다. Fetch와 Push timeout을 구분하며
@@ -87,7 +94,7 @@ notice를 지우지 않게 해 완료된 문구의 영구 잔류를 제거한다
 - 20px dense graph/history row, readable system typography와 high-contrast visual hierarchy
 - flat native-style tabs와 separators, selected-row hierarchy, draggable/resizable desktop shell
 - 전체 commit message/trailer, author/committer, full commit/parent identity를 보여주는 overview
-- 최대 200개/1 MiB graph projection과 분리된 4 MiB selected-change metadata/file detail 조회
+- 초기·추가 요청당 200개/1 MiB graph page과 분리된 4 MiB selected-change metadata/file detail 조회
 - overview와 file-tree/diff를 위아래로 합친 하단 changes inspector, 별도 operations
   inspector와 change metadata search/filter
 - pointer/keyboard로 높이를 조절하고 double-click으로 초기화하는 history/inspector splitter

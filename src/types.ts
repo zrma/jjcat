@@ -201,6 +201,11 @@ export interface WorkspaceRow {
   fileCount: number;
 }
 
+export interface HistoryRequest {
+  operationId: string;
+  loadedCount: number;
+}
+
 export interface RepositoryProjection {
   repositoryId: RepositoryId;
   refreshedAt: string;
@@ -210,6 +215,7 @@ export interface RepositoryProjection {
     supported: boolean;
   };
   changes: ChangeRow[];
+  history?: { operationId: string; hasMore: boolean } | null;
   conflicts: number;
   workingCopyHasChanges: boolean;
   workingCopyFileCount: number;

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { DemoBridge } from "./demo";
 import type {
   AppError,
+  HistoryRequest,
   CachedProjection,
   ChangeRow,
   RegistrySnapshot,
@@ -46,7 +47,7 @@ interface Bridge {
     selectedRepository: string | null,
   ): Promise<RegistrySnapshot>;
   setRepositoryPinned(repositoryId: string, pinned: boolean): Promise<RegistrySnapshot>;
-  refreshRepository(repositoryId: string, requestId: string): Promise<CachedProjection>;
+  refreshRepository(repositoryId: string, requestId: string, historyRequest?: HistoryRequest): Promise<CachedProjection>;
   cancelRefresh(requestId: string): Promise<boolean>;
   loadChangeDetails(
     repositoryId: string,
@@ -148,8 +149,8 @@ class TauriBridge implements Bridge {
     );
   }
 
-  refreshRepository(repositoryId: string, requestId: string) {
-    return invoke<CachedProjection>("refresh_repository", { repositoryId, requestId }).catch(normalizeError);
+  refreshRepository(repositoryId: string, requestId: string, historyRequest?: HistoryRequest) {
+    return invoke<CachedProjection>("refresh_repository", { repositoryId, requestId, historyRequest }).catch(normalizeError);
   }
 
   cancelRefresh(requestId: string) {

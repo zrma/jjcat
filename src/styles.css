@@ -7050,3 +7050,25 @@ body.workspace-resizing {
     animation: none;
   }
 }
+
+.history-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  min-width: 0;
+}
+.history-paging {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 10px;
+  min-height: 28px;
+  border-top: 1px solid var(--border-default);
+  font-size: 11px;
+}
+
+.history-paging button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}

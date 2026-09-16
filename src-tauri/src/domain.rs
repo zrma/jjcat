@@ -573,11 +573,20 @@ pub struct WorkspaceRow {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HistoryState {
+    pub operation_id: String,
+    pub has_more: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RepositoryProjection {
     pub repository_id: RepositoryId,
     pub refreshed_at: String,
     pub capability: JjCapability,
     pub changes: Vec<ChangeRow>,
+    #[serde(default)]
+    pub history: Option<HistoryState>,
     pub conflicts: usize,
     pub working_copy_has_changes: bool,
     #[serde(default)]

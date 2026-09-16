@@ -1254,10 +1254,18 @@ async fn find_cached_revision(
     Ok(repository)
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryRequest {
+    operation_id: String,
+    loaded_count: usize,
+}
+
 #[tauri::command]
 pub async fn refresh_repository(
     repository_id: RepositoryId,
     request_id: String,
+    history_request: Option<HistoryRequest>,
     state: State<'_, AppState>,
 ) -> Result<CachedProjection, AppError> {
     if request_id.trim().is_empty() || request_id.len() > 80 {
@@ -1297,36 +1305,101 @@ pub async fn refresh_repository(
             })?
     };
 
-    let result = state.driver.refresh(&repository, cancellation).await;
+    // cache 저장까지 같은 repository 작업으로 직렬화한다.
+    let result = async {
+        let previous = state
+            .store
+            .lock()
+            .await
+            .load()
+            .map_err(storage_error)?
+            .registry
+            .cached_projections
+            .get(&repository.id)
+            .cloned();
+        let projection = if let Some(request) = history_request {
+            let previous = previous.ok_or_else(stale_history)?;
+            if !history_request_matches(&previous, &request) {
+                return Err(stale_history());
+            }
+            state
+                .driver
+                .load_older_history(&repository, previous.projection, cancellation)
+                .await
+                .map_err(driver_error)?
+        } else {
+            let mut projection = state
+                .driver
+                .refresh(&repository, cancellation)
+                .await
+                .map_err(driver_error)?;
+            if let Some(previous) = previous {
+                preserve_loaded_history(&mut projection, &previous.projection);
+            }
+            projection
+        };
+        let cached = CachedProjection {
+            cached_at: projection.refreshed_at.clone(),
+            projection,
+        };
+        let store = state.store.lock().await;
+        let mut registry = store.load().map_err(storage_error)?.registry;
+        if !registry
+            .repositories
+            .iter()
+            .any(|registered| registered.id == repository.id)
+        {
+            return Err(AppError {
+                kind: AppErrorKind::NotFound,
+                message: "repository was removed while refresh was running".into(),
+            });
+        }
+        registry
+            .cached_projections
+            .insert(repository.id.clone(), cached.clone());
+        store.save(&registry).map_err(storage_error)?;
+        Ok(cached)
+    }
+    .await;
     state
         .active_refreshes
         .lock()
         .await
         .finish(&repository.id, &request_id);
-    let projection = result.map_err(driver_error)?;
-    let cached = CachedProjection {
-        cached_at: projection.refreshed_at.clone(),
-        projection,
-    };
+    result
+}
 
-    let store = state.store.lock().await;
-    let loaded = store.load().map_err(storage_error)?;
-    let mut registry = loaded.registry;
-    if !registry
-        .repositories
-        .iter()
-        .any(|registered| registered.id == repository.id)
-    {
-        return Err(AppError {
-            kind: AppErrorKind::NotFound,
-            message: "repository was removed while refresh was running".into(),
-        });
+fn stale_history() -> AppError {
+    AppError {
+        kind: AppErrorKind::Stale,
+        message: "History changed. Retry using the current history view.".into(),
     }
-    registry
-        .cached_projections
-        .insert(repository.id.clone(), cached.clone());
-    store.save(&registry).map_err(storage_error)?;
-    Ok(cached)
+}
+
+fn history_request_matches(cached: &CachedProjection, request: &HistoryRequest) -> bool {
+    cached
+        .projection
+        .history
+        .as_ref()
+        .is_some_and(|history| history.operation_id == request.operation_id)
+        && cached.projection.changes.len() == request.loaded_count
+}
+
+fn preserve_loaded_history(
+    projection: &mut crate::domain::RepositoryProjection,
+    previous: &crate::domain::RepositoryProjection,
+) {
+    if projection
+        .history
+        .as_ref()
+        .zip(previous.history.as_ref())
+        .is_some_and(|(next, old)| next.operation_id == old.operation_id)
+        && previous.changes.len() >= projection.changes.len()
+    {
+        projection.changes.clone_from(&previous.changes);
+        projection.history.clone_from(&previous.history);
+        projection.conflicts = previous.conflicts;
+    }
 }
 
 #[tauri::command]
@@ -1464,6 +1537,62 @@ fn mutation_validation_error(error: MutationValidationError) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_requests_and_refreshes_respect_snapshot_identity() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/registry-v3.json")).unwrap();
+        let mut cached: CachedProjection = serde_json::from_value(
+            fixture["cachedProjections"]
+                .as_object()
+                .unwrap()
+                .values()
+                .next()
+                .unwrap()
+                .clone(),
+        )
+        .unwrap();
+        cached.projection.changes.push(
+            serde_json::from_value(serde_json::json!({
+                "changeId": "testchange", "commitId": "a".repeat(40), "summary": "fixture",
+                "author": "Fixture Bot", "updatedAt": "2026-01-01T00:00:00Z", "bookmarks": [],
+                "parents": [], "files": [], "conflict": false, "workingCopy": false, "empty": true
+            }))
+            .unwrap(),
+        );
+        cached.projection.history = Some(crate::domain::HistoryState {
+            operation_id: "a".repeat(128),
+            has_more: false,
+        });
+        let request = HistoryRequest {
+            operation_id: "a".repeat(128),
+            loaded_count: cached.projection.changes.len(),
+        };
+        assert!(history_request_matches(&cached, &request));
+        assert!(!history_request_matches(
+            &cached,
+            &HistoryRequest {
+                loaded_count: request.loaded_count + 1,
+                ..request
+            }
+        ));
+        assert!(!history_request_matches(
+            &cached,
+            &HistoryRequest {
+                operation_id: "b".repeat(128),
+                loaded_count: cached.projection.changes.len()
+            }
+        ));
+        let mut refreshed = cached.projection.clone();
+        refreshed.changes.clear();
+        refreshed.history.as_mut().unwrap().has_more = true;
+        preserve_loaded_history(&mut refreshed, &cached.projection);
+        assert_eq!(refreshed, cached.projection);
+        refreshed.history.as_mut().unwrap().operation_id = "b".repeat(128);
+        refreshed.history.as_mut().unwrap().has_more = true;
+        preserve_loaded_history(&mut refreshed, &cached.projection);
+        assert!(refreshed.history.as_ref().unwrap().has_more);
+    }
 
     #[test]
     fn active_refreshes_deduplicate_by_repository_and_request() {

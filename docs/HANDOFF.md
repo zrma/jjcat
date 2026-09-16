@@ -40,7 +40,13 @@
 
 ## Current Work
 
-활성 작업은 없다. `v0.9.21` Apple Silicon macOS beta의 command timeout 처리를
+활성 작업은 없다. History pagination의 local 구현·검증을 완료했다. graph에서 요청당
+200개씩 이전 기록을 읽으며 범위·종료·loaded-only filter를 안내한다. append의 화면 상태와
+마지막 page의 실제 focus를 보존한다. 소유 계약은 `docs/ARCHITECTURE.md`의 Projection Cache와
+Change History Rendering, 검증 범위는 `docs/completed-milestones.md`다. package/release와
+설치된 beta 반영은 수행하지 않았으며 다음 출고 범위로 남아 있다.
+
+`v0.9.21` Apple Silicon macOS beta의 command timeout 처리를
 배포했다. Unix 호출별 process group과 전체 I/O deadline으로 timeout·cancel·caller drop의
 소유 descendant를 정리하고 기존 공유 SSH master를 보존한다. Fetch와 Push timeout을
 구분하며 Push는 remote 결과 확인을 안내한다.

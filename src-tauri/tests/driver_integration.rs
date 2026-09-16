@@ -491,3 +491,152 @@ async fn local_and_simulated_ssh_share_the_projection_contract() {
         ]
     );
 }
+
+#[tokio::test]
+async fn history_pages_cover_all_heads_and_merges_at_a_fixed_operation() {
+    use std::collections::HashSet;
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("history-fixture");
+    fixture_repository(&path);
+    jj(&["bookmark", "create", "base", "-r", "@"], Some(&path));
+    for branch in ["left", "right"] {
+        jj(&["new", "base", "-m", branch], Some(&path));
+        for index in 0..205 {
+            jj(&["new", "-m", "chore: paging fixture"], Some(&path));
+            if branch == "left" && (index == 195 || index == 196) {
+                let repository = RepositoryRecord::new(
+                    "Page boundary fixture",
+                    RepositoryLocation::Local {
+                        path: path.to_string_lossy().into_owned(),
+                    },
+                )
+                .unwrap();
+                let page = JjDriver::default()
+                    .project(&repository, CancellationToken::new())
+                    .await
+                    .unwrap();
+                assert_eq!(page.changes.len(), 200);
+                assert_eq!(page.history.unwrap().has_more, index == 196);
+            }
+        }
+        jj(&["bookmark", "create", branch, "-r", "@"], Some(&path));
+    }
+    jj(
+        &["new", "left", "right", "-m", "feat: merge fixture"],
+        Some(&path),
+    );
+    jj(&["bookmark", "create", "merged", "-r", "@"], Some(&path));
+    jj(
+        &["new", "base", "-m", "feat: independent head"],
+        Some(&path),
+    );
+
+    let fake_ssh = directory.path().join("ssh-fixture");
+    fs::write(
+        &fake_ssh,
+        "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nshift\nexec \"$@\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(&fake_ssh, fs::Permissions::from_mode(0o755)).unwrap();
+    let driver = JjDriver::with_programs("jj".into(), fake_ssh);
+    for remote in [false, true] {
+        let location = if remote {
+            RepositoryLocation::Ssh {
+                host: "fixture-host".into(),
+                path: path.to_string_lossy().into_owned(),
+            }
+        } else {
+            RepositoryLocation::Local {
+                path: path.to_string_lossy().into_owned(),
+            }
+        };
+        let repository = RepositoryRecord::new("History fixture", location).unwrap();
+        let mut projection = driver
+            .refresh(&repository, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(projection.changes.len(), 200);
+        assert!(projection.history.as_ref().unwrap().has_more);
+        let operation = projection.history.as_ref().unwrap().operation_id.clone();
+        let expected = Command::new("jj")
+            .args([
+                "--at-operation",
+                &operation,
+                "--ignore-working-copy",
+                "log",
+                "--no-graph",
+                "-r",
+                "ancestors(visible_heads())",
+                "-T",
+                "commit_id ++ \"\\n\"",
+            ])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        assert!(expected.status.success());
+        let expected: HashSet<String> = String::from_utf8(expected.stdout)
+            .unwrap()
+            .lines()
+            .map(str::to_owned)
+            .collect();
+        assert!(expected.len() > 400);
+        // 첫 조회 후 head를 다시 써도 이어 읽기는 같은 operation의 기록을 조회한다.
+        jj(
+            &["describe", "-m", "feat: rewritten after history snapshot"],
+            Some(&path),
+        );
+        jj(
+            &["new", "-m", "feat: appended after history snapshot"],
+            Some(&path),
+        );
+        let live_operation = current_operation_id(&path);
+        let original = projection.clone();
+        let cancelled = CancellationToken::new();
+        cancelled.cancel();
+        assert!(
+            driver
+                .load_older_history(&repository, projection.clone(), cancelled)
+                .await
+                .is_err()
+        );
+        assert_eq!(projection, original);
+        while projection.history.as_ref().unwrap().has_more {
+            let before = projection.changes.len();
+            let prefix = projection.changes.clone();
+            projection = driver
+                .load_older_history(&repository, projection, CancellationToken::new())
+                .await
+                .unwrap();
+            assert!(projection.changes.len() > before);
+            assert!(projection.changes.len() <= before + 200);
+            assert_eq!(&projection.changes[..before], prefix.as_slice());
+            assert_eq!(projection.history.as_ref().unwrap().operation_id, operation);
+        }
+        let actual: HashSet<String> = projection
+            .changes
+            .iter()
+            .map(|change| change.commit_id.clone())
+            .collect();
+        assert_eq!(
+            actual.len(),
+            projection.changes.len(),
+            "duplicate page rows"
+        );
+        assert_eq!(
+            actual, expected,
+            "history must include every head and merge parent"
+        );
+        assert_eq!(
+            current_operation_id(&path),
+            live_operation,
+            "paging must not mutate repository"
+        );
+        assert_eq!(
+            driver
+                .load_older_history(&repository, projection.clone(), CancellationToken::new())
+                .await
+                .unwrap(),
+            projection
+        );
+    }
+}

@@ -6,6 +6,25 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## History Pagination — local implementation
+
+- 기존 전체 200개 cap을 초기/추가 요청당 200개로 바꾸고 로딩 범위·이전 기록·완료를 구분한다.
+  `Show more`/`Show all`과 추가 조회를 분리하며 검색 결과가 없어도 추가 로딩을 제공한다.
+- local/simulated-SSH에서 400개 초과의 분기·merge 기록을 고정 operation 기준으로 전부 조회했다.
+  정확히 200개/201개 경계, page 사이 head rewrite/new, 중복·누락 없음과 읽기 전용 동작을
+  확인했다. cancellation, stale operation/count 요청과 같은 시점 refresh 보존을 검사했다.
+- frontend 190 tests, Rust 단위·통합과 canonical gate를 통과했다. browser에서 200→400→461개,
+  선택·scroll·펼침 보존, 마지막 page의 keyboard focus와 loaded-only filter 안내를 확인했다.
+  취소 후 cache 보존, 같은 시점 refresh, 키보드 왕복 이동과 검색 결과 0개에서 추가 page를
+  읽은 뒤 나타난 행의 선택·가시성도 확인했다.
+- 독립 focused review는 마지막 page 버튼 제거 시 focus 상실을 지적했다. 버튼 유지와
+  aria-disabled로 해소했다. 후속 scroll guard의 reset 순서 회귀 후보는 layout effect 순서를
+  수정하고 검색어 공백 변경 후 선택 행의 가시성과 input focus로 검증했다. 이는 이번 변경의
+  회귀 점검이며 기존 history UI 전체에 대한 전수 검토를 의미하지 않는다.
+- 현재 계약은 `docs/ARCHITECTURE.md`의 Projection Cache와 Change History Rendering이 소유한다.
+  자동 무한 로딩, 전체 저장소 검색, cache eviction, 실제 SSH host와 설치된 native beta 검증,
+  package/release는 범위 밖이다. 개별 query budget 초과는 오류로 남기며 전체 완료로 숨기지 않는다.
+
 ## Command Timeout Recovery — v0.9.21
 
 - Unix 호출별 process group과 전체 stdin/stdout/stderr deadline으로 timeout·cancel·caller

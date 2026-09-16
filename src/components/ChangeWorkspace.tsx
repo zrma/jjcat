@@ -82,7 +82,15 @@ import {
   saveInspectorHeightRatio,
 } from "../lib/preferences";
 
-interface ChangeWorkspaceProps {
+interface HistoryPagingProps {
+  historyKey: string;
+  historyState?: { operationId: string; hasMore: boolean } | null;
+  loadedCount: number;
+  historyFiltered: boolean;
+  onLoadOlder: () => void;
+}
+
+interface ChangeWorkspaceProps extends HistoryPagingProps {
   repositoryId: string;
   changes: ChangeRow[];
   selectedChange?: ChangeRow;
@@ -135,6 +143,11 @@ const SPLITTER_SIZE = 5;
 const SPLITTER_KEY_STEP = 24;
 
 export function ChangeWorkspace({
+  historyKey,
+  historyState,
+  loadedCount,
+  historyFiltered,
+  onLoadOlder,
   repositoryId,
   changes,
   selectedChange,
@@ -323,6 +336,11 @@ export function ChangeWorkspace({
   return (
     <div className="content-grid" ref={contentGridRef} style={gridStyle}>
       <ChangeLog
+        historyKey={historyKey}
+        historyState={historyState}
+        loadedCount={loadedCount}
+        historyFiltered={historyFiltered}
+        onLoadOlder={onLoadOlder}
         changes={changes}
         compactHistory={compactHistory}
         selected={selectedChange?.changeId}
@@ -660,6 +678,11 @@ function WorkingCopyWorkspace({
 }
 
 function ChangeLog({
+  historyKey,
+  historyState,
+  loadedCount,
+  historyFiltered,
+  onLoadOlder,
   changes,
   compactHistory,
   selected,
@@ -668,7 +691,7 @@ function ChangeLog({
   rebaseSourceCommitId,
   onOpenActionMenu,
   onLaunchMutation,
-}: {
+}: HistoryPagingProps & {
   changes: ChangeRow[];
   compactHistory: boolean;
   selected?: string;
@@ -681,7 +704,7 @@ function ChangeLog({
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
   const [revealedChangeIds, setRevealedChangeIds] = useState<Set<string>>(new Set());
-  const historyIdentity = `${changes[0]?.commitId ?? ""}:${changes.at(-1)?.commitId ?? ""}:${changes.length}`;
+  const previousHistory = useRef({ key: historyKey, loadedCount, selected, index: -1 });
   const foldItems = useMemo(
     () =>
       foldHistory(
@@ -717,19 +740,26 @@ function ChangeLog({
     const observer = new ResizeObserver(updateHeight);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [changes.length === 0]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = scrollRef.current;
     if (element) element.scrollTop = 0;
     setViewport((current) => ({ ...current, scrollTop: 0 }));
     setRevealedChangeIds(new Set());
-  }, [historyIdentity]);
+  }, [historyKey]);
 
   useLayoutEffect(() => {
+    const previous = previousHistory.current;
     const index = foldItems.findIndex(
       (item) => item.kind === "change" && item.change.changeId === selected,
     );
+    previousHistory.current = { key: historyKey, loadedCount, selected, index };
+    // append와 같은 시점의 refresh는 사용자가 스크롤한 위치를 보존한다.
+    if (
+      previous.key === historyKey && previous.selected === selected &&
+      (loadedCount > previous.loadedCount || previous.index === index)
+    ) return;
     const element = scrollRef.current;
     if (!element || index < 0) return;
     const rowTop = HISTORY_HEADER_HEIGHT + index * HISTORY_ROW_HEIGHT;
@@ -744,7 +774,7 @@ function ChangeLog({
     setViewport((current) => current.scrollTop === scrollTop
       ? current
       : { ...current, scrollTop });
-  }, [foldItems, selected]);
+  }, [foldItems, selected, historyKey, loadedCount]);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -755,76 +785,104 @@ function ChangeLog({
     element.querySelector<HTMLElement>(".change-row.selected")?.focus({ preventScroll: true });
   }, [foldItems, selected, viewport.scrollTop, viewport.height]);
 
+  const paging = (
+    <div className="history-paging">
+      <span role="status">
+        {loadedCount} changes loaded · {historyState
+          ? historyState.hasMore ? "Older history available" : "All history loaded"
+          : "Refresh to check older history"}
+        {historyFiltered && " · Filtering loaded changes only"}
+      </span>
+      {historyState && (
+        <button
+          type="button"
+          aria-disabled={refreshing || !historyState.hasMore}
+          onClick={() => {
+            if (!refreshing && historyState.hasMore) onLoadOlder();
+          }}
+        >
+          {refreshing ? "Loading…" : historyState.hasMore ? "Load older history" : "End of history"}
+        </button>
+      )}
+    </div>
+  );
+
   if (changes.length === 0) {
     return (
-      <section className="change-log empty-log">
-        {refreshing ? <CliSpinner /> : <FolderGit2 aria-hidden="true" />}
-        <h2>No matching changes</h2>
-        <p>
-          {refreshing
-            ? "Reading the repository…"
-            : "Refresh the repository or change the current history filter."}
-        </p>
-      </section>
+      <div className="history-panel">
+        <section className="change-log empty-log">
+          {refreshing ? <CliSpinner /> : <FolderGit2 aria-hidden="true" />}
+          <h2>No matching changes</h2>
+          <p>
+            {refreshing
+              ? "Reading the repository…"
+              : "Refresh the repository or change the current history filter."}
+          </p>
+        </section>
+      {paging}
+      </div>
     );
   }
 
   return (
-    <section
-      className="change-log"
-      aria-label="Change history"
-      aria-rowcount={foldItems.length}
-      data-keyboard-navigation="graph"
-      tabIndex={-1}
-      ref={scrollRef}
-      style={graphStyle}
-      onPointerDown={(event) => {
-        const target = event.target;
-        if (
-          target instanceof Element &&
-          target.closest(
-            ".change-row, button, input, select, textarea, summary, a",
-          )
-        ) {
-          return;
-        }
-        event.currentTarget.focus({ preventScroll: true });
-      }}
-      onScroll={(event) => {
-        const scrollTop = event.currentTarget.scrollTop;
-        setViewport((current) => ({ ...current, scrollTop }));
-      }}
-    >
-      <div className="log-header" aria-hidden="true">
-        <span className="col-graph" />
-        <span className="col-change">Change</span>
-        <span className="col-refs">Refs</span>
-        <span className="col-description">Description</span>
-        <span className="col-author">Author</span>
-        <span className="col-commit">Commit</span>
-        <span className="col-updated">Updated</span>
-      </div>
-      <ChangeRows
-        changes={changes}
-        items={foldItems}
-        dagRows={dag.rows}
-        dagWidth={dagWidth}
-        selected={selected}
-        onSelect={onSelect}
-        virtualized={virtualized}
-        viewportHeight={viewport.height}
-        scrollTop={viewport.scrollTop}
-        scrollContainerRef={scrollRef}
-        rebaseSourceCommitId={rebaseSourceCommitId}
-        onOpenActionMenu={onOpenActionMenu}
-        onLaunchMutation={onLaunchMutation}
-        onRevealGap={(id, count) => {
-          const fold = foldItems.find((item) => item.kind === "fold" && item.id === id);
-          if (fold?.kind !== "fold") return;
-          setRevealedChangeIds((current) => revealHistoryFold(changes, current, fold, count));
+    <div className="history-panel">
+      <section
+        className="change-log"
+        aria-label="Change history"
+        aria-rowcount={foldItems.length}
+        data-keyboard-navigation="graph"
+        tabIndex={-1}
+        ref={scrollRef}
+        style={graphStyle}
+        onPointerDown={(event) => {
+          const target = event.target;
+          if (
+            target instanceof Element &&
+            target.closest(
+              ".change-row, button, input, select, textarea, summary, a",
+            )
+          ) {
+            return;
+          }
+          event.currentTarget.focus({ preventScroll: true });
         }}
-      />
-    </section>
+        onScroll={(event) => {
+          const scrollTop = event.currentTarget.scrollTop;
+          setViewport((current) => ({ ...current, scrollTop }));
+        }}
+      >
+        <div className="log-header" aria-hidden="true">
+          <span className="col-graph" />
+          <span className="col-change">Change</span>
+          <span className="col-refs">Refs</span>
+          <span className="col-description">Description</span>
+          <span className="col-author">Author</span>
+          <span className="col-commit">Commit</span>
+          <span className="col-updated">Updated</span>
+        </div>
+        <ChangeRows
+          changes={changes}
+          items={foldItems}
+          dagRows={dag.rows}
+          dagWidth={dagWidth}
+          selected={selected}
+          onSelect={onSelect}
+          virtualized={virtualized}
+          viewportHeight={viewport.height}
+          scrollTop={viewport.scrollTop}
+          scrollContainerRef={scrollRef}
+          rebaseSourceCommitId={rebaseSourceCommitId}
+          onOpenActionMenu={onOpenActionMenu}
+          onLaunchMutation={onLaunchMutation}
+          onRevealGap={(id, count) => {
+            const fold = foldItems.find((item) => item.kind === "fold" && item.id === id);
+            if (fold?.kind !== "fold") return;
+            setRevealedChangeIds((current) => revealHistoryFold(changes, current, fold, count));
+          }}
+        />
+      </section>
+      {paging}
+    </div>
   );
 }
 

@@ -221,3 +221,22 @@ describe("history expansion navigation", () => {
     expect(ids(rows(0, reset))).toEqual(["change-0", "change-1", "change-2"]);
   });
 });
+
+
+describe("history page append", () => {
+  it("preserves explicit rows and their display positions when older rows arrive", () => {
+    const pages = Array.from({ length: 400 }, (_, index) =>
+      change(`change-${index}`, { workingCopy: index === 0 }),
+    );
+    const first = pages.slice(0, 200);
+    const fold = foldHistory(first, "change-0", new Set()).find(item => item.kind === "fold")!;
+    if (fold.kind !== "fold") throw new Error("fixture needs a folded interval");
+    const revealed = revealHistoryFold(first, new Set(), fold, fold.totalCount);
+    const before = foldHistory(first, "change-199", revealed);
+    const after = foldHistory(pages, "change-199", revealed);
+    const rowPositions = (items: ReturnType<typeof foldHistory>) => items.flatMap((item, index) =>
+      item.kind === "change" && item.sourceIndex < 200 ? [{ id: item.change.changeId, index }] : []);
+    expect(rowPositions(after)).toEqual(rowPositions(before));
+    expect(after.some(item => item.kind === "fold" && item.hiddenCount > 0)).toBe(true);
+  });
+});

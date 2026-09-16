@@ -1,5 +1,6 @@
 # Product Roadmap
 
+History pagination은 local 구현·검증을 완료했으며 후속 beta에 아직 배포하지 않았다.
 `v0.9.21`의 command timeout 정리와 network mutation 오류 안내 개선을 배포했다.
 `v0.9.20`의 history 선택·키보드 포커스 동기화 수정을 배포했다.
 후속 배포 범위와 재검토 trigger는 아래 P4 조건을 유지한다.
@@ -26,6 +27,7 @@
 - [x] waiting activity와 실제 failure warning을 분리하는 semantic progress feedback
 - [x] local/remote editor 및 terminal open action
 - [x] bounded change-history virtualization spike
+- [x] operation을 고정한 200개 단위 history 추가 로딩, 범위 안내와 화면 상태 보존
 
 ## P2: Graph And Diff
 

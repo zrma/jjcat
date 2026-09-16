@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::domain::{
     BookmarkRef, ChangeRow, ChangedFile, DiffHunk, DiffLine, DiffLineKind, FileAnnotationLine,
-    FileDiffProjection, FileHistoryEntry, FileTimelineProjection, JjCapability,
+    FileDiffProjection, FileHistoryEntry, FileTimelineProjection, HistoryState, JjCapability,
     OperationLogProjection, OperationRow, RemoteDirectoryListing, RepositoryLocation,
     RepositoryProjection, RepositoryRecord, RevisionFileProjection, RevisionTreeEntry,
     RevisionTreeProjection, SyncStatus, WhitespaceMode, WorkspaceRow,
@@ -31,7 +31,8 @@ const REVISION_TREE_OUTPUT_LIMIT: usize = 4 * 1024 * 1024;
 const REVISION_FILE_OUTPUT_LIMIT: usize = 512 * 1024;
 const FILE_HISTORY_OUTPUT_LIMIT: usize = 1024 * 1024;
 const FILE_ANNOTATION_OUTPUT_LIMIT: usize = 4 * 1024 * 1024;
-const HISTORY_CHANGE_LIMIT: &str = "200";
+const HISTORY_PAGE_SIZE: usize = 200;
+const HISTORY_QUERY_LIMIT: &str = "201";
 const FILE_HISTORY_LIMIT: &str = "200";
 const NETWORK_REMOTE_HEADS: &str = r#"remote_bookmarks(remote=~exact:"git")"#;
 const OUTGOING_REVISIONS: &str = r#"remote_bookmarks(remote=~exact:"git")..bookmarks()"#;
@@ -220,6 +221,9 @@ impl JjDriver {
                 .await?;
         }
 
+        let operation_id = self
+            .current_operation_id(repository, cancellation.child_token())
+            .await?;
         let (
             log_output,
             working_copy_files,
@@ -229,7 +233,14 @@ impl JjDriver {
             outgoing,
             behind,
         ) = tokio::try_join!(
-            self.run_query(repository, JjQuery::Log, cancellation.child_token()),
+            self.run_query(
+                repository,
+                JjQuery::Log {
+                    operation_id: operation_id.clone(),
+                    revset: "ancestors(visible_heads())".into()
+                },
+                cancellation.child_token()
+            ),
             self.run_query(
                 repository,
                 JjQuery::WorkingCopyFileCount,
@@ -257,7 +268,9 @@ impl JjDriver {
                 cancellation.child_token()
             ),
         )?;
-        let changes = parse_log(&log_output.stdout)?;
+        let mut changes = parse_log(&log_output.stdout)?;
+        let has_more = changes.len() > HISTORY_PAGE_SIZE;
+        changes.truncate(HISTORY_PAGE_SIZE);
         let conflicts = changes.iter().filter(|change| change.conflict).count();
         let working_copy_has_changes = changes
             .iter()
@@ -284,12 +297,69 @@ impl JjDriver {
                 .unwrap_or_else(|_| "unknown".into()),
             capability,
             changes,
+            history: Some(HistoryState {
+                operation_id,
+                has_more,
+            }),
             conflicts,
             working_copy_has_changes,
             working_copy_file_count,
             workspaces,
             sync_status,
         })
+    }
+
+    pub async fn load_older_history(
+        &self,
+        repository: &RepositoryRecord,
+        mut projection: RepositoryProjection,
+        cancellation: CancellationToken,
+    ) -> Result<RepositoryProjection, DriverError> {
+        repository
+            .validate()
+            .map_err(|error| invalid_output(&error.to_string()))?;
+        let history = projection.history.as_ref().ok_or_else(|| {
+            invalid_output("Refresh the repository before loading older history.")
+        })?;
+        if !history.has_more {
+            return Ok(projection);
+        }
+        let revset = remaining_history_revset(&projection.changes)?;
+        if history.operation_id.len() != 128
+            || !history
+                .operation_id
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(invalid_output(
+                "Invalid history operation ID. Refresh the repository.",
+            ));
+        }
+        let output = self
+            .run_query(
+                repository,
+                JjQuery::Log {
+                    operation_id: history.operation_id.clone(),
+                    revset,
+                },
+                cancellation,
+            )
+            .await?;
+        let mut changes = parse_log(&output.stdout)?;
+        let has_more = changes.len() > HISTORY_PAGE_SIZE;
+        changes.truncate(HISTORY_PAGE_SIZE);
+        projection.changes.extend(changes);
+        projection
+            .history
+            .as_mut()
+            .expect("history checked above")
+            .has_more = has_more;
+        projection.conflicts = projection
+            .changes
+            .iter()
+            .filter(|change| change.conflict)
+            .count();
+        Ok(projection)
     }
 
     pub async fn list_remote_directories(
@@ -1226,6 +1296,44 @@ pub struct MutationContext {
     pub workspace_commit_id: Option<String>,
 }
 
+// 읽은 집합은 topological prefix다. 가장 오래된 경계의 descendants만 제외하면
+// 아직 읽지 않은 다른 head와 merge parent를 유지하면서 짧은 revset으로 이어 읽는다.
+fn remaining_history_revset(changes: &[ChangeRow]) -> Result<String, DriverError> {
+    let loaded: HashSet<&str> = changes
+        .iter()
+        .map(|change| change.commit_id.as_str())
+        .collect();
+    if loaded.is_empty()
+        || loaded
+            .iter()
+            .any(|id| id.len() != 40 || !id.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    {
+        return Err(invalid_output(
+            "Invalid history boundary. Refresh the repository.",
+        ));
+    }
+    let boundary: Vec<&str> = changes
+        .iter()
+        .filter(|change| {
+            !change
+                .parent_commit_ids
+                .iter()
+                .any(|parent| loaded.contains(parent.as_str()))
+        })
+        .map(|change| change.commit_id.as_str())
+        .collect();
+    let revset = format!(
+        "ancestors(visible_heads()) ~ descendants({})",
+        boundary.join("|")
+    );
+    if boundary.is_empty() || revset.len() > 64 * 1024 {
+        return Err(invalid_output(
+            "History frontier exceeds the safe query budget.",
+        ));
+    }
+    Ok(revset)
+}
+
 fn ssh_arguments(host: &str) -> Vec<OsString> {
     vec![
         OsString::from("-o"),
@@ -1254,9 +1362,11 @@ fn remote_script(path: &str, query: JjQuery) -> String {
         JjQuery::Snapshot => {
             "exec \"$jj_bin\" --repository \"$repo\" log --no-graph --color never -r @ -T '\"\"'".into()
         }
-        JjQuery::Log => format!(
-            "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r 'ancestors(visible_heads())' -n {HISTORY_CHANGE_LIMIT} -T '{LOG_TEMPLATE}'"
-        ),
+        JjQuery::Log { operation_id, revset } => {
+            let operation = encode_hex(&operation_id);
+            let revisions = encode_hex(&revset);
+            format!("operation=$(decode_hex '{operation}')\nrevisions=$(decode_hex '{revisions}')\nexec \"$jj_bin\" --repository \"$repo\" --at-operation \"$operation\" --ignore-working-copy log --no-graph --color never -r \"$revisions\" -n {HISTORY_QUERY_LIMIT} -T '{LOG_TEMPLATE}'")
+        }
         JjQuery::WorkingCopyFileCount => {
             "exec \"$jj_bin\" --repository \"$repo\" --ignore-working-copy log --no-graph --color never -r @ -T 'self.diff().files().len() ++ \"\\n\"'".into()
         }
@@ -1552,7 +1662,10 @@ fn remote_directory_script(path: &str) -> String {
 enum JjQuery {
     Version,
     Snapshot,
-    Log,
+    Log {
+        operation_id: String,
+        revset: String,
+    },
     WorkingCopyFileCount,
     Workspaces,
     WorkspaceRoot,
@@ -1614,7 +1727,7 @@ impl JjQuery {
         match self {
             Self::Version => "jj version probe",
             Self::Snapshot => "working copy snapshot",
-            Self::Log => "history projection",
+            Self::Log { .. } => "history projection",
             Self::WorkingCopyFileCount => "working copy file count",
             Self::Workspaces => "workspace inventory",
             Self::WorkspaceRoot => "current workspace root",
@@ -1651,16 +1764,21 @@ impl JjQuery {
             .into_iter()
             .map(OsString::from)
             .collect(),
-            Self::Log => [
+            Self::Log {
+                operation_id,
+                revset,
+            } => [
+                "--at-operation",
+                operation_id,
                 "--ignore-working-copy",
                 "log",
                 "--no-graph",
                 "--color",
                 "never",
                 "-r",
-                "ancestors(visible_heads())",
+                revset,
                 "-n",
-                HISTORY_CHANGE_LIMIT,
+                HISTORY_QUERY_LIMIT,
                 "-T",
                 LOG_TEMPLATE,
             ]
@@ -3062,12 +3180,15 @@ mod tests {
         assert!(CHANGE_DETAILS_TEMPLATE.contains("self.tags()"));
         assert!(CHANGE_DETAILS_TEMPLATE.contains("f.path()"));
         assert!(CHANGE_DETAILS_TEMPLATE.contains("f.display_diff_path()"));
-        let args = JjQuery::Log
-            .args()
-            .into_iter()
-            .map(|argument| argument.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
-        assert!(args.windows(2).any(|pair| pair == ["-n", "200"]));
+        let args = JjQuery::Log {
+            operation_id: "a".repeat(128),
+            revset: "ancestors(visible_heads())".into(),
+        }
+        .args()
+        .into_iter()
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+        assert!(args.windows(2).any(|pair| pair == ["-n", "201"]));
         assert!(
             args.windows(2)
                 .any(|pair| pair == ["-r", "ancestors(visible_heads())"])

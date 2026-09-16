@@ -1,3 +1,4 @@
+import type { HistoryRequest } from "./types";
 import {
   useCallback,
   useEffect,
@@ -728,6 +729,7 @@ function App() {
       repositoryId: string,
       cancelActive = true,
       category: ActivityCategory = "user",
+      historyRequest?: HistoryRequest,
     ) => {
       if (!registry) return;
       const activeRequest = refreshingRef.current[repositoryId];
@@ -755,8 +757,8 @@ function App() {
       const activityId = startActivity({
         repositoryId,
         repositoryName: repository.displayName,
-        title: "Refresh repository",
-        detail: "Refresh the local repository projection",
+        title: historyRequest ? "Load older history" : "Refresh repository",
+        detail: historyRequest ? "Load the next 200 changes" : "Refresh the local repository projection",
         category,
         cancellable: true,
         requestId,
@@ -775,7 +777,7 @@ function App() {
         return next;
       });
       try {
-        const cached = await bridge.refreshRepository(repositoryId, requestId);
+        const cached = await bridge.refreshRepository(repositoryId, requestId, historyRequest);
         setRegistry((current) =>
           current
             ? {
@@ -2374,6 +2376,17 @@ function App() {
             <ChangeWorkspace
               repositoryId={selectedRepository.id}
               changes={visibleChanges}
+              historyKey={`${selectedRepository.id}:${selectedProjection?.history?.operationId ?? "legacy"}:${historyView}:${searchQuery}`}
+              historyState={selectedProjection?.history}
+              loadedCount={selectedProjection?.changes.length ?? 0}
+              historyFiltered={historyView !== "all" || searchQuery.trim().length > 0}
+              onLoadOlder={() => {
+                const history = selectedProjection?.history;
+                if (history?.hasMore) void refreshRepository(selectedRepository.id, false, "user", {
+                  operationId: history.operationId,
+                  loadedCount: selectedProjection?.changes.length ?? 0,
+                });
+              }}
               selectedChange={selectedChange}
               workingCopyMode={historyView === "working-copy"}
               compactHistory={

@@ -112,9 +112,20 @@ plain `jj` CLI만으로 안정적인 projection을 만들 수 없다는 evidence
 
 선택한 저장소의 last-known status, graph와 revision detail을 즉시 표시한다. stale state를
 명확히 표시하고 refresh 결과와 섞어 현재 상태처럼 보이지 않게 한다.
-graph projection은 visible head의 ancestor 중 최근 최대 200개 change만 topology,
-description, identity, bookmark와 tag의 bounded JSONL로 읽고 change별 changed-file 목록은 포함하지
-않는다. 선택한 revision은 별도 bounded query로 동일 identity를 재검증하면서 changed-file
+graph projection은 visible head의 ancestor를 최초 200개, 명시적 추가 요청당 최대 200개씩
+topology, description, identity, bookmark와 tag의 bounded JSONL로 읽는다. 전체 탐색 개수나
+날짜 상한은 두지 않으며 change별 changed-file 목록은 포함하지 않는다. 201번째 sentinel로
+다음 page 존재를 확인하므로 전체 개수를 계산하지 않는다. history의 operation ID를 고정하고
+이미 읽은 topological prefix의 가장 오래된 경계에서 descendants를 제외해 다음 page를
+조회한다. 마지막 행의 조상만 추적하지 않으므로 다른 visible head와 merge parent도 유지한다.
+local argv와 SSH stdin은 같은 조회 계약을 사용한다. page당 1 MiB 출력, 기존 timeout/cancel과
+64 KiB frontier revset 예산을 유지한다. 제한·조회 실패는 기존 cache를 보존하며 전체 완료로
+표시하지 않는다. 극단적으로 넓은 frontier의 추가 축약과 대규모 cache eviction은 별도 개선이다.
+사용자 요청으로 로딩한 행만 누적하며 cache와 DAG 계산 비용은 누적 행 수에 비례해 증가한다.
+추가 요청은 operation ID와 현재 로딩 개수가 cache와 같은지 확인하며 cache 저장까지 refresh와
+mutation에 대해 직렬화한다. 같은 operation의 refresh는 누적 history를 보존하고 새 operation은
+새 첫 page로 교체한다. operation이 정리되어 이어 읽을 수 없으면 refresh로 새 시점에서 시작한다.
+ 선택한 revision은 별도 bounded query로 동일 identity를 재검증하면서 changed-file
 metadata를 읽는다. commit trailer는 description의 일부로 그대로 보존하며 source file
 content는 포함하지 않는다. 이 row/file 분리는 visible head나 파일 수가 큰 repository가 전체
 graph refresh의 1 MiB capture budget을 소진하지 않게 한다. 선택 detail의 metadata capture도
@@ -154,10 +165,15 @@ tag와 conflict를 reference anchor로 삼고 각 anchor의 인접 change를 기
 전체를 펼치거나 다시 접을 수 있다. 명시적으로 펼친 change ID는 selection·scroll 이동과
 독립적으로 유지한다. 숨긴 change를 선택하면 그 인접 행만 임시 노출하고 기존 펼침은
 보존한다. 떨어진 펼침 구간 사이의 fold row는 실제 숨긴 위치를 유지하며 Collapse는 해당
-control 구간의 명시적 펼침만 해제한다. history identity 변경 시 초기화하는 기존 정책과
-restart 간 펼침 상태를 저장하지 않는 경계는 유지한다.
+control 구간의 명시적 펼침만 해제한다. repository·operation·filter가 변경되면 화면 상태를 재설정하되 선택 행을 다시 노출한다.
+page append와 동일 operation refresh는 선택·scroll·명시적 펼침을 보존한다. 펼침 상태를
+restart 사이에 저장하지 않는 경계는 유지한다. graph 하단의 `Load older history`는 데이터
+조회이며 구간의 `Show more`/`Show all`은 이미 로딩한 행의 펼침이다. footer는 로딩 개수와
+이전 기록 존재/전체 완료를 표시하고 filter는 로딩된 행만 대상으로 함을 안내한다. 결과가
+없는 filter에서도 추가 로딩 control을 제공한다. 로딩 중과 마지막 page 이후에도 같은 버튼을
+유지하고 aria-disabled로 요청을 막아 실제 keyboard focus를 보존한다.
 search와 dedicated conflict view는 일치 항목을 숨기지
-않으며 selection과 normal-state DAG layout은 원본 bounded projection을 기준으로 계산한다.
+않으며 selection과 normal-state DAG layout은 현재 로딩된 projection을 기준으로 계산한다.
 rebase preview는 source와 destination을 임시 anchor로 노출한 뒤 제안 parent relation에 맞춘
 stable topological order를 별도 display projection으로 사용한다.
 repository rail은 선택할 때 바뀌는 recent ordering을 만들지 않고 pinned/local/SSH grouping의

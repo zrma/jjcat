@@ -1,5 +1,6 @@
 import type {
   AppError,
+  HistoryRequest,
   BookmarkRef,
   CachedProjection,
   RegistrySnapshot,
@@ -76,8 +77,8 @@ function change(
   };
 }
 
-function projection(repositoryId: string, cachedAt: string): CachedProjection {
-  const fixtureHistory = Array.from({ length: 153 }, (_, index) => {
+function projection(repositoryId: string, cachedAt: string, limit = 200): CachedProjection {
+  const fixtureHistory = Array.from({ length: 453 }, (_, index) => {
     const sequence = index + 16;
     const changeId = sequence.toString(16).padStart(12, "0");
     const commitId = (sequence + 4_096).toString(16).padStart(12, "0");
@@ -93,7 +94,7 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
           ? "000000000000"
           : index === 103
             ? (sequence + 2).toString(16).padStart(12, "0")
-          : index === 152
+          : index === 452
             ? "000000000000"
             : (sequence + 1).toString(16).padStart(12, "0"),
       ],
@@ -172,7 +173,8 @@ function projection(repositoryId: string, cachedAt: string): CachedProjection {
         minimumVersion: "0.30.0",
         supported: true,
       },
-      changes: rows,
+      changes: rows.slice(0, limit),
+      history: { operationId: "demo-history", hasMore: rows.length > limit },
       conflicts: 1,
       workingCopyHasChanges: true,
       workingCopyFileCount: 3,
@@ -1059,7 +1061,7 @@ export class DemoBridge {
     return this.loadRegistry();
   }
 
-  async refreshRepository(repositoryId: string, requestId: string) {
+  async refreshRepository(repositoryId: string, requestId: string, historyRequest?: HistoryRequest) {
     const controller = new AbortController();
     this.active.set(requestId, controller);
     await new Promise<void>((resolve, reject) => {
@@ -1077,6 +1079,15 @@ export class DemoBridge {
     const cached = this.snapshot.registry.cachedProjections[repositoryId];
     if (!cached) {
       throw { kind: "notFound", message: "Repository projection is missing." } satisfies AppError;
+    }
+    if (historyRequest) {
+      if (cached.projection.history?.operationId !== historyRequest.operationId || cached.projection.changes.length !== historyRequest.loadedCount) {
+        throw { kind: "stale", message: "History changed. Retry using the current history view." } satisfies AppError;
+      }
+      const next = projection(repositoryId, cached.cachedAt, historyRequest.loadedCount + 200).projection;
+      cached.projection.changes.push(...next.changes.slice(historyRequest.loadedCount));
+      cached.projection.history = next.history;
+      return structuredClone(cached);
     }
     const refreshedAt = new Date().toISOString();
     cached.cachedAt = refreshedAt;
