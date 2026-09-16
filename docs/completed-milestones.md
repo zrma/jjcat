@@ -6,6 +6,34 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## State Safety And Full History Expansion — v0.9.23
+
+- macOS 동시 cold launch에서 기본 plugin의 비동기 socket bind 경쟁을 재현했다. registry
+  잠금은 손상을 막았지만 후속 실행의 기존 창 전달이 실패해, process lease 확보 후 socket
+  정리·동기 bind를 수행하도록 보완했다. 시작/종료 owner는 최대 5초 기다리고 Exit에서
+  알림 경로를 정리한 뒤 process 종료 때 lease를 해제한다.
+- registry는 setup에서 별도 OS 배타 잠금을 확보한다. 경쟁 읽기·corrupt recovery·쓰기 거절,
+  process 강제 종료 후 소유권 재획득, 긴 JSON 뒤 짧은 저장의 완전성을 검증했다. 저장은
+  고유 임시 파일 sync·atomic replace와 Unix directory sync를 사용한다.
+- 선택 주변 임시 행이 원래 구간에서 빠져 있던 전체 펼침 검증 누락을 보완했다. `Show all`은
+  reference 사이의 원래 구간 전체를 명시적으로 펼친다. 양쪽 control에서 펼치기, 선택 경계
+  왕복, 다른 구간의 부분 펼침과 Collapse 보존을 검사했다.
+- frontend 194 tests, Rust 단위 97 tests, local/SSH 통합과 canonical gate를 통과했다.
+  browser에서 임시 선택 anchor 상태의 Show all 후 행 수·펼침 label·focus 보존을 확인했다.
+  격리 native bundle에서 동시 시작·후속 실행·종료/재기동을 세 차례 반복해 하나의 owner와
+  등록 정보 보존을 확인했다.
+- 독립 focused review의 history 합성 416개 조합은 통과했다. 새 native 구현의 accept 오류
+  처리에서 listener가 영구 종료되는 회귀를 찾아 재시도로 수정했다. 별도 process의 FD 한도를
+  제한해 실제 오류를 확인하고 자원 복구 후 후속 알림이 수신되는 회귀 테스트로 닫았다.
+- source/tag `beb1af4a20d6cbef1d638c409acd53a43d021a3a`의 main/tag CI와 Release가 통과했다.
+  fresh public asset 6개·checksum·Minisign·ZIP/tar/DMG app 서명·rolling manifest를 검증했다.
+  updater 설치 뒤 버전·공개 binary 일치·서명, registry 보존과 실제 앱의 전체 펼침 경계
+  왕복·중복 실행을 확인했다. 이후 문서 closeout revision은 release source와 구분한다.
+- 이전 앱은 새 잠금에 참여하지 않는다. 신·구 버전 동시 실행, 다른 OS native 동작과 전원
+  차단 fault injection은 검증 범위 밖이다. 원래 재시작 중복 기동의 외부 trigger는 확정하지
+  않았으나 재현한 동시 시작 경쟁과 등록 파일 보호는 위 evidence로 검증했다.
+- 계약은 `docs/ARCHITECTURE.md`, 배포 경계는 `docs/releases/v0.9.23.md`가 소유한다.
+
 ## History Pagination — v0.9.22
 
 - 기존 전체 200개 cap을 초기/추가 요청당 200개로 바꾸고 로딩 범위·이전 기록·완료를 구분한다.
@@ -30,7 +58,7 @@ activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolve
 - 업데이트 재시작 관찰 중 동시 앱 인스턴스와 registry JSON 뒤의 잉여 문자를 발견했다.
   보존된 유효 JSON으로 모든 등록 정보를 복구하고 단일 인스턴스에서 다시 검증했다.
   중복 기동 원인은 미확정이다. process 간 registry 쓰기 보호를 구현·검증한 것은 아니며
-  후속 검토는 `docs/roadmap.md`에 남겼다.
+  후속 보호는 위 `v0.9.23`에서 구현·검증했다.
 - 현재 계약은 `docs/ARCHITECTURE.md`의 Projection Cache와 Change History Rendering,
   배포 계약은 `docs/releases/v0.9.22.md`가 소유한다. 자동 무한 로딩, 전체 저장소 검색,
   cache eviction과 실제 SSH host 검증은 범위 밖이다. 개별 query budget 초과는 오류로

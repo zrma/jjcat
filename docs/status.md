@@ -2,22 +2,21 @@
 
 ## Current Milestone
 
-`v0.9.23` Apple Silicon macOS beta 출고를 검증 중이다. 등록 정보 배타 소유와 전체 펼침 보존을
-수정했으며 공개 artifact·updater 설치 검증 후 종료한다.
+`v0.9.23` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 현재 active
+milestone은 없다. macOS 동시 시작은 application data별 process lease와 동기 socket bind로
+하나의 owner를 유지하며 후속 실행은 기존 창을 활성화한다. registry는 별도 OS 잠금과
+고유 임시 파일의 atomic replace로 보호한다. 이전 버전과의 동시 실행은 지원하지 않는다.
 
-`v0.9.22` Apple Silicon macOS beta를 배포하고 native updater로 설치했다. 활성 작업은
-`docs/todo-state-safety-v0-9-23/spec.md`의 재발 방지와 전체 펼침 수정이다. 초기 200개와 요청당 최대 200개로 전체 ancestry를 탐색하며 고정 operation과
-다중 head/merge 경계를 유지한다. 로딩 범위·종료·filter 범위를 표시하고 append/동일 operation
-refresh의 선택·scroll·펼침 및 마지막 page 버튼 focus를 보존한다.
+`Show all`은 임시 선택 주변 행을 포함한 원래 reference 구간을 펼쳐 선택 이동 중 행·개수·
+경계가 바뀌지 않는다. 부분 펼침·Collapse·paging은 유지한다. frontend 194 tests, Rust 단위
+97 tests와 local/SSH 통합, canonical gate, browser/native smoke와 독립 focused review를
+통과했다. native 동시 cold launch·후속 실행·재기동과 registry 보존을 검증했다. FD 부족
+회귀는 별도 process에서 실제 accept 오류를 확인한 뒤 자원 복구 후 알림 재수신까지 검사했다.
 
-frontend 190 tests, local/simulated-SSH integration, browser smoke와 canonical gate를 통과했다.
-source/tag 동일 SHA의 main/tag CI·Release, fresh public asset 6개와 rolling manifest,
-설치 버전·공개 binary 일치·서명을 검증했다. native에서 첫 page 밖의 change 검색·선택과
-추가 로딩 중 선택·키보드 focus 유지, 마지막 기록까지 고정 operation의 CLI 결과와 일치를
-확인했다. 업데이트 재시작 관찰 중 동시 인스턴스와 registry 손상을 발견해 보존된 유효
-JSON으로 복구하고 단일 인스턴스에서 재검증했다. 중복 기동 원인과 다중 인스턴스 쓰기 보호는
-미해결이며 후속 검토 항목이다. 계약과 검증 한계는 `docs/ARCHITECTURE.md`,
-`docs/releases/v0.9.22.md`, `docs/completed-milestones.md`가 소유한다.
+source/tag 동일 SHA의 main/tag CI·Release, fresh public asset 6개·rolling manifest,
+설치 버전·공개 binary 일치·서명과 설치 앱의 펼침·중복 실행 동작을 검증했다.
+`v0.9.22`의 history pagination은 유지한다. 계약과 검증 한계는 `docs/ARCHITECTURE.md`,
+`docs/releases/v0.9.23.md`, `docs/completed-milestones.md`가 소유한다.
 
 `v0.9.21` Apple Silicon macOS beta를 배포했다. command timeout 처리는 Unix 호출별
 process group과 전체 I/O deadline을 사용한다. timeout·cancel·caller drop에서 소유한

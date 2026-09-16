@@ -40,19 +40,19 @@
 
 ## Current Work
 
-활성 작업은 `docs/todo-state-safety-v0-9-23/spec.md`의 등록 정보 보호·전체 펼침 수정 및 beta 출고다.
-`v0.9.22` Apple Silicon macOS beta로 history pagination을
-배포하고 native updater 설치까지 검증했다. graph에서 요청당 200개씩 이전 기록을 읽으며
-범위·종료·loaded-only filter를 안내한다. append의 화면 상태와 마지막 page의 실제 focus를
-보존한다. 공개 asset 6개·rolling manifest·설치 binary/서명을 검증했으며 native에서 마지막
-기록까지 조회한 결과가 고정 operation의 CLI 전체 결과와 일치했다.
-소유 계약은 `docs/ARCHITECTURE.md`의 Projection Cache와 Change History Rendering,
-배포 계약은 `docs/releases/v0.9.22.md`, 검증 범위는 `docs/completed-milestones.md`다.
+현재 active milestone은 없다. `v0.9.23` Apple Silicon macOS beta로 중복 실행·registry
+쓰기 보호와 전체 펼침 보존을 배포하고 native updater 설치까지 검증했다. macOS는
+lease 확보 후 socket을 동기 bind해 동시 시작 경쟁을 막으며 후속 실행은 기존 창으로 넘긴다.
+registry는 process 수명 동안 배타 소유하며 고유 임시 파일을 완성한 뒤 atomic replace한다.
+기존 `v0.9.22`의 history pagination을 유지하고 `Show all`은 선택 주변 임시 노출까지 포함한
+원래 구간을 펼친다. 선택 이동으로 행·개수·control 경계가 바뀌지 않는다.
 
-업데이트 재시작 관찰 중 동시 앱 인스턴스와 registry JSON 손상을 발견했다. 보존된 유효
-JSON으로 등록 정보를 복구한 뒤 단일 인스턴스에서 재검증했다. 중복 기동 원인은 미확정이며
-다중 인스턴스의 registry 쓰기 보호는 이번 변경에 포함하지 않았다. 후속 범위는
-`docs/roadmap.md`의 재검토 항목으로 남긴다.
+canonical gate와 독립 focused review, 같은 source/tag SHA의 main/tag CI·Release,
+공개 asset 6개·rolling manifest·설치 binary/서명을 검증했다. native 동시 시작·후속 실행·
+재기동·등록 정보 보존 및 설치 앱의 펼침 경계 왕복을 확인했다. 이전 버전은 새 잠금을
+준수하지 않으므로 신·구 앱을 동시에 실행하는 경계는 지원하지 않는다.
+소유 계약은 `docs/ARCHITECTURE.md`의 Repository Registry와 Change History Rendering,
+배포 계약은 `docs/releases/v0.9.23.md`, 검증 범위는 `docs/completed-milestones.md`다.
 
 `v0.9.21` Apple Silicon macOS beta의 command timeout 처리를
 배포했다. Unix 호출별 process group과 전체 I/O deadline으로 timeout·cancel·caller drop의

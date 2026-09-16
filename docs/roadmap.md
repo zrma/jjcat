@@ -1,16 +1,11 @@
 # Product Roadmap
 
+`v0.9.23`으로 macOS 동시 실행·등록 파일 보호와 선택 anchor에 독립적인 전체 펼침을 배포했다.
+
 History pagination을 `v0.9.22`로 배포하고 공개 artifact·native updater·전체 기록 탐색을 검증했다.
 `v0.9.21`의 command timeout 정리와 network mutation 오류 안내 개선을 배포했다.
 `v0.9.20`의 history 선택·키보드 포커스 동기화 수정을 배포했다.
 후속 배포 범위와 재검토 trigger는 아래 P4 조건을 유지한다.
-
-## Follow-up Triggers
-
-- 업데이트 재시작 관찰 중 동시 인스턴스와 registry JSON 손상을 발견했다. 등록 정보는
-  보존된 유효 JSON으로 복구했고 단일 인스턴스 검증을 완료했다. 중복 기동 원인을 확정하지
-  않았으므로 후속 안정성 slice에서 재시작·관찰 도구의 기동 경로와 process 간 registry
-  쓰기 보호를 함께 검토한다. history pagination의 기능 검증과 별도 범위다.
 
 ## P0: Read-only Repository Cockpit Foundation
 
@@ -36,6 +31,8 @@ History pagination을 `v0.9.22`로 배포하고 공개 artifact·native updater�
 - [x] bounded change-history virtualization spike
 - [x] operation을 고정한 200개 단위 history 추가 로딩, 범위 안내와 화면 상태 보존
 
+- [x] macOS 동시 시작의 단일 owner, 기존 창 활성화와 process 수명 registry 잠금·atomic save
+
 ## P2: Graph And Diff
 
 - [x] multi-lane change DAG와 revision navigation
@@ -47,6 +44,7 @@ History pagination을 `v0.9.22`로 배포하고 공개 artifact·native updater�
 - [x] working copy file tree/diff 작업면과 changed-file count
 - [x] reference-centered history folding과 구간별 progressive reveal/collapse
 - [x] 선택 경계 이동·아래쪽 추가 펼침에서 명시적 reveal 유지와 구간별 Collapse
+- [x] 선택 주변 임시 노출을 포함하는 원래 reference 구간 전체 펼침과 경계 보존
 - [x] 방향키 selection과 실제 focus 동기화, 선택 행 Tab 진입점과 control focus 보존
 - [x] local/SSH revision tag projection, graph/overview read-only label, 검색과 folding anchor
 
