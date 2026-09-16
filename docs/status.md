@@ -2,6 +2,9 @@
 
 ## Current Milestone
 
+`v0.9.22` Apple Silicon macOS beta 출고를 준비 중이다. 활성 spec은
+`docs/todo-release-v0-9-22/spec.md`이며 공개 asset과 updater 설치 검증 후 종료한다.
+
 History pagination의 로컬 구현을 완료했다. 초기 200개와 요청당 최대 200개로 전체 ancestry를
 탐색하며, 고정 operation과 다중 head/merge 경계를 유지한다. 로딩 범위·종료·filter 범위를
 표시하고 append/동일 operation refresh의 선택·scroll·펼침 및 마지막 page 버튼 focus를

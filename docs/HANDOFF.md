@@ -40,7 +40,8 @@
 
 ## Current Work
 
-활성 작업은 없다. History pagination의 local 구현·검증을 완료했다. graph에서 요청당
+활성 작업은 `docs/todo-release-v0-9-22/spec.md`의 beta 출고다.
+History pagination의 local 구현·검증을 완료했다. graph에서 요청당
 200개씩 이전 기록을 읽으며 범위·종료·loaded-only filter를 안내한다. append의 화면 상태와
 마지막 page의 실제 focus를 보존한다. 소유 계약은 `docs/ARCHITECTURE.md`의 Projection Cache와
 Change History Rendering, 검증 범위는 `docs/completed-milestones.md`다. package/release와
