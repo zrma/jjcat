@@ -6,6 +6,8 @@ mod handoff;
 pub mod mutation;
 mod process;
 mod registry;
+#[cfg(target_os = "macos")]
+mod single_instance;
 mod ssh_config;
 
 use tauri::Manager;
@@ -19,7 +21,18 @@ const CHECK_FOR_UPDATES_EVENT: &str = "jjcat://check-for-updates";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(single_instance::init());
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
+    let app = builder
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
@@ -36,7 +49,10 @@ pub fn run() {
         })
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
-            app.manage(commands::AppState::new(app_data_dir.join("registry.json")));
+            let mut state = commands::AppState::new(app_data_dir.join("registry.json"));
+            // singleton 알림이 실패해도 경쟁 process가 registry를 열지 못하게 한다.
+            state.acquire_registry()?;
+            app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

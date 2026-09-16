@@ -57,6 +57,20 @@ export function revealHistoryFold(
   return next;
 }
 
+// 전체 펼침은 선택 때문에 나뉜 임시 구간이 아니라 reference 사이의 원래 구간을 대상으로 한다.
+export function revealHistorySection(
+  changes: ChangeRow[],
+  revealedChangeIds: ReadonlySet<string>,
+  fold: Extract<HistoryFoldItem, { kind: "fold" }>,
+): Set<string> {
+  const section = foldHistory(changes, undefined, new Set()).find(
+    (item) => item.kind === "fold" &&
+      item.startIndex <= fold.startIndex && item.endIndex >= fold.endIndex,
+  );
+  if (section?.kind !== "fold") return new Set(revealedChangeIds);
+  return revealHistoryFold(changes, revealedChangeIds, section, section.totalCount);
+}
+
 export function foldHistory(
   changes: ChangeRow[],
   selectedChangeId: string | undefined,

@@ -167,6 +167,10 @@ impl ActiveRefreshes {
 }
 
 impl AppState {
+    pub fn acquire_registry(&mut self) -> Result<(), RegistryError> {
+        self.store.get_mut().ensure_ownership()
+    }
+
     pub fn new(registry_path: PathBuf) -> Self {
         Self {
             store: Mutex::new(RegistryStore::new(registry_path)),
@@ -1485,6 +1489,9 @@ async fn initialize_git_only_repository(
 
 fn storage_error(error: RegistryError) -> AppError {
     let message = match error {
+        RegistryError::AlreadyInUse => {
+            "Repository settings are in use by another jjcat instance. Close it and retry.".into()
+        }
         RegistryError::UnsupportedSchema(version) => {
             format!("registry schema {version} requires a newer jjcat version")
         }

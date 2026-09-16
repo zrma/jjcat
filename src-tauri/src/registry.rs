@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::sync::Mutex;
 
 use serde::Deserialize;
 
@@ -18,14 +19,47 @@ pub struct RegistryLoad {
 #[derive(Debug)]
 pub struct RegistryStore {
     path: PathBuf,
+    ownership: Mutex<Option<fs::File>>,
 }
 
 impl RegistryStore {
     pub fn new(path: PathBuf) -> Self {
-        Self { path }
+        Self {
+            path,
+            ownership: Mutex::new(None),
+        }
+    }
+
+    // 별도 lock 파일을 삭제하지 않는다. rename되는 registry inode를 잠그면 소유권이 분리된다.
+    pub(crate) fn ensure_ownership(&self) -> Result<(), RegistryError> {
+        let mut ownership = self
+            .ownership
+            .lock()
+            .map_err(|_| RegistryError::LockPoisoned)?;
+        if ownership.is_some() {
+            return Ok(());
+        }
+        let parent = self.path.parent().ok_or(RegistryError::MissingParent)?;
+        fs::create_dir_all(parent)?;
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(self.path.with_extension("json.lock"))?;
+        fs2::FileExt::try_lock_exclusive(&file).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::WouldBlock {
+                RegistryError::AlreadyInUse
+            } else {
+                RegistryError::Io(error)
+            }
+        })?;
+        *ownership = Some(file);
+        Ok(())
     }
 
     pub fn load(&self) -> Result<RegistryLoad, RegistryError> {
+        self.ensure_ownership()?;
         let source = match fs::read_to_string(&self.path) {
             Ok(source) => source,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -56,18 +90,20 @@ impl RegistryStore {
     }
 
     pub fn save(&self, registry: &Registry) -> Result<(), RegistryError> {
+        self.ensure_ownership()?;
         registry.validate()?;
         let parent = self.path.parent().ok_or(RegistryError::MissingParent)?;
-        fs::create_dir_all(parent)?;
-        let temporary = temporary_path(&self.path);
         let encoded = serde_json::to_vec_pretty(registry)?;
-        {
-            let mut file = fs::File::create(&temporary)?;
-            file.write_all(&encoded)?;
-            file.write_all(b"\n")?;
-            file.sync_all()?;
-        }
-        fs::rename(&temporary, &self.path)?;
+        // 호출마다 같은 filesystem에 고유 임시 파일을 만들고 완성된 내용만 교체한다.
+        let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+        temporary.write_all(&encoded)?;
+        temporary.write_all(b"\n")?;
+        temporary.as_file().sync_all()?;
+        temporary
+            .persist(&self.path)
+            .map_err(|error| RegistryError::Io(error.error))?;
+        #[cfg(unix)]
+        fs::File::open(parent)?.sync_all()?;
         Ok(())
     }
 
@@ -81,10 +117,6 @@ impl RegistryStore {
         fs::rename(&self.path, backup)?;
         Ok(())
     }
-}
-
-fn temporary_path(path: &Path) -> PathBuf {
-    path.with_extension("json.tmp")
 }
 
 fn parse_registry(source: &str) -> Result<Registry, RegistryError> {
@@ -203,6 +235,10 @@ fn migrate_v0(legacy: RegistryV0) -> Result<Registry, DomainError> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RegistryError {
+    #[error("repository registry is already in use by another jjcat instance")]
+    AlreadyInUse,
+    #[error("registry ownership lock is poisoned")]
+    LockPoisoned,
     #[error("registry path has no parent directory")]
     MissingParent,
     #[error("registry schema {0} is newer than this version of jjcat")]
@@ -220,6 +256,100 @@ mod tests {
     use super::*;
     use crate::domain::RepositoryId;
     use tempfile::tempdir;
+
+    #[test]
+    fn competing_store_cannot_read_recover_or_overwrite_until_owner_drops() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("registry.json");
+        let owner = RegistryStore::new(path.clone());
+        owner.save(&Registry::default()).unwrap();
+        let before = fs::read(&path).unwrap();
+        let contender = RegistryStore::new(path.clone());
+        assert!(matches!(contender.load(), Err(RegistryError::AlreadyInUse)));
+        assert!(matches!(
+            contender.save(&Registry::default()),
+            Err(RegistryError::AlreadyInUse)
+        ));
+        assert_eq!(fs::read(&path).unwrap(), before);
+        fs::write(&path, "invalid JSON").unwrap();
+        assert!(matches!(contender.load(), Err(RegistryError::AlreadyInUse)));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "invalid JSON");
+        assert!(!path.with_extension("json.corrupt").exists());
+        owner.save(&Registry::default()).unwrap();
+        drop(owner);
+        assert!(!contender.load().unwrap().recovered_corrupt_state);
+        contender.save(&Registry::default()).unwrap();
+    }
+
+    #[test]
+    fn atomic_save_replaces_longer_content_and_ignores_legacy_temporary_file() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("registry.json");
+        let legacy = path.with_extension("json.tmp");
+        fs::write(&legacy, "preserve legacy temporary").unwrap();
+        let store = RegistryStore::new(path.clone());
+        let mut registry = Registry::default();
+        registry.repositories.push(
+            RepositoryRecord::new(
+                "fixture",
+                RepositoryLocation::Local {
+                    path: "/fixtures/repository".into(),
+                },
+            )
+            .unwrap(),
+        );
+        store.save(&registry).unwrap();
+        store.save(&Registry::default()).unwrap();
+        assert_eq!(store.load().unwrap().registry, Registry::default());
+        assert_eq!(
+            fs::read_to_string(legacy).unwrap(),
+            "preserve legacy temporary"
+        );
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 3);
+    }
+
+    // 별도 process를 강제 종료해도 OS가 소유권을 해제하는지 확인한다.
+    #[test]
+    fn registry_owner_child() {
+        let Some(directory) = std::env::var_os("JJCAT_TEST_REGISTRY_OWNER") else {
+            return;
+        };
+        let directory = PathBuf::from(directory);
+        let store = RegistryStore::new(directory.join("registry.json"));
+        store.save(&Registry::default()).unwrap();
+        fs::write(directory.join("ready"), "ready").unwrap();
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    #[test]
+    fn process_exit_releases_registry_ownership_without_deleting_lock_file() {
+        let directory = tempdir().unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "registry::tests::registry_owner_child",
+                "--nocapture",
+            ])
+            .env("JJCAT_TEST_REGISTRY_OWNER", directory.path())
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let ready = directory.path().join("ready");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !ready.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let store = RegistryStore::new(directory.path().join("registry.json"));
+        let contested = store.load();
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(ready.exists(), "child failed to acquire ownership");
+        assert!(matches!(contested, Err(RegistryError::AlreadyInUse)));
+        assert!(!store.load().unwrap().recovered_corrupt_state);
+        store.save(&Registry::default()).unwrap();
+    }
 
     #[test]
     fn registry_round_trips() {

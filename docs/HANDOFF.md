@@ -40,7 +40,8 @@
 
 ## Current Work
 
-현재 active milestone은 없다. `v0.9.22` Apple Silicon macOS beta로 history pagination을
+활성 작업은 `docs/todo-state-safety-v0-9-23/spec.md`의 등록 정보 보호·전체 펼침 수정 및 beta 출고다.
+`v0.9.22` Apple Silicon macOS beta로 history pagination을
 배포하고 native updater 설치까지 검증했다. graph에서 요청당 200개씩 이전 기록을 읽으며
 범위·종료·loaded-only filter를 안내한다. append의 화면 상태와 마지막 page의 실제 focus를
 보존한다. 공개 asset 6개·rolling manifest·설치 binary/서명을 검증했으며 native에서 마지막

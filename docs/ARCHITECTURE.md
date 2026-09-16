@@ -48,6 +48,18 @@ data로 저장한다. private host inventory와 실제 path는 tracked repositor
 pinning/last-opened metadata, cached projection, repository source와 마지막 bounded discovery
 catalog을 저장하며 credential과 source content는 저장하지 않는다. invalid JSON은 별도
 corrupt copy로 보존하고 빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
+desktop는 single-instance 처리를 다른 plugin보다 먼저 초기화하며 두 번째 실행은 기존
+main window를 복원·표시·focus한다. macOS는 application data별 OS lease를 먼저 확보한
+process만 stale socket을 정리하고 동기적으로 bind한다. 경쟁 process는 기존 owner에 알리고
+종료하며 시작/종료 중인 owner는 최대 5초 기다린다. socket은 사용자만 접근하고 인자를
+전달하지 않는다. Exit에서 socket을 정리하고 lease는 process 종료까지 유지해 updater
+후속 process가 종료 중인 기존 앱으로 전달되지 않게 한다.
+registry는 setup 단계에서 별도 lock 파일의 OS 배타
+잠금을 확보하고 process 수명 동안 보유한다. 잠금 실패 시 읽기·corrupt recovery·쓰기를
+시작하지 않는다. 잠금 파일은 삭제하지 않으며 process 종료/강제 종료 때 OS가 잠금을 해제한다.
+process 내부 load→수정→save는 같은 mutex 아래 실행한다. 저장은 같은 디렉터리의 고유
+임시 파일에 serialize·sync한 뒤 atomic replace하고 Unix에서는 디렉터리도 sync한다.
+이전 버전은 이 lock을 준수하지 않으므로 신·구 버전의 동시 실행은 지원하지 않는다.
 v2→v3 migration은 display-formatted rename path를 포함할 수 있는 legacy projection cache만
 무효화하고, v3→v4 migration은 기존 repository/tab/cache를 보존한 채 빈 source catalog을
 추가한다.
@@ -162,7 +174,11 @@ fold control과 다른 panel에서 발생한 selection 갱신은 focus를 빼앗
 `All Changes`는 working copy, current/other workspace copy, local/remote bookmark, revision
 tag와 conflict를 reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
 구간은 실제 projection을 삭제하지 않고 `~` fold row로 축약한다. 사용자는 각 구간에서 10개씩,
-전체를 펼치거나 다시 접을 수 있다. 명시적으로 펼친 change ID는 selection·scroll 이동과
+전체를 펼치거나 다시 접을 수 있다. `Show all`은 선택 때문에 일시적으로 나뉜 구간이 아닌
+reference 사이의 원래 구간 전체를 명시적으로 펼친다. 당시 선택 주변의 임시 노출 행도 포함해
+선택 이동으로 행이 다시 접히거나 펼침 control 위치·개수가 바뀌지 않는다. `Show more`는
+현재 구간에서 최대 10개를 추가 노출하며 다른 reference 구간의 펼침은 유지한다.
+명시적으로 펼친 change ID는 selection·scroll 이동과
 독립적으로 유지한다. 숨긴 change를 선택하면 그 인접 행만 임시 노출하고 기존 펼침은
 보존한다. 떨어진 펼침 구간 사이의 fold row는 실제 숨긴 위치를 유지하며 Collapse는 해당
 control 구간의 명시적 펼침만 해제한다. repository·operation·filter가 변경되면 화면 상태를 재설정하되 선택 행을 다시 노출한다.

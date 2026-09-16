@@ -2,8 +2,11 @@
 
 ## Current Milestone
 
-`v0.9.22` Apple Silicon macOS beta를 배포하고 native updater로 설치했다. 현재 active
-milestone은 없다. 초기 200개와 요청당 최대 200개로 전체 ancestry를 탐색하며 고정 operation과
+`v0.9.23` Apple Silicon macOS beta 출고를 검증 중이다. 등록 정보 배타 소유와 전체 펼침 보존을
+수정했으며 공개 artifact·updater 설치 검증 후 종료한다.
+
+`v0.9.22` Apple Silicon macOS beta를 배포하고 native updater로 설치했다. 활성 작업은
+`docs/todo-state-safety-v0-9-23/spec.md`의 재발 방지와 전체 펼침 수정이다. 초기 200개와 요청당 최대 200개로 전체 ancestry를 탐색하며 고정 operation과
 다중 head/merge 경계를 유지한다. 로딩 범위·종료·filter 범위를 표시하고 append/동일 operation
 refresh의 선택·scroll·펼침 및 마지막 page 버튼 focus를 보존한다.
 

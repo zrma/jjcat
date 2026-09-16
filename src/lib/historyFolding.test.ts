@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChangeRow } from "../types";
-import { foldHistory, revealHistoryFold, HISTORY_REVEAL_STEP } from "./historyFolding";
+import { foldHistory, revealHistoryFold, revealHistorySection, HISTORY_REVEAL_STEP } from "./historyFolding";
 
 function change(
   changeId: string,
@@ -238,5 +238,43 @@ describe("history page append", () => {
       item.kind === "change" && item.sourceIndex < 200 ? [{ id: item.change.changeId, index }] : []);
     expect(rowPositions(after)).toEqual(rowPositions(before));
     expect(after.some(item => item.kind === "fold" && item.hiddenCount > 0)).toBe(true);
+  });
+});
+
+
+describe("whole section expansion with a temporary selection anchor", () => {
+  const changes = Array.from({ length: 610 }, (_, index) => change(`change-${index}`, {
+    workingCopy: index === 0,
+    bookmarks: index === 302 ? [{ name: "section-end", remote: null }] : [],
+  }));
+  const folds = (selected: number, revealed: ReadonlySet<string>) =>
+    foldHistory(changes, `change-${selected}`, revealed).filter(item => item.kind === "fold");
+
+  it.each([[299, 0], [150, 0], [150, 1]])("expands the original section from selection %i and side %i", (selection, side) => {
+    const split = folds(selection, new Set());
+    const all = revealHistorySection(changes, new Set(), split[side]);
+    const baseline = foldHistory(changes, "change-299", all);
+    // 이전에는 297 → 298 → 297에서 296 shown / 3 hidden과 295 expanded가 바뀌었다.
+    for (const selected of [297, 298, 299, 300, 301, 302, 301, 298, 297, 0]) {
+      expect(foldHistory(changes, `change-${selected}`, all)).toEqual(baseline);
+    }
+    expect(baseline.filter(item => item.kind === "change")).toHaveLength(304);
+    expect(baseline.filter(item => item.kind === "fold").map(item => ({
+      shown: item.shownCount, hidden: item.hiddenCount,
+    }))).toEqual([{ shown: 299, hidden: 0 }, { shown: 0, hidden: 306 }]);
+  });
+
+  it("keeps partial reveal bounded and collapse scoped to the original section", () => {
+    const split = folds(299, new Set());
+    const partial = revealHistoryFold(changes, new Set(), split[0], 10);
+    expect(partial.size).toBe(10);
+    const distant = folds(299, partial).at(-1)!;
+    const other = revealHistoryFold(changes, partial, distant, 10);
+    const all = revealHistorySection(changes, other, folds(299, other)[0]);
+    const control = folds(299, all)[0];
+    const collapsed = revealHistoryFold(changes, all, control, 0);
+    expect([...collapsed]).toEqual(Array.from({ length: 10 }, (_, i) => `change-${304+i}`));
+    expect(foldHistory(changes, "change-299", collapsed).some(item =>
+      item.kind === "change" && item.change.changeId === "change-299")).toBe(true);
   });
 });

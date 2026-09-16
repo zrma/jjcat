@@ -38,6 +38,7 @@ import {
 import {
   foldHistory,
   revealHistoryFold,
+  revealHistorySection,
   HISTORY_REVEAL_STEP,
   type HistoryFoldItem,
 } from "../lib/historyFolding";
@@ -874,10 +875,12 @@ function ChangeLog({
           rebaseSourceCommitId={rebaseSourceCommitId}
           onOpenActionMenu={onOpenActionMenu}
           onLaunchMutation={onLaunchMutation}
-          onRevealGap={(id, count) => {
+          onRevealGap={(id, count, entireSection) => {
             const fold = foldItems.find((item) => item.kind === "fold" && item.id === id);
             if (fold?.kind !== "fold") return;
-            setRevealedChangeIds((current) => revealHistoryFold(changes, current, fold, count));
+            setRevealedChangeIds((current) => entireSection
+              ? revealHistorySection(changes, current, fold)
+              : revealHistoryFold(changes, current, fold, count));
           }}
         />
       </section>
@@ -915,7 +918,7 @@ function ChangeRows({
   rebaseSourceCommitId: string | null;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
-  onRevealGap: (id: string, count: number) => void;
+  onRevealGap: (id: string, count: number, entireSection?: boolean) => void;
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [activeDrag, setActiveDrag] = useState<HistoryDragIntent | null>(null);
@@ -1300,7 +1303,7 @@ function HistoryFoldRow({
   displayIndex: number;
   dagWidth: number;
   previewLanes?: readonly number[];
-  onReveal: (id: string, count: number) => void;
+  onReveal: (id: string, count: number, entireSection?: boolean) => void;
 }) {
   const revealCount = Math.min(
     fold.totalCount,
@@ -1355,7 +1358,7 @@ function HistoryFoldRow({
           {fold.hiddenCount > HISTORY_REVEAL_STEP && (
             <button
               type="button"
-              onClick={() => onReveal(fold.id, fold.totalCount)}
+              onClick={() => onReveal(fold.id, fold.totalCount, true)}
             >
               Show all
             </button>
