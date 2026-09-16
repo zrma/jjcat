@@ -1,5 +1,7 @@
 # Product Roadmap
 
+v0.9.24는 클릭한 fold만 펼치고 인접 접힘을 보존하는 회귀 수정을 진행한다.
+
 `v0.9.23`으로 macOS 동시 실행·등록 파일 보호와 선택 anchor에 독립적인 전체 펼침을 배포했다.
 
 History pagination을 `v0.9.22`로 배포하고 공개 artifact·native updater·전체 기록 탐색을 검증했다.
@@ -44,7 +46,7 @@ History pagination을 `v0.9.22`로 배포하고 공개 artifact·native updater�
 - [x] working copy file tree/diff 작업면과 changed-file count
 - [x] reference-centered history folding과 구간별 progressive reveal/collapse
 - [x] 선택 경계 이동·아래쪽 추가 펼침에서 명시적 reveal 유지와 구간별 Collapse
-- [x] 선택 주변 임시 노출을 포함하는 원래 reference 구간 전체 펼침과 경계 보존
+- [x] 선택 context 경계를 보존하는 구간별 펼침과 반대쪽 접힘 유지
 - [x] 방향키 selection과 실제 focus 동기화, 선택 행 Tab 진입점과 control focus 보존
 - [x] local/SSH revision tag projection, graph/overview read-only label, 검색과 folding anchor
 

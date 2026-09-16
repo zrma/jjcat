@@ -174,10 +174,11 @@ fold control과 다른 panel에서 발생한 selection 갱신은 focus를 빼앗
 `All Changes`는 working copy, current/other workspace copy, local/remote bookmark, revision
 tag와 conflict를 reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
 구간은 실제 projection을 삭제하지 않고 `~` fold row로 축약한다. 사용자는 각 구간에서 10개씩,
-전체를 펼치거나 다시 접을 수 있다. `Show all`은 선택 때문에 일시적으로 나뉜 구간이 아닌
-reference 사이의 원래 구간 전체를 명시적으로 펼친다. 당시 선택 주변의 임시 노출 행도 포함해
-선택 이동으로 행이 다시 접히거나 펼침 control 위치·개수가 바뀌지 않는다. `Show more`는
-현재 구간에서 최대 10개를 추가 노출하며 다른 reference 구간의 펼침은 유지한다.
+전체를 펼치거나 다시 접을 수 있다. `Show all`은 클릭한 fold의 범위만 펼치며 선택 행을
+사이에 둔 반대쪽 fold의 접힘은 유지한다. 펼칠 때 구간을 나누던 선택 context anchor를
+함께 보존해 선택 이동으로 인접 행이 다시 접히거나 control 위치·개수가 바뀌지 않는다.
+context 행은 펼침 개수에 포함하지 않는다. `Show more`도 같은 경계를 유지하면서 현재
+구간에서 최대 10개를 추가 노출한다. 경계 양옆의 펼침이 모두 접히면 보존 anchor를 해제한다.
 명시적으로 펼친 change ID는 selection·scroll 이동과
 독립적으로 유지한다. 숨긴 change를 선택하면 그 인접 행만 임시 노출하고 기존 펼침은
 보존한다. 떨어진 펼침 구간 사이의 fold row는 실제 숨긴 위치를 유지하며 Collapse는 해당

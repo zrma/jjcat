@@ -37,8 +37,8 @@ import {
 } from "../lib/rebaseTopology";
 import {
   foldHistory,
-  revealHistoryFold,
-  revealHistorySection,
+  updateHistoryExpansion,
+  type HistoryExpansion,
   HISTORY_REVEAL_STEP,
   type HistoryFoldItem,
 } from "../lib/historyFolding";
@@ -704,18 +704,20 @@ function ChangeLog({
 }) {
   const scrollRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ height: 600, scrollTop: 0 });
-  const [revealedChangeIds, setRevealedChangeIds] = useState<Set<string>>(new Set());
+  const [expansion, setExpansion] = useState<HistoryExpansion>({
+    revealedChangeIds: new Set(), contextAnchorChangeIds: new Set(),
+  });
   const previousHistory = useRef({ key: historyKey, loadedCount, selected, index: -1 });
   const foldItems = useMemo(
     () =>
       foldHistory(
         changes,
         selected,
-        revealedChangeIds,
+        expansion.revealedChangeIds,
         compactHistory,
-        [],
+        [...expansion.contextAnchorChangeIds],
       ),
-    [changes, compactHistory, revealedChangeIds, selected],
+    [changes, compactHistory, expansion, selected],
   );
   const virtualized = foldItems.length >= VIRTUALIZATION_THRESHOLD;
   const dag = useMemo(() => layoutDag(changes), [changes]);
@@ -747,7 +749,7 @@ function ChangeLog({
     const element = scrollRef.current;
     if (element) element.scrollTop = 0;
     setViewport((current) => ({ ...current, scrollTop: 0 }));
-    setRevealedChangeIds(new Set());
+    setExpansion({ revealedChangeIds: new Set(), contextAnchorChangeIds: new Set() });
   }, [historyKey]);
 
   useLayoutEffect(() => {
@@ -875,12 +877,10 @@ function ChangeLog({
           rebaseSourceCommitId={rebaseSourceCommitId}
           onOpenActionMenu={onOpenActionMenu}
           onLaunchMutation={onLaunchMutation}
-          onRevealGap={(id, count, entireSection) => {
+          onRevealGap={(id, count) => {
             const fold = foldItems.find((item) => item.kind === "fold" && item.id === id);
             if (fold?.kind !== "fold") return;
-            setRevealedChangeIds((current) => entireSection
-              ? revealHistorySection(changes, current, fold)
-              : revealHistoryFold(changes, current, fold, count));
+            setExpansion((current) => updateHistoryExpansion(changes, current, fold, count, selected));
           }}
         />
       </section>
@@ -918,7 +918,7 @@ function ChangeRows({
   rebaseSourceCommitId: string | null;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
-  onRevealGap: (id: string, count: number, entireSection?: boolean) => void;
+  onRevealGap: (id: string, count: number) => void;
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [activeDrag, setActiveDrag] = useState<HistoryDragIntent | null>(null);
@@ -1303,7 +1303,7 @@ function HistoryFoldRow({
   displayIndex: number;
   dagWidth: number;
   previewLanes?: readonly number[];
-  onReveal: (id: string, count: number, entireSection?: boolean) => void;
+  onReveal: (id: string, count: number) => void;
 }) {
   const revealCount = Math.min(
     fold.totalCount,
@@ -1358,7 +1358,7 @@ function HistoryFoldRow({
           {fold.hiddenCount > HISTORY_REVEAL_STEP && (
             <button
               type="button"
-              onClick={() => onReveal(fold.id, fold.totalCount, true)}
+              onClick={() => onReveal(fold.id, fold.totalCount)}
             >
               Show all
             </button>

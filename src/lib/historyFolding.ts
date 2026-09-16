@@ -57,18 +57,38 @@ export function revealHistoryFold(
   return next;
 }
 
-// 전체 펼침은 선택 때문에 나뉜 임시 구간이 아니라 reference 사이의 원래 구간을 대상으로 한다.
-export function revealHistorySection(
+export type HistoryExpansion = {
+  revealedChangeIds: ReadonlySet<string>;
+  contextAnchorChangeIds: ReadonlySet<string>;
+};
+
+export function updateHistoryExpansion(
   changes: ChangeRow[],
-  revealedChangeIds: ReadonlySet<string>,
+  current: HistoryExpansion,
   fold: Extract<HistoryFoldItem, { kind: "fold" }>,
-): Set<string> {
-  const section = foldHistory(changes, undefined, new Set()).find(
-    (item) => item.kind === "fold" &&
-      item.startIndex <= fold.startIndex && item.endIndex >= fold.endIndex,
-  );
-  if (section?.kind !== "fold") return new Set(revealedChangeIds);
-  return revealHistoryFold(changes, revealedChangeIds, section, section.totalCount);
+  count: number,
+  selectedChangeId?: string,
+): HistoryExpansion {
+  const revealedChangeIds = revealHistoryFold(changes, current.revealedChangeIds, fold, count);
+  const anchors = new Set(current.contextAnchorChangeIds);
+  const selectedIndex = changes.findIndex(change => change.changeId === selectedChangeId);
+  // 클릭한 구간을 나누던 선택 문맥만 고정한다. 반대쪽 숨긴 구간은 펼치지 않는다.
+  if (count > 0 && selectedChangeId && selectedIndex >= 0 &&
+    !current.revealedChangeIds.has(selectedChangeId) &&
+    (selectedIndex + ANCHOR_CONTEXT + 1 === fold.startIndex ||
+      selectedIndex - ANCHOR_CONTEXT - 1 === fold.endIndex)) {
+    anchors.add(selectedChangeId);
+  }
+  // 양옆의 펼침이 모두 접힌 경계는 해제한다. 현재 선택의 문맥은 foldHistory가 노출한다.
+  const anchoredFolds = foldHistory(changes, undefined, revealedChangeIds, true, [...anchors])
+    .filter(item => item.kind === "fold");
+  const contextAnchorChangeIds = new Set([...anchors].filter(id => {
+    const index = changes.findIndex(change => change.changeId === id);
+    return index >= 0 && anchoredFolds.some(item => item.shownCount > 0 && (
+      item.endIndex === index - ANCHOR_CONTEXT - 1 ||
+      item.startIndex === index + ANCHOR_CONTEXT + 1));
+  }));
+  return { revealedChangeIds, contextAnchorChangeIds };
 }
 
 export function foldHistory(
