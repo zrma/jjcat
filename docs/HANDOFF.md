@@ -40,16 +40,20 @@
 
 ## Current Work
 
-활성 작업은 `docs/todo-scoped-history-expansion/spec.md`의 v0.9.24 scoped history expansion
-수정과 beta 배포·설치 검증이다. v0.9.23의 Show all 범위를 클릭한 fold로 제한하고 선택
-문맥 경계를 보존한다.
+현재 active milestone은 없다. `v0.9.24` Apple Silicon macOS beta의 scoped history
+expansion 수정과 공개 배포·updater 설치를 검증했다. 클릭한 fold만 펼치며 선택 context
+경계를 보존해 반대쪽 접힘과 선택 이동의 행·개수를 유지한다. 부분 펼침·Collapse·append와
+filter reset을 회귀 테스트·browser/native 상호작용으로 확인했다. canonical gate,
+독립 focused review, same-source main/tag CI·Release, fresh asset 6개·rolling manifest와
+설치 binary/서명 검증을 통과했다. 소유 계약은 `docs/ARCHITECTURE.md`, 배포 계약은
+`docs/releases/v0.9.24.md`, 검증 범위는 `docs/completed-milestones.md`다.
 
 이전 milestone을 종료했다. `v0.9.23` Apple Silicon macOS beta로 중복 실행·registry
 쓰기 보호와 전체 펼침 보존을 배포하고 native updater 설치까지 검증했다. macOS는
 lease 확보 후 socket을 동기 bind해 동시 시작 경쟁을 막으며 후속 실행은 기존 창으로 넘긴다.
 registry는 process 수명 동안 배타 소유하며 고유 임시 파일을 완성한 뒤 atomic replace한다.
 기존 `v0.9.22`의 history pagination을 유지한다. v0.9.23의 `Show all` 범위 회귀는
-위 v0.9.24 작업에서 수정한다.
+v0.9.24에서 수정했다.
 
 canonical gate와 독립 focused review, 같은 source/tag SHA의 main/tag CI·Release,
 공개 asset 6개·rolling manifest·설치 binary/서명을 검증했다. native 동시 시작·후속 실행·

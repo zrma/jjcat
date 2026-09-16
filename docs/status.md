@@ -2,16 +2,23 @@
 
 ## Current Milestone
 
-`v0.9.24` Apple Silicon macOS beta의 scoped history expansion을 검증 중이다. 활성 작업은
-`docs/todo-scoped-history-expansion/spec.md`다. 클릭한 fold 범위와 선택 context를 보존하며
-반대쪽 접힘을 펼치던 v0.9.23 회귀를 수정한다.
+`v0.9.24` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 현재
+active milestone은 없다. `Show all`은 클릭한 fold만 펼치며 반대쪽 접힘을 유지한다.
+선택 context anchor를 펼침과 함께 보존해 선택 이동으로 행·개수·control 경계가 바뀌지
+않는다. 부분 펼침·구간별 Collapse·page append·filter reset도 유지한다.
+
+frontend 197 tests, Rust 단위 97 tests, local/simulated SSH 통합과 canonical gate를
+통과했다. 독립 focused review, browser와 설치 앱에서 위/아래 독립 펼침 및 방향키 왕복을
+검증했다. 같은 source/tag SHA의 main/tag CI·Release, fresh public asset 6개·rolling
+manifest·설치 binary 일치와 서명을 확인했다. 계약은 `docs/ARCHITECTURE.md`, 배포 경계는
+`docs/releases/v0.9.24.md`, 검증 범위는 `docs/completed-milestones.md`가 소유한다.
 
 `v0.9.23` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 당시 milestone을 종료했다. macOS 동시 시작은 application data별 process lease와 동기 socket bind로
 하나의 owner를 유지하며 후속 실행은 기존 창을 활성화한다. registry는 별도 OS 잠금과
 고유 임시 파일의 atomic replace로 보호한다. 이전 버전과의 동시 실행은 지원하지 않는다.
 
-v0.9.23의 `Show all`이 원래 reference 구간까지 확장하던 범위 회귀는 위 v0.9.24 작업에서
-수정한다. v0.9.23의 registry·단일 실행 보호와 native 검증은 유지한다. FD 부족 회귀는
+v0.9.23의 `Show all`이 원래 reference 구간까지 확장하던 범위 회귀는 v0.9.24에서
+수정했다. v0.9.23의 registry·단일 실행 보호와 native 검증은 유지한다. FD 부족 회귀는
 별도 process에서 실제 accept 오류와 자원 복구 후 후속 알림 수신을 검사했다.
 
 source/tag 동일 SHA의 main/tag CI·Release, fresh public asset 6개·rolling manifest,

@@ -6,6 +6,26 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## Scoped History Expansion — v0.9.24
+
+- v0.9.23이 선택으로 나뉜 두 fold를 하나의 reference 구간으로 펼치던 회귀를 수정했다.
+  이전 리뷰/테스트는 잘못 넓힌 범위를 정답으로 삼아 클릭하지 않은 fold의 접힘을 놓쳤다.
+  새 테스트는 클릭한 interval의 정확한 ID와 반대쪽 hidden fold 보존을 먼저 검사한다.
+- 명시적 펼침 ID와 context anchor를 함께 관리한다. Show more/Show all은 클릭한 fold만
+  펼치며 선택 경계를 고정한다. 양옆의 펼침이 모두 접히면 보존 anchor를 해제한다.
+- focused 18 tests는 위/아래 펼침, 원래 295/296 경계, partial prefix, 양쪽 펼침 뒤 단일
+  Collapse, page append와 reset을 검증한다. 독립 리뷰에서 upper partial anchor의 조기
+  해제를 찾아 보완했고 추가 상호작용/Collapse 조합 검사에서 blocker를 발견하지 못했다.
+- frontend 197 tests, Rust 단위 97 tests, local/simulated SSH 통합과 canonical gate 통과.
+  browser에서 위/아래 fold 독립 펼침·Collapse·filter reset과 방향키 focus를 확인했다.
+  설치 앱에서 반대쪽 접힘 보존과 선택 경계 왕복을 확인했다.
+- source/tag의 main/tag CI·Release가 통과했다. fresh public asset 6개의 checksum·Minisign·
+  ZIP/tar/DMG app 서명과 rolling manifest 일치를 검증했다. native updater 설치 후 버전·
+  공개 binary 일치·strict 서명 및 등록 정보 보존을 확인했다. release source와 이후 문서
+  closeout revision은 별도다.
+- `docs/ARCHITECTURE.md`가 현재 folding 계약을, `docs/releases/v0.9.24.md`가 배포 경계를
+  소유한다. v0.9.23의 registry/단일 실행 보호는 유지하며 다른 OS 배포는 범위 밖이다.
+
 ## State Safety And Full History Expansion — v0.9.23
 
 - macOS 동시 cold launch에서 기본 plugin의 비동기 socket bind 경쟁을 재현했다. registry
