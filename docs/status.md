@@ -2,8 +2,11 @@
 
 ## Current Milestone
 
-`v0.9.24` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 현재
-active milestone은 없다. `Show all`은 클릭한 fold만 펼치며 반대쪽 접힘을 유지한다.
+`v0.9.25` Apple Silicon macOS beta의 등록 파일 복구·history control focus를 검증 중이다.
+활성 작업은 `docs/todo-recovery-focus-v0-9-25/spec.md`다.
+
+`v0.9.24` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 당시
+milestone은 종료했다. `Show all`은 클릭한 fold만 펼치며 반대쪽 접힘을 유지한다.
 선택 context anchor를 펼침과 함께 보존해 선택 이동으로 행·개수·control 경계가 바뀌지
 않는다. 부분 펼침·구간별 Collapse·page append·filter reset도 유지한다.
 

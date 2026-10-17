@@ -40,7 +40,10 @@
 
 ## Current Work
 
-현재 active milestone은 없다. `v0.9.24` Apple Silicon macOS beta의 scoped history
+활성 작업은 `docs/todo-recovery-focus-v0-9-25/spec.md`의 v0.9.25 복구·포커스 수정과
+beta 배포·updater 설치 검증이다.
+
+이전 milestone은 종료했다. `v0.9.24` Apple Silicon macOS beta의 scoped history
 expansion 수정과 공개 배포·updater 설치를 검증했다. 클릭한 fold만 펼치며 선택 context
 경계를 보존해 반대쪽 접힘과 선택 이동의 행·개수를 유지한다. 부분 펼침·Collapse·append와
 filter reset을 회귀 테스트·browser/native 상호작용으로 확인했다. canonical gate,

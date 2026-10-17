@@ -60,7 +60,7 @@ impl RegistryStore {
 
     pub fn load(&self) -> Result<RegistryLoad, RegistryError> {
         self.ensure_ownership()?;
-        let source = match fs::read_to_string(&self.path) {
+        let source = match fs::read(&self.path) {
             Ok(source) => source,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(RegistryLoad {
@@ -71,15 +71,16 @@ impl RegistryStore {
             Err(error) => return Err(RegistryError::Io(error)),
         };
 
-        match parse_registry(&source) {
-            Ok(registry) => Ok(RegistryLoad {
+        // 잘못된 UTF-8도 JSON 손상과 같이 원본 바이트를 보존한 뒤 복구한다.
+        match std::str::from_utf8(&source).map(parse_registry) {
+            Ok(Ok(registry)) => Ok(RegistryLoad {
                 registry,
                 recovered_corrupt_state: false,
             }),
-            Err(RegistryError::UnsupportedSchema(version)) => {
+            Ok(Err(RegistryError::UnsupportedSchema(version))) => {
                 Err(RegistryError::UnsupportedSchema(version))
             }
-            Err(_) => {
+            _ => {
                 self.preserve_corrupt_state()?;
                 Ok(RegistryLoad {
                     registry: Registry::default(),
@@ -461,6 +462,64 @@ mod tests {
         assert!(loaded.recovered_corrupt_state);
         assert!(path.with_extension("json.corrupt").exists());
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn invalid_utf8_is_preserved_byte_for_byte_and_registry_can_be_saved_again() {
+        for source in [
+            b"{\"schemaVersion\":4,\"broken\":\"\xff\"}".as_slice(),
+            b"{\"broken\":\"\xc3",
+        ] {
+            let directory = tempdir().unwrap();
+            let path = directory.path().join("registry.json");
+            fs::write(&path, source).unwrap();
+            let store = RegistryStore::new(path.clone());
+
+            let loaded = store.load().unwrap();
+
+            assert!(loaded.recovered_corrupt_state);
+            assert_eq!(loaded.registry, Registry::default());
+            assert_eq!(
+                fs::read(path.with_extension("json.corrupt")).unwrap(),
+                source
+            );
+            assert!(!path.exists());
+            store.save(&loaded.registry).unwrap();
+            let reloaded = store.load().unwrap();
+            assert_eq!(reloaded.registry, Registry::default());
+            assert!(!reloaded.recovered_corrupt_state);
+        }
+    }
+
+    #[test]
+    fn invalid_utf8_recovery_does_not_replace_an_existing_corrupt_backup() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("registry.json");
+        fs::write(path.with_extension("json.corrupt"), b"previous backup").unwrap();
+        fs::write(&path, b"\xff").unwrap();
+        let store = RegistryStore::new(path.clone());
+
+        assert!(store.load().unwrap().recovered_corrupt_state);
+        assert_eq!(
+            fs::read(path.with_extension("json.corrupt")).unwrap(),
+            b"previous backup"
+        );
+        assert_eq!(
+            fs::read(path.with_extension("json.corrupt.1")).unwrap(),
+            b"\xff"
+        );
+    }
+
+    #[test]
+    fn unreadable_registry_is_not_treated_as_corruption() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("registry.json");
+        fs::create_dir(&path).unwrap();
+        let store = RegistryStore::new(path.clone());
+
+        assert!(matches!(store.load(), Err(RegistryError::Io(_))));
+        assert!(path.is_dir());
+        assert!(!path.with_extension("json.corrupt").exists());
     }
 
     #[test]

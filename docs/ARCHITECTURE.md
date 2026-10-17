@@ -46,8 +46,9 @@ host reference, repository path, display name, pinning과 last-opened metadata�
 data로 저장한다. private host inventory와 실제 path는 tracked repository artifact에 넣지
 않는다. 현재 schema v4 JSON은 repository, selected/open repository ordering,
 pinning/last-opened metadata, cached projection, repository source와 마지막 bounded discovery
-catalog을 저장하며 credential과 source content는 저장하지 않는다. invalid JSON은 별도
-corrupt copy로 보존하고 빈 registry로 복구하며, 미래 schema는 덮어쓰지 않고 중단한다.
+catalog을 저장하며 credential과 source content는 저장하지 않는다. invalid JSON과 잘못되거나 잘린 UTF-8은 원본 바이트를 별도
+corrupt copy로 보존하고 빈 registry로 복구한다. 기존 backup은 덮어쓰지 않으며 실제 I/O
+오류와 미래 schema는 파일을 변경하지 않고 중단한다.
 desktop는 single-instance 처리를 다른 plugin보다 먼저 초기화하며 두 번째 실행은 기존
 main window를 복원·표시·focus한다. macOS는 application data별 OS lease를 먼저 확보한
 process만 stale socket을 정리하고 동기적으로 bind한다. 경쟁 process는 기존 owner에 알리고
@@ -171,6 +172,9 @@ window가 따라간다. graph 행에서 방향키로 이동할 때 실제 DOM fo
 넘긴다. 선택 행만 Tab 진입점으로 두고 aria-selected로 선택을 노출한다. Enter·Space는
 현재 행에 적용된다. 펼침 control의 방향키는 graph selection을 바꾸지 않으며 search,
 fold control과 다른 panel에서 발생한 selection 갱신은 focus를 빼앗지 않는다.
+키보드 fold activation은 원래 source 위치를 기억해 다음 control로 포커스를 이어 간다.
+구간 병합과 가상 window 교체 뒤에도 대상 control을 화면에 표시하고 포커스하며, control이
+없어지면 선택 행으로 복귀한다. pointer activation은 기존 scroll 동작을 유지한다.
 `All Changes`는 working copy, current/other workspace copy, local/remote bookmark, revision
 tag와 conflict를 reference anchor로 삼고 각 anchor의 인접 change를 기본 노출한다. anchor에서 떨어진 연속
 구간은 실제 projection을 삭제하지 않고 `~` fold row로 축약한다. 사용자는 각 구간에서 10개씩,
