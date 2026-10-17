@@ -49,6 +49,7 @@ import {
   splitterSizeForPointer,
 } from "../lib/splitter";
 import { virtualRange } from "../lib/virtualization";
+import { historyFoldFocusTarget } from "../lib/historyFocus";
 import { adjacentNavigationIndex } from "../lib/keyboardNavigation";
 import { pointerPopupPosition } from "../lib/popupPosition";
 import type {
@@ -707,6 +708,7 @@ function ChangeLog({
   const [expansion, setExpansion] = useState<HistoryExpansion>({
     revealedChangeIds: new Set(), contextAnchorChangeIds: new Set(),
   });
+  const pendingFoldFocus = useRef<{ sourceIndex: number; key: string } | null>(null);
   const previousHistory = useRef({ key: historyKey, loadedCount, selected, index: -1 });
   const foldItems = useMemo(
     () =>
@@ -750,6 +752,7 @@ function ChangeLog({
     if (element) element.scrollTop = 0;
     setViewport((current) => ({ ...current, scrollTop: 0 }));
     setExpansion({ revealedChangeIds: new Set(), contextAnchorChangeIds: new Set() });
+    pendingFoldFocus.current = null;
   }, [historyKey]);
 
   useLayoutEffect(() => {
@@ -780,6 +783,38 @@ function ChangeLog({
   }, [foldItems, selected, historyKey, loadedCount]);
 
   useLayoutEffect(() => {
+    const pending = pendingFoldFocus.current;
+    const element = scrollRef.current;
+    if (!pending || !element) return;
+    if (pending.key !== historyKey || !element.contains(document.activeElement)) {
+      pendingFoldFocus.current = null;
+      return;
+    }
+    const target = historyFoldFocusTarget(foldItems, pending.sourceIndex, selected);
+    if (!target) {
+      pendingFoldFocus.current = null;
+      return;
+    }
+    // 대상 control이 가상 window 밖으로 이동했으면 먼저 렌더링할 위치로 스크롤한다.
+    const top = target.index * HISTORY_ROW_HEIGHT;
+    const bottom = HISTORY_HEADER_HEIGHT + top + HISTORY_ROW_HEIGHT;
+    if (element.scrollTop > top) element.scrollTop = top;
+    else if (bottom > element.scrollTop + element.clientHeight) {
+      element.scrollTop = bottom - element.clientHeight;
+    }
+    const scrollTop = element.scrollTop;
+    setViewport(current => current.scrollTop === scrollTop ? current : { ...current, scrollTop });
+    const row = target.item.kind === "fold"
+      ? element.querySelector<HTMLElement>(`[data-fold-start="${target.item.startIndex}"] button`)
+      : element.querySelector<HTMLElement>(".change-row.selected");
+    if (row) {
+      pendingFoldFocus.current = null;
+      row.focus({ preventScroll: true });
+    }
+  }, [foldItems, selected, historyKey, viewport.scrollTop, viewport.height]);
+
+  useLayoutEffect(() => {
+    if (pendingFoldFocus.current) return;
     const element = scrollRef.current;
     const active = document.activeElement;
     if (!element || !active || !element.contains(active)) return;
@@ -877,9 +912,13 @@ function ChangeLog({
           rebaseSourceCommitId={rebaseSourceCommitId}
           onOpenActionMenu={onOpenActionMenu}
           onLaunchMutation={onLaunchMutation}
-          onRevealGap={(id, count) => {
+          onRevealGap={(id, count, keyboard) => {
             const fold = foldItems.find((item) => item.kind === "fold" && item.id === id);
             if (fold?.kind !== "fold") return;
+            if (keyboard) {
+              pendingFoldFocus.current = { sourceIndex: fold.startIndex, key: historyKey };
+              scrollRef.current?.focus({ preventScroll: true });
+            }
             setExpansion((current) => updateHistoryExpansion(changes, current, fold, count, selected));
           }}
         />
@@ -918,7 +957,7 @@ function ChangeRows({
   rebaseSourceCommitId: string | null;
   onOpenActionMenu: (change: ChangeRow, x: number, y: number) => void;
   onLaunchMutation: (launch: MutationLaunch) => void;
-  onRevealGap: (id: string, count: number) => void;
+  onRevealGap: (id: string, count: number, keyboard: boolean) => void;
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [activeDrag, setActiveDrag] = useState<HistoryDragIntent | null>(null);
@@ -1303,7 +1342,7 @@ function HistoryFoldRow({
   displayIndex: number;
   dagWidth: number;
   previewLanes?: readonly number[];
-  onReveal: (id: string, count: number) => void;
+  onReveal: (id: string, count: number, keyboard: boolean) => void;
 }) {
   const revealCount = Math.min(
     fold.totalCount,
@@ -1314,6 +1353,7 @@ function HistoryFoldRow({
       className={`history-fold-row ${virtualized ? "virtualized-row" : ""} ${previewLanes?.length ? "previewing" : ""}`}
       style={virtualized ? { top: displayIndex * HISTORY_ROW_HEIGHT } : undefined}
       role="row"
+      data-fold-start={fold.startIndex}
       aria-label={
         fold.hiddenCount > 0
           ? `${fold.hiddenCount} changes hidden`
@@ -1348,7 +1388,7 @@ function HistoryFoldRow({
           {fold.hiddenCount > 0 && (
             <button
               type="button"
-              onClick={() => onReveal(fold.id, revealCount)}
+              onClick={(event) => onReveal(fold.id, revealCount, event.detail === 0)}
               title={`Show up to ${HISTORY_REVEAL_STEP} more changes`}
             >
               <ChevronsDown aria-hidden="true" />
@@ -1358,7 +1398,7 @@ function HistoryFoldRow({
           {fold.hiddenCount > HISTORY_REVEAL_STEP && (
             <button
               type="button"
-              onClick={() => onReveal(fold.id, fold.totalCount)}
+              onClick={(event) => onReveal(fold.id, fold.totalCount, event.detail === 0)}
             >
               Show all
             </button>
@@ -1366,7 +1406,7 @@ function HistoryFoldRow({
           {fold.shownCount > 0 && (
             <button
               type="button"
-              onClick={() => onReveal(fold.id, 0)}
+              onClick={(event) => onReveal(fold.id, 0, event.detail === 0)}
               title="Collapse this history section"
             >
               <ChevronsUp aria-hidden="true" />
