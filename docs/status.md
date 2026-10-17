@@ -2,8 +2,19 @@
 
 ## Current Milestone
 
-`v0.9.25` Apple Silicon macOS beta의 등록 파일 복구·history control focus를 검증 중이다.
-활성 작업은 `docs/todo-recovery-focus-v0-9-25/spec.md`다.
+`v0.9.25` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 현재
+active milestone은 없다. 잘못되거나 잘린 UTF-8 등록 파일은 원본 바이트를 손상 backup으로
+보존하고 빈 상태로 복구한다. 기존 backup·미래 schema와 실제 I/O 오류 보호를 유지한다.
+키보드 Show more/Show all/Collapse는 가상 window 교체와 구간 병합 뒤에도 같은 구간의
+다음 control로 포커스를 이어 가며 control이 사라지면 선택 행으로 복귀한다.
+
+frontend 202 tests, Rust 단위 100 tests와 local/simulated SSH 통합 및 canonical gate가
+통과했다. browser의 Enter/Space 반복·가상화·merged control·선택 행 fallback·pointer scroll,
+격리 native의 합성 UTF-8 손상 복구와 설치 앱의 keyboard control focus를 검증했다.
+동일 source/tag의 CI·Release, fresh public asset 6개·rolling manifest·설치 binary/서명과
+등록 정보 보존을 확인했다. main은 별도 가이드 변경과 출고 결과를 보존한 통합 revision이며
+제품 소스는 release tag와 동일하다. 계약은 `docs/ARCHITECTURE.md`, 배포 경계는
+`docs/releases/v0.9.25.md`, 검증 범위는 `docs/completed-milestones.md`가 소유한다.
 
 `v0.9.24` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 당시
 milestone은 종료했다. `Show all`은 클릭한 fold만 펼치며 반대쪽 접힘을 유지한다.

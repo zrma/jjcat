@@ -6,6 +6,33 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## Registry Recovery And History Control Focus — v0.9.25
+
+- 기존 복구 검사는 UTF-8로 읽을 수 있는 invalid JSON만 다뤘다. 바이트 읽기 뒤 UTF-8
+  해석 실패도 같은 보존·복구로 처리하며 원본을 수정하거나 기존 corrupt backup을 덮어쓰지
+  않는다. 실제 I/O 오류와 유효한 미래 schema는 파일을 변경하지 않고 중단한다.
+- registry 14 tests는 invalid/truncated UTF-8 원본 보존·복구 뒤 재저장·기존 backup 보존과
+  소유 잠금 경계를 검사한다. 격리 native 앱에 합성 손상 바이트를 넣어 원본 그대로의
+  corrupt backup과 정상 시작 안내를 확인했다. 실제 사용자 등록 파일 손상은 주입하지 않았다.
+- 기존 focus 검사는 선택 행에 집중해 버튼 소멸 후 body로 빠지는 경계를 놓쳤다.
+  키보드 activation의 source 위치를 기억해 같은 구간의 다음 버튼을 찾는다. 가상 window
+  밖의 control은 먼저 표시하고 포커스하며, 구간 병합 또는 control 소멸 시도 처리한다.
+- focus target 5 tests와 browser에서 Enter/Space 부분 펼침·전체 펼침·Collapse, 가상화,
+  merged control, 선택 행 fallback과 pointer scroll 보존을 확인했다. 독립 focused review는
+  source와 spec의 계약을 대조했고 추가 finding을 발견하지 못했다. 설치 앱의 keyboard
+  펼침·접기 후 다음 control focus도 확인했다.
+- frontend 202 tests, Rust 단위 100 tests, local/simulated SSH 통합과 canonical gate 통과.
+  source/tag `d949c7cea4a0c3d950dc2c1ec4edf9d0fb51f7b8`의 CI와 Release가 성공했다.
+  fresh public asset 6개의 checksum·Minisign·ZIP/tar/DMG 내부 서명과 rolling manifest
+  일치를 검증했다. native updater 설치 후 버전·공개 binary 일치·strict 서명·단일 process와
+  등록 정보 보존을 확인했다.
+- main은 독립 가이드 변경과 출고 결과를 모두 보존한 통합 revision이다. release source/tag와
+  이후 main 통합·closeout revision을 구분하며 제품 소스는 tag와 같은지 확인했다.
+- 현재 계약은 `docs/ARCHITECTURE.md`, 배포 경계는 `docs/releases/v0.9.25.md`가 소유한다.
+  업데이트 직후 창 연결이 한 차례 실패해 기존 instance activation으로 복원한 뒤 native
+  smoke를 수행했다. 최초 창 연결 실패 원인은 미확정이며 다른 OS native 검증과 저장 장치
+  장애 주입은 범위 밖이다.
+
 ## Scoped History Expansion — v0.9.24
 
 - v0.9.23이 선택으로 나뉜 두 fold를 하나의 reference 구간으로 펼치던 회귀를 수정했다.

@@ -40,8 +40,20 @@
 
 ## Current Work
 
-활성 작업은 `docs/todo-recovery-focus-v0-9-25/spec.md`의 v0.9.25 복구·포커스 수정과
-beta 배포·updater 설치 검증이다.
+현재 active milestone은 없다. `v0.9.25` Apple Silicon macOS beta의 UTF-8 손상 복구와
+history control keyboard focus를 배포·설치 검증했다. 손상 원본은 byte 단위로 보존하고
+다음 정상 저장을 허용한다. 키보드 펼침·접기는 가상화와 구간 병합 뒤의 control 또는
+선택 행으로 포커스를 이어 간다. pointer scroll과 구간별 펼침을 유지한다.
+
+canonical gate와 독립 focused review, browser/native smoke, 같은 source/tag의 CI·Release,
+fresh public asset 6개·rolling manifest·설치 binary/서명·등록 정보 보존을 확인했다.
+main 통합 revision은 release source와 구분하며 제품 소스의 동일성을 확인했다.
+소유 계약은 `docs/ARCHITECTURE.md`, 배포 계약은 `docs/releases/v0.9.25.md`, 검증 범위는
+`docs/completed-milestones.md`다.
+
+업데이트 뒤 창 표시 문제가 재현되면 window visibility와 instance activation 경로를
+별도로 확인한다. 이번 설치 검증은 기존 창 활성화 후 수행했으며 최초 창 연결 실패
+원인은 확정하지 않았다.
 
 이전 milestone은 종료했다. `v0.9.24` Apple Silicon macOS beta의 scoped history
 expansion 수정과 공개 배포·updater 설치를 검증했다. 클릭한 fold만 펼치며 선택 context
