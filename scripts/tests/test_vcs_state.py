@@ -163,6 +163,9 @@ class JujutsuCloseoutTests(RepositoryTest):
         scripts.mkdir()
         for name in ("finalize-change.sh", "check-vcs-state.py"):
             shutil.copyfile(SCRIPTS / name, scripts / name)
+        runtime = self.root / ".ai-first"
+        runtime.mkdir()
+        shutil.copyfile(SCRIPTS.parent / ".ai-first/vcs.py", runtime / "vcs.py")
         gate = scripts / "check.sh"
         gate.write_text(f"#!/bin/sh\nexit {gate_exit}\n")
         gate.chmod(0o755)

@@ -76,3 +76,10 @@ directory·symlink가 사라졌는지 검사한다.
 WIP이거나 보존해야 할 unique work가 있으면 유지하고 소유자·재개점을 인계한다. 이런
 예외를 전체 closeout 통과로 합산하지 않는다. 로컬 workspace 검사는 CI가 대신할 수
 없으며, 생성 시 기록하지 않은 외부 clone을 파일시스템 전체에서 추정하지 않는다.
+
+## 공통 검사 소유권
+
+AI-first `vcs-closeout`이 pin한 `.ai-first/vcs.py`가 검사 구현을 소유한다.
+`scripts/check-vcs-state.py`는 기존 명령의 호환 진입점이며 repository 회귀 테스트와
+server-side main 규칙을 유지한다. 일반 standalone gate는 history만, 작업 종료 명령은
+명시적 closeout을 검사한다.

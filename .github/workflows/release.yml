@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  AI_FIRST_VCS_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   macos:
     name: macOS Apple Silicon prerelease
