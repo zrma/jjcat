@@ -1,5 +1,8 @@
 ## Project Overlay
 
+- VCS 통합·작업 마감은 `docs/VCS_WORKFLOW.md`를 따른다. `scripts/check-vcs-state.py`의
+  history 검사는 canonical gate/CI에 포함하고 로컬 closeout은 기본 workspace에서
+  별도로 검증한다. 보존할 active/WIP를 자동 정리하지 않는다.
 - 사용자 문제와 MVP 경계는 `docs/PRODUCT.md`, component/transport/security boundary는
   `docs/ARCHITECTURE.md`가 소유한다.
 - 현재 구현과 리스크는 `docs/status.md`, 우선순위는 `docs/roadmap.md`, 무컨텍스트

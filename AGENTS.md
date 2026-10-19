@@ -124,6 +124,9 @@
 
 ## Repository Overlay
 
+- 개발 저장소의 `main`은 선형 이력을 유지한다. 동시 변경이나 stale push를 merge로
+  우회하지 않으며 후보 history 검사와 task-owned 임시 사본 회수를 출고·마감 조건으로
+  확인한다. 계약과 명령은 `docs/VCS_WORKFLOW.md`가 소유한다.
 - 구현 여부는 code, test와 user-visible smoke가 기준이며 planned 기능을 implemented로
   표시하지 않는다.
 - local과 SSH transport는 같은 Repository Driver domain contract를 사용하고,

@@ -26,9 +26,11 @@ REQUIRED_PATHS = (
     "docs/completed-milestones.md",
     "docs/roadmap.md",
     "docs/status.md",
+    "docs/VCS_WORKFLOW.md",
     "scripts/check-agent-harness-interface.sh",
     "scripts/check-publication-boundary.py",
     "scripts/check-release-version.py",
+    "scripts/check-vcs-state.py",
     "scripts/check.sh",
     "scripts/create-updater-config.py",
     "scripts/create-updater-manifest.py",
@@ -36,10 +38,12 @@ REQUIRED_PATHS = (
     "scripts/package-macos-release.sh",
     "scripts/start-work.sh",
     "scripts/tests/test_updater_tools.py",
+    "scripts/tests/test_vcs_state.py",
     "scripts/verify-macos-release.sh",
     "scripts/verify-updater-manifest.py",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
+    ".github/main-ruleset.json",
     "package.json",
     "pnpm-lock.yaml",
     "src/App.tsx",
@@ -85,6 +89,15 @@ cargo_manifest = read("src-tauri/Cargo.toml")
 package_manifest = read("package.json")
 ci_workflow = read(".github/workflows/ci.yml")
 release_workflow = read(".github/workflows/release.yml")
+main_ruleset = json.loads(read(".github/main-ruleset.json"))
+if (
+    main_ruleset.get("target") != "branch"
+    or main_ruleset.get("enforcement") != "active"
+    or main_ruleset.get("bypass_actors") != []
+    or main_ruleset.get("conditions") != {"ref_name": {"include": ["refs/heads/main"], "exclude": []}}
+    or main_ruleset.get("rules") != [{"type": "required_linear_history"}]
+):
+    fail("main ruleset must require linear history for main only, without bypass actors")
 tauri_config = json.loads(read("src-tauri/tauri.conf.json"))
 tauri_capabilities = json.loads(read("src-tauri/capabilities/default.json"))
 app_source = read("src/App.tsx")
@@ -114,6 +127,9 @@ for fragment in (
     "start_work: scripts/start-work.sh --work-id <work-id>",
     "local: jj",
     "push_requires_explicit_permission: true",
+    "main_history: linear",
+    "history: python3 scripts/check-vcs-state.py",
+    "closeout: python3 scripts/check-vcs-state.py --closeout",
 ):
     if fragment not in manifest:
         fail(f"manifest is missing {fragment!r}")
@@ -331,6 +347,10 @@ for fragment in (
 
 for fragment in (
     "name: Install Jujutsu",
+    "fetch-depth: 0",
+    "name: Check proposed main history",
+    "github.event.pull_request.head.sha || github.sha",
+    'python3 scripts/check-vcs-state.py --revision "$HISTORY_REVISION"',
     "JJCAT_JJ_VERSION: 0.43.0",
     "JJCAT_JJ_X86_64_LINUX_SHA256: 59e5588583ac82b623239929368c65b90735931c0f26b5a16c1f04d5bb97643d",
     "sha256sum --check --strict",
@@ -341,6 +361,7 @@ for fragment in (
 
 for fragment in (
     "name: Install Jujutsu",
+    "fetch-depth: 0",
     "JJCAT_JJ_VERSION: 0.43.0",
     "JJCAT_JJ_AARCH64_MACOS_SHA256: 84336bbe5673a36ccc6395c494021ba632794da078eb8c8c513a60f8e1cc3083",
     "aarch64-apple-darwin.tar.gz",

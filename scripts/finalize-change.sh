@@ -8,13 +8,15 @@ Usage:
   scripts/finalize-change.sh --message "<type>: <summary>" [--bookmark main]
 
 Runs the canonical local gate. With --message, writes a jj change description
-with the configured Codex attribution and moves only the local bookmark.
+with the configured Codex attribution and opens a new empty working copy.
+Only an explicit --bookmark moves a local bookmark; use it within an approved
+publication transaction. By default main is unchanged.
 This script never pushes.
 USAGE
 }
 
 message=""
-bookmark="main"
+bookmark=""
 verify_only=0
 
 while [[ $# -gt 0 ]]; do
@@ -52,8 +54,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$verify_only" -eq 1 ]]; then
-  if [[ -n "$message" ]]; then
-    echo "--verify-only cannot be combined with --message" >&2
+  if [[ -n "$message" || -n "$bookmark" ]]; then
+    echo "--verify-only cannot be combined with --message or --bookmark" >&2
     exit 2
   fi
   scripts/check.sh
@@ -67,26 +69,35 @@ if [[ ! "$message" =~ ^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert):
   exit 1
 fi
 
-scripts/check.sh
-
-codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
-attribution=$(sed -nE 's/^[[:space:]]*commit_attribution[[:space:]]*=[[:space:]]*"([^"]*)"[[:space:]]*$/\1/p' \
-  "$codex_config" | head -n 1)
-if [[ -z "$attribution" ]]; then
-  echo "commit_attribution is not configured in $codex_config" >&2
+if [[ $(jj log -r @ --no-graph -T empty) == "true" ]]; then
+  echo "refusing to finalize an empty working copy" >&2
   exit 1
 fi
 
+attribution_file="${CODEX_HOME:-$HOME/.codex}/commit-attribution"
+attribution=$(cat "$attribution_file")
+if [[ -z "$attribution" || "$attribution" == *$'\n'* || "$attribution" == *$'\r'* ]]; then
+  echo "commit-attribution must contain one non-empty line" >&2
+  exit 1
+fi
+
+if [[ "$bookmark" == "main" ]]; then
+  python3 scripts/check-vcs-state.py --revision @
+fi
+scripts/check.sh
+
 helper="${CODEX_HOME:-$HOME/.codex}/skills/vcs-jj/scripts/describe_with_attribution.sh"
-if [[ ! -x "$helper" ]] || ! "$helper" -r @ -- "$message"; then
+if [[ -x "$helper" ]]; then
+  "$helper" -r @ -- "$message"
+else
   trailer="Co-authored-by: $attribution"
   normalized=$(MESSAGE="$message" TRAILER="$trailer" python3 - <<'PY'
 import os
 
 message = os.environ["MESSAGE"].replace("\r\n", "\n").replace("\r", "\n")
 trailer = os.environ["TRAILER"]
-lines = [line.rstrip() for line in message.splitlines() if line.strip() and line.rstrip() != trailer]
-print("\n".join(lines))
+lines = [line.rstrip() for line in message.splitlines() if line.rstrip() != trailer]
+print("\n".join(lines).rstrip())
 print()
 print(trailer)
 PY
@@ -106,6 +117,15 @@ if lines.count(trailer) != 1 or not lines or lines[-1] != trailer:
     raise SystemExit(1)
 PY
 
-jj bookmark set "$bookmark" -r @
-echo "local change finalized; no remote was changed"
+completed=$(jj log -r @ --no-graph -T commit_id)
+if [[ -n "$bookmark" ]]; then
+  jj bookmark set "$bookmark" -r "$completed"
+fi
+jj new "$completed"
+if [[ $(jj log -r @ --no-graph -T empty) != "true" ]] ||
+   [[ $(jj log -r 'parents(@)' --no-graph -T 'commit_id ++ "\n"') != "$completed" ]]; then
+  echo "local closeout did not produce the expected empty working copy" >&2
+  exit 1
+fi
+echo "local change finalized with an empty working copy; no remote was changed"
 jj status

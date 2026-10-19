@@ -25,6 +25,8 @@ checks:
   harness: scripts/check-agent-harness-interface.sh
   repository_contract: scripts/check-repository-contract.py
   publication: scripts/check-publication-boundary.py
+  history: python3 scripts/check-vcs-state.py
+  closeout: python3 scripts/check-vcs-state.py --closeout
 
 publication:
   content_standard: public-ready
@@ -50,6 +52,7 @@ vcs:
   default_bookmark: main
   change_message: "<type>: <summary>"
   push_requires_explicit_permission: true
+  main_history: linear
 
 runtime:
   status: selected

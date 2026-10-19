@@ -1,5 +1,14 @@
 # Project Status
 
+## VCS Maintenance
+
+개발 `main`의 선형 history를 local canonical gate와 CI의 실제 candidate head에서
+검사한다. local finalize는 기본 bookmark를 보존하고 검증된 change 뒤에 empty working
+copy를 만든다. 별도 closeout 검사는 보조 workspace·참조 없는 head·Git 등록과 지정한
+임시 경로를 검사하며 active/WIP를 자동 삭제하지 않는다. 계약은 `docs/VCS_WORKFLOW.md`다.
+원격 서버의 merge 거절 정책은 `.github/main-ruleset.json`이 선언하며 local/CI 검사와
+구분해 적용·검증한다.
+
 ## Current Milestone
 
 `v0.9.25` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 현재

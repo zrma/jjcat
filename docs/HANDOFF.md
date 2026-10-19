@@ -12,6 +12,9 @@
 4. tracked artifact를 바꾸면 `docs/PUBLICATION.md`의 public boundary를 적용한다.
 5. 활성 `docs/todo-*/spec.md`와 `open-questions.md`의 acceptance를 우선한다.
 6. focused test 뒤 `scripts/check.sh`로 닫는다.
+7. 개발 `main`의 선형 이력과 task-owned 임시 사본 회수는 `docs/VCS_WORKFLOW.md`를
+   따른다. 완료 시 기본 workspace에서 `scripts/check-vcs-state.py --closeout`으로
+   working copy·등록·head·종료 대상 경로를 별도로 확인한다.
 
 ## Current Baseline
 

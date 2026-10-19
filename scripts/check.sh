@@ -4,6 +4,7 @@ set -eu
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_root"
 
+python3 scripts/check-vcs-state.py
 scripts/check-agent-harness-interface.sh
 scripts/check-repository-contract.py
 scripts/check-release-version.py

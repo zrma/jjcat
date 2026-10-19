@@ -6,6 +6,24 @@
 activation을 현재 동작으로 적용하지 않는다. 완료 spec과 resolved 질문은 이 artifact들로
 이관했으며 새 active packet으로 복사하지 않는다.
 
+## Linear Main And Local VCS Closeout
+
+- 동시 변경의 merge 통합과 local change 종료만으로 임시 사본 회수를 완료한 것으로
+  판단하던 경계를 분리했다. 개발 `main`과 반영 후보의 전체 조상에서 merge를 검사하고,
+  shallow checkout은 거부한다. CI는 실제 PR head와 전체 history를 확인한다.
+- 서버 정책 입력은 `.github/main-ruleset.json`이며 `main`에만 선형 history를 요구한다.
+  기존 tag/release와 제품의 history shaping 기능은 이 정책의 대상이 아니다.
+- finalize helper는 기본 bookmark를 보존하고 configured attribution 뒤에 새 empty
+  working copy를 만든다. 검사나 attribution helper 실패 뒤에는 후속 mutation을 하지 않는다.
+- local closeout은 expected parent, empty working copy, 보조 workspace, 참조 없는
+  empty/non-empty head, Git 등록과 지정된 임시 directory/symlink를 각각 검사한다.
+  명시적으로 보존한 active workspace는 유지하며 검사기가 자동 삭제하지 않는다.
+- 실제 Git/JJ fixture 17개는 merge·shallow·별도 tag·detached CI, local-only finalize,
+  실패 시 중단, active workspace 보존과 각 잔여물 surface를 검사했다. 설치 버전과
+  CI pinned Jujutsu 0.43.0 양쪽에서 통과했다. canonical gate와 스킬 validation도 확인했다.
+  생성 시 기록하지 않은 외부 clone의 전수 발견이나 원격 서버의 고의 merge push 주입은
+  검증 범위 밖이다. 현재 계약은 `docs/VCS_WORKFLOW.md`가 소유한다.
+
 ## Registry Recovery And History Control Focus — v0.9.25
 
 - 기존 복구 검사는 UTF-8로 읽을 수 있는 invalid JSON만 다뤘다. 바이트 읽기 뒤 UTF-8

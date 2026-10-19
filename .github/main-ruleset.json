@@ -1,0 +1,15 @@
+{
+  "name": "Linear main history",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    { "type": "required_linear_history" }
+  ]
+}
