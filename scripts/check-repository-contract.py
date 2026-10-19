@@ -347,10 +347,6 @@ for fragment in (
 
 for fragment in (
     "name: Install Jujutsu",
-    "fetch-depth: 0",
-    "name: Check proposed main history",
-    "github.event.pull_request.head.sha || github.sha",
-    'python3 scripts/check-vcs-state.py --revision "$HISTORY_REVISION"',
     "JJCAT_JJ_VERSION: 0.43.0",
     "JJCAT_JJ_X86_64_LINUX_SHA256: 59e5588583ac82b623239929368c65b90735931c0f26b5a16c1f04d5bb97643d",
     "sha256sum --check --strict",

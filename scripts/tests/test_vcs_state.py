@@ -20,6 +20,7 @@ class RepositoryTest(unittest.TestCase):
         self.root = self.base / "repo"
         self.root.mkdir()
         self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
+        self.env.pop("AI_FIRST_VCS_SESSION", None)
 
     def run_command(self, *args, ok=True):
         result = subprocess.run(args, cwd=self.root, env=self.env, text=True, capture_output=True)
@@ -231,6 +232,34 @@ class JujutsuCloseoutTests(RepositoryTest):
         result = self.finalize(ok=False)
         self.assertIn("empty working copy", result.stderr)
         self.assertEqual(self.value("@", "commit_id"), before)
+
+    def test_finalizer_connects_the_started_session_before_main_move(self):
+        self.prepare_finalizer()
+        self.run_command("jj", "describe", "-m", "test: fixture tools")
+        self.run_command("jj", "bookmark", "set", "main", "-r", "@")
+        self.run_command("jj", "new", "main")
+        state = self.base / "session.json"
+        self.env["AI_FIRST_VCS_SESSION"] = str(state)
+        self.run_command("python3", ".ai-first/vcs.py", "start")
+        (self.root / "task-change").write_text("completed")
+        self.finalize("--bookmark", "main")
+        self.run_command("python3", ".ai-first/vcs.py", "finish")
+        self.assertEqual(self.value("@", "empty"), "true")
+
+    def test_missing_session_stops_finalizer_before_main_move(self):
+        self.prepare_finalizer()
+        self.env["AI_FIRST_VCS_SESSION"] = str(self.base / "missing.json")
+        before = self.value("main", "commit_id")
+        self.assertNotEqual(self.finalize("--bookmark", "main", ok=False).returncode, 0)
+        self.assertEqual(self.value("main", "commit_id"), before)
+
+    def test_native_start_rejects_missing_session_before_creating_packet(self):
+        self.prepare_finalizer()
+        shutil.copyfile(SCRIPTS / "start-work.sh", self.root / "scripts/start-work.sh")
+        self.env["AI_FIRST_VCS_SESSION"] = str(self.base / "missing.json")
+        result = self.run_command("bash", "scripts/start-work.sh", "--work-id", "fixture-task", ok=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.root / "docs/todo-fixture-task").exists())
 
 
 if __name__ == "__main__":

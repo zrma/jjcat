@@ -20,20 +20,19 @@ python3 scripts/check-vcs-state.py
 python3 scripts/check-vcs-state.py --revision <candidate-revision>
 ```
 
-기본 검사는 local `main`의 전체 조상을 확인한다. jj metadata가 없는 CI에서는 Git의
-`main` 또는 `origin/main`을 사용한다. 명시한 후보는 정확히 하나의 commit으로 해석돼야
-한다. shallow history는 판정 근거가 부족하므로 실패한다. CI와 release checkout은 전체
-history를 읽고, CI는 PR의 synthetic merge가 아닌 실제 head를 별도로 검사한다.
+이 검사는 로컬 통합 후보에 명시적으로 실행한다. 일반 `scripts/check.sh`와 CI는 제품과
+생성물 무결성을 검사하며 로컬 작업의 소유권·종료를 대신하지 않는다. 로컬 선형 통합은
+아래 세션 절차로 연결한다. 기존 원격 규칙과 release ref는 이 도입에서 변경하지 않는다.
 
-`scripts/check.sh`는 이 검사를 포함한다. CI의 실패는 공개 뒤의 backstop이며,
-원격 서버의 merge 거절을 대신하는 것으로 보고하지 않는다.
+## Agent task session
 
-서버 정책의 입력은 `.github/main-ruleset.json`이다. branch `refs/heads/main`에만
-`required_linear_history`를 active 상태로 적용하고 bypass actor를 두지 않는다.
-tag/release에는 적용하지 않는다. 적용 전 기존 ruleset을 조회해 중복 생성을 피하고,
-적용 후에는 ruleset 자체와 `rules/branches/main`의 실제 적용 규칙을 각각 재조회한다.
-현재 remote 설정의 권한·지원 여부를 확인하고 승인된 repository administration
-범위에서 적용한다. GitHub 서버가 merge push를 거절하는 규칙과 local/CI 검사를 구분한다.
+첫 수정 전에 canonical root에서 `python3 .ai-first/vcs.py start --state
+<private-session-file>`을 실행하고 `AI_FIRST_VCS_SESSION`으로 native helper에 전달한다.
+`start-work.sh`는 resume을 확인한다. 사본 생성 전 `own --path <new-task-copy>`로 기록한다.
+검증·description 뒤 `integrate --revision <candidate>`를 실행하며 승인된 push 직전에는
+fetch 후 `--remote origin`으로 실제 remote를 대조한다. stale이면 미출고 변경만 선형
+재적용한다. 고유 결과를 durable bookmark로 보존하고 해당 사본을 회수한 뒤 canonical
+root에서 `finish`가 성공해야 완료를 보고한다. 실패 시 기존 기록과 WIP를 보존한다.
 
 ## Local Change Finalization
 
@@ -81,5 +80,4 @@ WIP이거나 보존해야 할 unique work가 있으면 유지하고 소유자·�
 
 AI-first `vcs-closeout`이 pin한 `.ai-first/vcs.py`가 검사 구현을 소유한다.
 `scripts/check-vcs-state.py`는 기존 명령의 호환 진입점이며 repository 회귀 테스트와
-server-side main 규칙을 유지한다. 일반 standalone gate는 history만, 작업 종료 명령은
-명시적 closeout을 검사한다.
+기존 CLI를 유지한다. standalone은 generated 무결성, 로컬 세션은 시작·통합·종료를 검사한다.

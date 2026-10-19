@@ -33,6 +33,10 @@ if [[ ! "$work_id" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
   exit 1
 fi
 
+if [[ -n "${AI_FIRST_VCS_SESSION:-}" ]]; then
+  python3 .ai-first/vcs.py resume
+fi
+
 todo_dir="docs/todo-$work_id"
 mkdir -p "$todo_dir"
 

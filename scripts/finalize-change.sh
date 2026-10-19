@@ -118,6 +118,9 @@ if lines.count(trailer) != 1 or not lines or lines[-1] != trailer:
 PY
 
 completed=$(jj log -r @ --no-graph -T commit_id)
+if [[ -n "${AI_FIRST_VCS_SESSION:-}" ]]; then
+  python3 .ai-first/vcs.py integrate --revision "$completed"
+fi
 if [[ -n "$bookmark" ]]; then
   jj bookmark set "$bookmark" -r "$completed"
 fi
