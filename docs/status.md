@@ -11,6 +11,9 @@ copy를 만든다. 별도 closeout 검사는 보조 workspace·참조 없는 hea
 
 ## Current Milestone
 
+`v0.9.26` Apple Silicon macOS beta는 Rustls `0.23.46`을 반영하는 보안 릴리스다.
+다운로드와 signed updater 절차는 `docs/releases/v0.9.26.md`가 소유한다.
+
 `v0.9.25` Apple Silicon macOS beta를 배포하고 native updater 설치까지 검증했다. 현재
 active milestone은 없다. 잘못되거나 잘린 UTF-8 등록 파일은 원본 바이트를 손상 backup으로
 보존하고 빈 상태로 복구한다. 기존 backup·미래 schema와 실제 I/O 오류 보호를 유지한다.
