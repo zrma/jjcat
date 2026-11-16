@@ -278,18 +278,25 @@ if "TAURI_SIGNING_PRIVATE_KEY" in configuration_block:
 
 for fragment in (
     '"@tauri-apps/plugin-process": "~2.3.1"',
-    '"@tauri-apps/plugin-updater": "~2.10.1"',
+    '"@tauri-apps/plugin-updater": "~2.14.1"',
 ):
     if fragment not in package_manifest:
         fail(f"frontend updater dependency is missing {fragment!r}")
 
 for fragment in (
     'tauri-plugin-process = "2.3.1"',
-    'tauri-plugin-updater = "2.10.1"',
     'minisign-verify = "0.2.5"',
 ):
     if fragment not in cargo_manifest:
         fail(f"native updater dependency is missing {fragment!r}")
+
+native_updater = tomllib.loads(cargo_manifest).get("dependencies", {}).get("tauri-plugin-updater")
+if native_updater != {
+    "version": "2.14.1",
+    "default-features": False,
+    "features": ["rustls-tls", "zip"],
+}:
+    fail("native updater must enable Rustls and signed archive support")
 
 permissions = set(tauri_capabilities.get("permissions", []))
 if not {
