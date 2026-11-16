@@ -11,6 +11,9 @@ copy를 만든다. 별도 closeout 검사는 보조 workspace·참조 없는 hea
 
 ## Current Milestone
 
+`v0.9.27` Apple Silicon macOS beta는 Tauri 업데이터 `2.14.1`을 사용한다.
+배포와 업데이트 절차는 `docs/releases/v0.9.27.md`를 따른다.
+
 `v0.9.26` Apple Silicon macOS beta는 Rustls `0.23.46`을 반영하는 보안 릴리스다.
 다운로드와 signed updater 절차는 `docs/releases/v0.9.26.md`가 소유한다.
 

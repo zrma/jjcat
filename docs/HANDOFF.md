@@ -43,6 +43,9 @@
 
 ## Current Work
 
+`v0.9.27` Apple Silicon macOS beta는 `zip` 보안 패치가 반영된 소스에서 빌드한다.
+`v0.9.26`에서의 업데이트 절차는 `docs/releases/v0.9.27.md`를 따른다.
+
 `v0.9.26` Apple Silicon macOS beta에 Rustls `0.23.46`을 반영했다. 배포와
 `v0.9.25`에서의 업데이트 절차는 `docs/releases/v0.9.26.md`를 따른다.
 
