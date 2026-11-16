@@ -43,6 +43,9 @@
 
 ## Current Work
 
+`v0.9.26` Apple Silicon macOS beta에 Rustls `0.23.46`을 반영했다. 배포와
+`v0.9.25`에서의 업데이트 절차는 `docs/releases/v0.9.26.md`를 따른다.
+
 현재 active milestone은 없다. `v0.9.25` Apple Silicon macOS beta의 UTF-8 손상 복구와
 history control keyboard focus를 배포·설치 검증했다. 손상 원본은 byte 단위로 보존하고
 다음 정상 저장을 허용한다. 키보드 펼침·접기는 가상화와 구간 병합 뒤의 control 또는
